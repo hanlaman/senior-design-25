@@ -13,10 +13,10 @@
 Our project focuses on developing a wearable AI companion for individuals with dementia. The device provides personalized memory support, reminders, and guidance while offering emergency assistance and caregiver connectivity. It uses a friendly, customizable voice to help users recall who they are, where they are, and what they’re doing, adapting over time to their cognitive needs. The companion app allows caregivers to monitor activity, manage reminders, and receive notifications about the user’s well-being. Our goal is to improve independence, safety, and quality of life for users while supporting caregivers in daily routines.
 
 ## Roles of Team Members
-- **Hannah Laman:** Project Lead – Oversees project management, AI functionality, and app integration.  
-- **Spencer Will:** Wearable Device Development – Focuses on hardware design, sensor integration, and device testing.  
-- **Dylan Francis:** Software Development – Leads AI programming, data management, and conversation adaptation.  
-- **Austin Spencer:** User Experience & Testing – Designs UI/UX for the companion app and leads usability testing.  
+- **TBD:** Project Lead – Oversees project management, AI functionality, and app integration.  
+- **TBD:** Wearable Device Development – Focuses on hardware design, sensor integration, and device testing.  
+- **TBD:** Software Development – Leads AI programming, data management, and conversation adaptation.  
+- **TBD:** User Experience & Testing – Designs UI/UX for the companion app and leads usability testing.  
 
 ## Team Meetings
 - **Frequency:** Weekly team meetings, with additional meetings scheduled as needed for project milestones.  
