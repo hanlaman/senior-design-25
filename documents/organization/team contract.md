@@ -29,5 +29,5 @@ Our project focuses on developing a wearable AI companion for individuals with d
 - Team members will provide regular updates and participate collaboratively to ensure project goals are met.  
 
 ## Advisor Approval
-- **Faculty Advisor Name:** [Advisor Name]  
-- **Approval Evidence:** [Email or Signature confirming approval]
+- **Faculty Advisor Name:** Badri Vellambi  
+- **Approval Evidence:** see Canvas
