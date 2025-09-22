@@ -8,8 +8,6 @@ Based on the modules and subsystems identified in your completed Design Diagrams
 
 4) Make sure that task statements use language consistent with your project description, design diagrams, and all project documentation.
 
-5) Add your tasklist as a markdown file (Tasklist.md) to your project repository.
-
 # Task List
 ### 1. Task
 - TBD
@@ -58,5 +56,20 @@ Based on the modules and subsystems identified in your completed Design Diagrams
 - TBD
 - Team Member:
 ### 15. Task
+- TBD
+- Team Member:
+### 16. Task
+- TBD
+- Team Member:
+### 17. Task
+- TBD
+- Team Member:
+### 18. Task
+- TBD
+- Team Member:
+### 19. Task
+- TBD
+- Team Member:
+### 20. Task
 - TBD
 - Team Member:
