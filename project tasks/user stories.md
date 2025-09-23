@@ -3,4 +3,4 @@
 2. As a caregiver, I want to receive alerts and notifications from the AI system, so that I can monitor the safety and well-being of my loved one.
 3. As a primary care provider, I want the AI companion to send me emergency alerts when the patient is confused or unsafe, so that I can respond quickly and ensure proper medical care.
 4. As a family member, I want the AI’s voice to be customized to sound like someone familiar, so that my loved one feels comforted and less anxious.
-5. As a smart home user, I want the AI companion to integrate with devices like lights and stoves, so that I can receive reminders and avoid dangerous situations at home.
+
