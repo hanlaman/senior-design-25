@@ -24,3 +24,10 @@
   	hours: .5
    	members present: HL
 	tasks: team contract draft
+
+### 9/22/25:
+	time in: 8:30 p.m.
+	time out: 10:30 p.m.
+	hours: 2
+	members present: HL, SW, DF, AS
+	tasks: user stories, design diagrams
