@@ -9,6 +9,7 @@ Based on the modules and subsystems identified in your completed Design Diagrams
 4) Make sure that task statements use language consistent with your project description, design diagrams, and all project documentation.
 
 # Task List
+## Voice Interaction
 ### 1. Research and specify speech recognition methods optimized for dementia users in wearable devices.
 - Team Member:
 ### 2. Design the conversation flow logic for responding to orientation questions such as “Who am I?” and “Where am I?”.
@@ -19,6 +20,7 @@ Based on the modules and subsystems identified in your completed Design Diagrams
 - Team Member:
 ### 5. Refine the user interaction model to ensure clarity, comfort, and ease of use for dementia patients.
 - Team Member:
+## Memory Support
 ### 6. Specify the structure and content categories for the personal memory support database.
 - Team Member:
 ### 7. Develop the information retrieval algorithm that delivers reminders and personal details to the user.
@@ -29,6 +31,7 @@ Based on the modules and subsystems identified in your completed Design Diagrams
 - Team Member:
 ### 10. Document workflows for how personal information is stored, updated, and retrieved by the AI.
 - Team Member:
+## Emergency Handling
 ### 11. Define emergency detection thresholds, including manual triggers and repeated confusion signals.
 - Team Member:
 ### 12. Develop the emergency escalation protocol for contacting caregivers and primary care providers.
@@ -39,6 +42,7 @@ Based on the modules and subsystems identified in your completed Design Diagrams
 - Team Member:
 ### 15. Document safeguards to reduce false alarms while ensuring critical alerts are always delivered.
 - Team Member:
+## Caregiver App + Smart Home Integration
 ### 16. Design caregiver app wireframes showing reminders, alerts, and patient information dashboards.
 - Team Member:
 ### 17. Develop secure data synchronization between the wearable AI device and caregiver app.
