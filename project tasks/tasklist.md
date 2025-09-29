@@ -9,70 +9,43 @@ Based on the modules and subsystems identified in your completed Design Diagrams
 4) Make sure that task statements use language consistent with your project description, design diagrams, and all project documentation.
 
 # Task List
-### 1. Conduct full system integration testing across all modules.
-- TBD
+### 1. Research and specify speech recognition methods optimized for dementia users in wearable devices.
 - Team Member:
-### 2. Task
-- TBD
+### 2. Design the conversation flow logic for responding to orientation questions such as “Who am I?” and “Where am I?”.
 - Team Member:
+### 3. Develop the text-to-speech pipeline with customizable family or friendly voices.
 - Team Member:
-### 3. Task
-- TBD
+### 4. Test the accuracy of word detection and response timing in noisy environments.
 - Team Member:
+### 5. Refine the user interaction model to ensure clarity, comfort, and ease of use for dementia patients.
 - Team Member:
-### 4. Task
-- TBD
+### 6. Specify the structure and content categories for the personal memory support database.
 - Team Member:
+### 7. Develop the information retrieval algorithm that delivers reminders and personal details to the user.
 - Team Member:
-### 5. Task
-- TBD
+### 8. Integrate caregiver-provided updates into the memory system with secure data handling.
 - Team Member:
+### 9. Test the adaptability of memory prompts for early, mid, and advanced dementia stages.
 - Team Member:
-## Memory Support
-### 6. Design and implement the memory support module for personal information retrieval and reminders.
-- TBD
+### 10. Document workflows for how personal information is stored, updated, and retrieved by the AI.
 - Team Member:
-### 7. Document workflows for retrieving and delivering memory prompts.
-- TBD
+### 11. Define emergency detection thresholds, including manual triggers and repeated confusion signals.
 - Team Member:
-### 8. Validate memory support accuracy and responsiveness with user scenarios.
-- TBD
+### 12. Develop the emergency escalation protocol for contacting caregivers and primary care providers.
 - Team Member:
-### 9. Task
-- TBD
+### 13. Implement GPS-based location sharing for emergency alerts.
 - Team Member:
-### 10. Task
-- TBD
+### 14. Test the reliability of emergency communications under varying connectivity conditions.
 - Team Member:
-## Emergency Module
-### 11. Specify requirements and thresholds for emergency detection (confusion indicators, “I need help” triggers).
-- TBD
+### 15. Document safeguards to reduce false alarms while ensuring critical alerts are always delivered.
 - Team Member:
-### 12. Develop escalation protocols for contacting caregivers and medical providers.
-- TBD
+### 16. Design caregiver app wireframes showing reminders, alerts, and patient information dashboards.
 - Team Member:
-### 13. Implement GPS/location-sharing features for emergency mode.
-- TBD
+### 17. Develop secure data synchronization between the wearable AI device and caregiver app.
 - Team Member:
-### 14. Test communication reliability for emergency alerts under varying conditions.
-- TBD
+### 18. Test caregiver notifications for accuracy, timeliness, and usability.
 - Team Member:
-### 15. Document safeguards against false alarms and missed alerts.
-- TBD
+### 19. Develop middleware for integrating smart home devices.
 - Team Member:
-## Caregiver App
-### 16. Design the caregiver app interface for managing reminders, alerts, and personal data.
-- TBD
-- Team Member:
-### 17. Build communication channels between wearable device, AI backend, and caregiver app.
-- TBD
-- Team Member:
-### 18. Test notification reliability and data synchronization in the app.
-- TBD
-- Team Member:
-### 19. Task
-- TBD
-- Team Member:
-### 20. Task
-- TBD
+### 20. Validate the reliability of smart home–triggered reminders and alerts across different ecosystems.
 - Team Member:
