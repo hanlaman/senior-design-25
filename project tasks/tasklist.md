@@ -53,4 +53,4 @@ Based on the modules and subsystems identified in your completed Design Diagrams
 - Team Member: Hannah Laman
 ### 20. Validate the reliability of smart home–triggered reminders and alerts across different ecosystems. **
 - Team Member: Hannah Laman
-** research / reach goal
+### ** research / reach goal
