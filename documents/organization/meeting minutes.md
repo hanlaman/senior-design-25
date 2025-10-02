@@ -31,3 +31,8 @@
 	hours: 2
 	members present: HL, SW, DF, AS
 	tasks: user stories, design diagrams
+
+### 10/2/25:
+	time in: 10:45 a.m.
+	members present: HL, SW, DF, AS
+	tasks: effort matrix, timeline
