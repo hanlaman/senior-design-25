@@ -6,3 +6,22 @@
 
 - 'Memory' storage and recollection.
 - Define tech stack
+
+### Front End:
+- #### Phone App
+ - Patient Portal
+   - conversational interface
+   - emergency monitoring (limited)
+ - Caregiver Portal
+   - statistic (historical)
+   - receive notification alerts
+   - push notification
+   - device monitoring
+- #### Watch
+  - Conversational Interface
+    - voice transcription
+    - sound recognition (tone/yells/cries)
+  - Emergency Monitoring
+    - optional: text-to-speech
+    - health monitoring
+    - fall detection
