@@ -11,17 +11,29 @@
 - #### Phone App
  - Patient Portal
    - conversational interface
-   - emergency monitoring (limited)
+   - monitoring (limited)
  - Caregiver Portal
    - statistic (historical)
    - receive notification alerts
    - push notification
    - device monitoring
-- #### Watch
+- #### Device (Bluetooth)
   - Conversational Interface
     - voice transcription
     - sound recognition (tone/yells/cries)
-  - Emergency Monitoring
+  - Monitoring
     - optional: text-to-speech
     - health monitoring
     - fall detection
+
+### Back End
+----------------------------------------------------------------------------------------------->
+conversational interface ----> transcription, sound classification, opt. audio file ----> conversation API
+conversational interface < ---- response text/voice* (*TBD)  <---- conversation API
+monitoring (limited) ----> monitoring events ----> monitoring API
+statistic (historical) <---- request/response <---- monitoring API
+receive notification alerts <---- alerts <---- monitoring API
+push notification to patient <---- reminders <---- monitoring API
+
+
+<-----------------------------------------------------------------------------------------------
