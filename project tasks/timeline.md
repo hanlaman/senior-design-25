@@ -12,7 +12,7 @@
 | 8. Caregiver App & Smart Home Integration (Tasks 16–20) | 1/09/2026 | 2/05/2026 | Caregiver app prototype + smart home demo |
 | 9. Device (Bluetooth Wearable) Prototype | 1/15/2026 | 2/28/2026 | Functional wearable with audio + Bluetooth |
 | 10. System Integration & Final Testing | 3/01/2026 | 3/28/2026 | Full system integration and performance test |
-| 11. Final Presentation & Design Report Submission | 3/39/2026 | 4/04/2026 | Final Senior Design Presentation + Report submitted |
+| 11. Final Presentation & Design Report Submission | 3/29/2026 | 4/04/2026 | Final Senior Design Presentation + Report submitted |
 
 ---
 
