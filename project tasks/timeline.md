@@ -10,14 +10,14 @@
 | 6. Memory Support Module (Tasks 6–10) | 11/10/2025 | 12/10/2025 | Functional memory storage and recall |
 | 7. Emergency Handling Module (Tasks 11–15) | 1/09/2026 | 2/05/2026 | Emergency alert system working |
 | 8. Caregiver App & Smart Home Integration (Tasks 16–20) | 1/09/2026 | 2/05/2026 | Caregiver app prototype + smart home demo |
-| 9. Device (Bluetooth Wearable) Prototype | 1/15/2026 | 2/15/2026 | Functional wearable with audio + Bluetooth |
-| 10. System Integration & Final Testing | 2/16/2026 | 2/28/2026 | Full system integration and performance test |
-| 11. Final Presentation & Design Report Submission | 3/01/2026 | 3/01/2026 | Final Senior Design Presentation + Report submitted |
+| 9. Device (Bluetooth Wearable) Prototype | 1/15/2026 | 2/28/2026 | Functional wearable with audio + Bluetooth |
+| 10. System Integration & Final Testing | 3/01/2026 | 3/28/2026 | Full system integration and performance test |
+| 11. Final Presentation & Design Report Submission | 3/39/2026 | 4/04/2026 | Final Senior Design Presentation + Report submitted |
 
 ---
 
 **Notes:**  
-- Timeline spans **September 2025 – March 2026** (CS5001 & CS5002).  
+- Timeline spans **September 2025 – April 2026** (CS5001 & CS5002).  
 - Fall semester emphasizes research, design, and subsystem development.  
 - Spring semester emphasizes integration, testing, and final documentation.  
 - Each milestone corresponds to major deliverables reviewed by the faculty advisor.  
