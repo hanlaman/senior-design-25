@@ -1,4 +1,4 @@
-## Effort Matrix
+## Table 2. Effort Matrix
 
 | **Task #** | **Task Summary** | **Primary Responsible Member** | **Spencer Will** | **Dylan Francis** | **Austin Spencer** | **Hannah Laman** |
 |-------------|------------------|--------------------------------|------------------|------------------|------------------|------------------|
@@ -24,3 +24,7 @@
 | 20 | Validate smart home reminders | Hannah Laman | 10% | 10% | 10% | **40%** |
 
 ---
+
+**Notes:**  
+- Each member is the primary owner of five core tasks (~40% effort).  
+- The remaining effort (10–20%) represents collaborative work, integration, and testing.  
