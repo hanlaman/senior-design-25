@@ -1,1 +1,6 @@
-{ "recommendations": ["expo.vscode-expo-tools"] }
+{
+  "recommendations": [
+    "ms-azuretools.vscode-azurefunctions",
+    "expo.vscode-expo-tools"
+  ]
+}
