@@ -4,7 +4,7 @@
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
   },
-  "azureFunctions.deploySubpath": "user-api",
+  "azureFunctions.deploySubpath": "caregiver-api",
   "azureFunctions.postDeployTask": "npm install (functions)",
   "azureFunctions.projectLanguage": "TypeScript",
   "azureFunctions.projectRuntime": "~4",
