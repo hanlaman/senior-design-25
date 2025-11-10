@@ -12,15 +12,15 @@
 
 ## 📘 Table of Contents
 1. [Abstract](Abstract.md)
-2. [Team and Project Description](ProjectDescription.md)
-3. [User Stories and Design Diagrams](03_User_Stories_and_Diagrams/User_Stories.md)
-4. [Project Tasks and Timeline](04_Project_Tasks_and_Timeline/Task_List.md)
-5. [ABET Concerns Essay](05_ABET_Concerns_Essay.md)
-6. [Presentation Slides](06_Presentation_Slides.pdf)
-7. [Self-Assessment Essays](07_Self_Assessments/)
-8. [Professional Biographies](08_Professional_Biographies.md)
-9. [Budget](09_Budget.md)
-10. [Appendix](Appendix/References.md)
+3. [Team and Project Description](ProjectDescription.md)
+4. [User Stories and Design Diagrams](03_User_Stories_and_Diagrams/User_Stories.md)
+5. [Project Tasks and Timeline](04_Project_Tasks_and_Timeline/Task_List.md)
+6. [ABET Concerns Essay](05_ABET_Concerns_Essay.md)
+7. [Presentation Slides](06_Presentation_Slides.pdf)
+8. [Self-Assessment Essays](07_Self_Assessments/)
+9. [Professional Biographies](08_Professional_Biographies.md)
+10. [Budget](09_Budget.md)
+11. [Appendix](Appendix/References.md)
 
 ---
 
