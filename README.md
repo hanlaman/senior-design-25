@@ -11,8 +11,8 @@
 ---
 
 ## 📘 Table of Contents
-1. [Team and Abstract](01_Team_and_Abstract.md)
-2. [Project Description](ProjectDescription.md)
+1. [Abstract](Abstract.md)
+2. [Team and Project Description](ProjectDescription.md)
 3. [User Stories and Design Diagrams](03_User_Stories_and_Diagrams/User_Stories.md)
 4. [Project Tasks and Timeline](04_Project_Tasks_and_Timeline/Task_List.md)
 5. [ABET Concerns Essay](05_ABET_Concerns_Essay.md)
