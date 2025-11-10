@@ -11,7 +11,7 @@ how# Wearable AI Companion for Memory Support
 ---
 
 ## 📘 Table of Contents
-1. [Abstract](Fall2025Documents/1:Abstract/Abstract.md)
+1. [Abstract](Fall_2025_Documents/1:_Abstract)
 3. [Team and Project Description](ProjectDescription.md)
 4. [User Stories and Design Diagrams](03_User_Stories_and_Diagrams/User_Stories.md)
 5. [Project Tasks and Timeline](04_Project_Tasks_and_Timeline/Task_List.md)
