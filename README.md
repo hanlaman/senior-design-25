@@ -12,16 +12,17 @@
 
 ## 📘 Table of Contents
 
-1. [Team and Abstract](Fall%202025%20Documents/1:%20Team%20and%20Abstract/)
-2. [Project Description](Fall%202025%20Documents/2:%20Project%20Description/)
-3. [User Stories and Design Diagrams](Fall%202025%20Documents/3:%20User%20Stories%20and%20Design%20Diagrams/)
-4. [Project Tasks and Timeline](Fall%202025%20Documents/4:%20Project%20Tasks%20and%20Timeline)
-5. [ABET Concerns Essay](Fall%202025%20Documents/5:%20ABET%20Concerns%20Essay)
-6. [PowerPoint Slideshow](Fall%202025%20Documents/6:%20Powerpoint%20Slideshow)
-7. [Self Assessment Essays](Fall%202025%20Documents/7:%20Self%20Assessment%20Essays)
-8. [Professional Biographies](Fall%202025%20Documents/8:%20Professional%20Biographies)
-9. [Budget](Fall%202025%20Documents/9:%20Budget)
-10. [Appendix](Fall%202025%20Documents/10:%20Appendix)
+1. [Team and Abstract](Fall%202025%20Documents/1:%20Team_and_Abstract/)
+2. [Project Description](Fall%202025%20Documents/2:%20Project_Description/)
+3. [User Stories and Design Diagrams](Fall%202025%20Documents/3:%20User_Stories_and_Design_Diagrams/)
+4. [Project Tasks and Timeline](Fall%202025%20Documents/4:%20Project_Tasks_and_Timeline/)
+5. [ABET Concerns Essay](Fall%202025%20Documents/5:%20ABET_Concerns_Essay/)
+6. [Slideshow](Fall%202025%20Documents/6:%20Slideshow/)
+7. [Self-Assessment Essays](Fall%202025%20Documents/7:%20Self-Assessment_Essays/)
+8. [Professional Biographies](Fall%202025%20Documents/8:%20Professional_Biographies/)
+9. [Budget](Fall%202025%20Documents/9:%20Budget/)
+10. [Appendix](Fall%202025%20Documents/10:%20Appendix/)
+
 
 
 ---
