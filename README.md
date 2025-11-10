@@ -20,7 +20,7 @@
 6. [Slideshow](Fall%202025%20Documents/6:%20Slideshow/)
 7. [Self-Assessment Essays](Fall%202025%20Documents/7:%20Self-Assessment_Essays/)
 8. [Professional Biographies](Fall%202025%20Documents/8:%20Professional_Biographies/)
-9. [Budget](Fall%202025%20Documents/9:%20Budget/)
+9. [Budget](Fall%202025%20Documents/9:Budget/)
 10. [Appendix](Fall%202025%20Documents/10:%20Appendix/)
 
 
