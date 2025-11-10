@@ -1,1 +1,0 @@
-All team members equally contributed 45 hours of work to this project. 
