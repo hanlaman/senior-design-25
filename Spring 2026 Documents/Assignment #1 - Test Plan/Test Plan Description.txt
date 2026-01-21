@@ -1,3 +1,0 @@
-Provide one to three paragraphs describing general testing strategies employed by your project.
-
-
