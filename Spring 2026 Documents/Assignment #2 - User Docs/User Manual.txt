@@ -1,0 +1,12 @@
+User Documentation and User Manual 
+This is a Group Assignment
+
+Create web pages and links (using markdown in your repo) for a user guide and user manual, so that users have a "howto" resource to refer to for interacting with your project.
+
+The goal of this assignment is to give users clearly written directions for how to use your particular project or system. Most user guides contain both written explanations, installation guides, and screenshots. The language used in the guide should match to the level of the intended or typical user. Jargon should be kept to a minimum or explained thoroughly. Your doc pages should include an FAQ, which is helpful to address common questions or concerns of users.
+
+Here are some model user guides that you may consider emulating.
+Wikipedia – Getting Started http://en.wikipedia.org/wiki/Help:Contents/Getting_startedLinks to an external site.
+Mozilla Firefox User Guide http://www.mozilla.org/en-US/firefox/central/Links to an external site.
+Git – Getting Started Guide http://git-scm.com/book/en/Getting-StartedLinks to an external site.
+
