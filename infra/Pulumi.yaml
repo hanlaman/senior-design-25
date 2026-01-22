@@ -1,0 +1,10 @@
+name: senior-design-26
+description: Azure infrastructure for our CS Senior Design project
+runtime:
+  name: nodejs
+  options:
+    packagemanager: pnpm
+config:
+  pulumi:tags:
+    value:
+      pulumi:template: azure-typescript
