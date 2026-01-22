@@ -8,3 +8,10 @@ config:
   pulumi:tags:
     value:
       pulumi:template: azure-typescript
+packages:
+  azure-native_cognitiveservices_v20250401preview:
+    source: azure-native
+    version: 3.12.1
+    parameters:
+      - cognitiveservices
+      - 2025-04-01-preview
