@@ -2,17 +2,32 @@
 //  PatientAlert.swift
 //  caregiverapp
 //
+//  ═══════════════════════════════════════════════════════════════════════════════
+//  SWIFT BASICS: ENUMS WITH PROPERTIES, SWITCH STATEMENTS, COMPARABLE
+//  ═══════════════════════════════════════════════════════════════════════════════
 
 import Foundation
-import SwiftUI
+import SwiftUI  // For Color type
 
 struct PatientAlert: Identifiable, Codable {
     let id: UUID
+
+    // ┌─────────────────────────────────────────────────────────────────────────┐
+    // │ USING CUSTOM ENUMS AS PROPERTY TYPES                                    │
+    // │                                                                         │
+    // │ Instead of storing type as a String (error-prone, no autocomplete),    │
+    // │ we use our AlertType enum. This provides:                              │
+    // │   - Type safety (can only be valid values)                             │
+    // │   - Autocomplete in Xcode                                              │
+    // │   - Compiler catches typos                                             │
+    // │   - Associated behavior (icon, color, displayName)                     │
+    // └─────────────────────────────────────────────────────────────────────────┘
     let type: AlertType
     let severity: AlertSeverity
     let title: String
     let message: String
     let timestamp: Date
+
     var isAcknowledged: Bool
     var acknowledgedAt: Date?
     var acknowledgedBy: String?
@@ -39,6 +54,22 @@ struct PatientAlert: Identifiable, Codable {
         self.acknowledgedBy = acknowledgedBy
     }
 
+    // ┌─────────────────────────────────────────────────────────────────────────┐
+    // │ COMPUTED PROPERTY WITH COMPLEX LOGIC                                    │
+    // │                                                                         │
+    // │ timeAgo calculates a human-readable string like "5m ago", "2h ago"     │
+    // │                                                                         │
+    // │ MULTIPLE RETURN STATEMENTS:                                             │
+    // │ A function/computed property can have multiple return statements.      │
+    // │ Execution stops at the first return reached.                           │
+    // │                                                                         │
+    // │ STRING INTERPOLATION:                                                   │
+    // │   "\(expression)" embeds values in strings                             │
+    // │   "\(Int(interval / 60))m ago" → "5m ago"                              │
+    // │                                                                         │
+    // │ TYPE CASTING:                                                           │
+    // │   Int(someDouble) converts Double to Int (truncates decimals)          │
+    // └─────────────────────────────────────────────────────────────────────────┘
     var timeAgo: String {
         let interval = Date().timeIntervalSince(timestamp)
         if interval < 60 {
@@ -53,6 +84,18 @@ struct PatientAlert: Identifiable, Codable {
     }
 }
 
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │ CaseIterable PROTOCOL                                                       │
+// │                                                                             │
+// │ CaseIterable adds 'allCases' - an array of all enum values.                │
+// │ Perfect for building menus, filters, or iterating through options.         │
+// │                                                                             │
+// │   AlertType.allCases  // [.fall, .heartRate, .geofence, ...]              │
+// │                                                                             │
+// │   ForEach(AlertType.allCases, id: \.self) { type in                        │
+// │       Text(type.displayName)                                               │
+// │   }                                                                         │
+// └─────────────────────────────────────────────────────────────────────────────┘
 enum AlertType: String, Codable, CaseIterable {
     case fall = "fall"
     case heartRate = "heart_rate"
@@ -62,6 +105,25 @@ enum AlertType: String, Codable, CaseIterable {
     case sos = "sos"
     case connection = "connection"
 
+    // ┌─────────────────────────────────────────────────────────────────────────┐
+    // │ SWITCH STATEMENT                                                        │
+    // │                                                                         │
+    // │ Swift's switch is powerful and EXHAUSTIVE - you must handle all cases. │
+    // │ The compiler will error if you miss one (great for catching bugs!).    │
+    // │                                                                         │
+    // │ Unlike other languages:                                                 │
+    // │   - No 'break' needed (no fall-through by default)                     │
+    // │   - Can switch on any type (strings, enums, tuples, etc.)              │
+    // │   - Can use ranges, where clauses, and more                            │
+    // │                                                                         │
+    // │ For computed properties returning from switch, the syntax is clean:    │
+    // │   switch self {                                                         │
+    // │       case .fall: return "..."                                          │
+    // │       case .heartRate: return "..."                                     │
+    // │   }                                                                      │
+    // │                                                                         │
+    // │ 'self' in an enum refers to the current case.                          │
+    // └─────────────────────────────────────────────────────────────────────────┘
     var icon: String {
         switch self {
         case .fall: return "figure.fall"
@@ -74,6 +136,14 @@ enum AlertType: String, Codable, CaseIterable {
         }
     }
 
+    // ┌─────────────────────────────────────────────────────────────────────────┐
+    // │ SwiftUI Color                                                           │
+    // │                                                                         │
+    // │ Color is SwiftUI's color type. Built-in colors:                        │
+    // │   .red, .blue, .green, .orange, .yellow, .purple, .gray, .white, .black│
+    // │                                                                         │
+    // │ Custom colors can be defined in Assets.xcassets or with RGB values.    │
+    // └─────────────────────────────────────────────────────────────────────────┘
     var color: Color {
         switch self {
         case .fall: return .red
@@ -99,14 +169,57 @@ enum AlertType: String, Codable, CaseIterable {
     }
 }
 
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │ COMPARABLE PROTOCOL                                                         │
+// │                                                                             │
+// │ Comparable lets you use <, >, <=, >= operators with your type.             │
+// │ You must implement the < operator; Swift derives the others.               │
+// │                                                                             │
+// │ With Comparable, you can:                                                   │
+// │   - Compare: if alert1.severity > alert2.severity { ... }                  │
+// │   - Sort: alerts.sorted { $0.severity > $1.severity }                      │
+// │   - Use min/max: alerts.max(by: { $0.severity < $1.severity })             │
+// └─────────────────────────────────────────────────────────────────────────────┘
 enum AlertSeverity: String, Codable, Comparable {
     case low = "low"
     case medium = "medium"
     case high = "high"
     case critical = "critical"
 
+    // ┌─────────────────────────────────────────────────────────────────────────┐
+    // │ STATIC FUNCTION FOR COMPARABLE                                          │
+    // │                                                                         │
+    // │ 'static' means this function belongs to the TYPE, not instances.       │
+    // │ Static functions/properties are called on the type itself:             │
+    // │   AlertSeverity < anotherSeverity   (not severity1 < severity2)        │
+    // │                                                                         │
+    // │ Wait, but we DO use severity1 < severity2... how?                      │
+    // │ Swift automatically converts that to:                                   │
+    // │   AlertSeverity.<(severity1, severity2)                                │
+    // │                                                                         │
+    // │ OPERATOR FUNCTION:                                                      │
+    // │ The < is a function name! Yes, operators are functions in Swift.       │
+    // │ func < (lhs: Type, rhs: Type) -> Bool                                  │
+    // │   lhs = left-hand side                                                  │
+    // │   rhs = right-hand side                                                 │
+    // └─────────────────────────────────────────────────────────────────────────┘
     static func < (lhs: AlertSeverity, rhs: AlertSeverity) -> Bool {
+        // Create an ordered array and compare positions
         let order: [AlertSeverity] = [.low, .medium, .high, .critical]
+
+        // ┌─────────────────────────────────────────────────────────────────────┐
+        // │ FORCE UNWRAP WITH !                                                 │
+        // │                                                                     │
+        // │ firstIndex(of:) returns an Optional (Int?) because the item might  │
+        // │ not be in the array. The ! force-unwraps it.                       │
+        // │                                                                     │
+        // │ This is SAFE here because:                                          │
+        // │   1. 'order' contains ALL AlertSeverity cases                      │
+        // │   2. lhs and rhs are AlertSeverity values                          │
+        // │   3. So they MUST be in the array                                  │
+        // │                                                                     │
+        // │ Only use ! when you're 100% certain the value isn't nil.           │
+        // └─────────────────────────────────────────────────────────────────────┘
         return order.firstIndex(of: lhs)! < order.firstIndex(of: rhs)!
     }
 
