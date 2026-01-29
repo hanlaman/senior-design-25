@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - Animation Configuration
 
-struct RealtimeAnimation: Codable, Sendable {
+public struct RealtimeAnimation: Codable, Sendable {
     let modelName: String?
     let outputs: [RealtimeAnimationOutputType]?
 
@@ -18,7 +18,7 @@ struct RealtimeAnimation: Codable, Sendable {
         case outputs
     }
 
-    init(
+    public init(
         modelName: String? = nil,
         outputs: [RealtimeAnimationOutputType]? = nil
     ) {
@@ -29,7 +29,7 @@ struct RealtimeAnimation: Codable, Sendable {
 
 // MARK: - Avatar Configuration
 
-struct RealtimeAvatarConfig: Codable, Sendable {
+public struct RealtimeAvatarConfig: Codable, Sendable {
     let iceServers: [RealtimeIceServer]?
     let character: String
     let style: String?
@@ -44,7 +44,7 @@ struct RealtimeAvatarConfig: Codable, Sendable {
         case video
     }
 
-    init(
+    public init(
         iceServers: [RealtimeIceServer]? = nil,
         character: String,
         style: String? = nil,
@@ -61,7 +61,7 @@ struct RealtimeAvatarConfig: Codable, Sendable {
 
 // MARK: - ICE Server
 
-struct RealtimeIceServer: Codable, Sendable {
+public struct RealtimeIceServer: Codable, Sendable {
     let urls: [String]
     let username: String?
     let credential: String?
@@ -72,7 +72,7 @@ struct RealtimeIceServer: Codable, Sendable {
         case credential
     }
 
-    init(
+    public init(
         urls: [String],
         username: String? = nil,
         credential: String? = nil
@@ -85,7 +85,7 @@ struct RealtimeIceServer: Codable, Sendable {
 
 // MARK: - Video Parameters
 
-struct RealtimeVideoParams: Codable, Sendable {
+public struct RealtimeVideoParams: Codable, Sendable {
     let bitrate: Int?
     let codec: String?
     let crop: RealtimeVideoCrop?
@@ -98,7 +98,7 @@ struct RealtimeVideoParams: Codable, Sendable {
         case resolution
     }
 
-    init(
+    public init(
         bitrate: Int? = nil,
         codec: String? = nil,
         crop: RealtimeVideoCrop? = nil,
@@ -113,7 +113,7 @@ struct RealtimeVideoParams: Codable, Sendable {
 
 // MARK: - Video Crop
 
-struct RealtimeVideoCrop: Codable, Sendable {
+public struct RealtimeVideoCrop: Codable, Sendable {
     let topLeft: [Int]
     let bottomRight: [Int]
 
@@ -130,7 +130,7 @@ struct RealtimeVideoCrop: Codable, Sendable {
 
 // MARK: - Video Resolution
 
-struct RealtimeVideoResolution: Codable, Sendable {
+public struct RealtimeVideoResolution: Codable, Sendable {
     let width: Int
     let height: Int
 

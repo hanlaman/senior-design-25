@@ -41,7 +41,7 @@ class VoiceViewModel: ObservableObject {
         guard connectionState != .connected else { return }
 
         // Validate configuration
-        let config = AzureConfig.shared
+        let config = AzureVoiceLiveConfig.fromBuildSettings
         if let validationError = config.validate() {
             errorMessage = validationError
             voiceState = .error(validationError)
@@ -428,6 +428,6 @@ class VoiceViewModel: ObservableObject {
     // MARK: - Configuration
 
     var isConfigured: Bool {
-        AzureConfig.shared.isValid
+        AzureVoiceLiveConfig.fromBuildSettings.isValid
     }
 }

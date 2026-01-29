@@ -10,7 +10,7 @@ import Foundation
 
 // MARK: - RealtimeTurnDetection (Union Type)
 
-enum RealtimeTurnDetection: Codable, Sendable {
+public enum RealtimeTurnDetection: Codable, Sendable {
     case serverVAD(RealtimeServerVAD)
     case semanticVAD(RealtimeSemanticVAD)
     case azureSemanticVAD(RealtimeAzureSemanticVAD)
@@ -20,7 +20,7 @@ enum RealtimeTurnDetection: Codable, Sendable {
         case type
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
 
@@ -42,7 +42,7 @@ enum RealtimeTurnDetection: Codable, Sendable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         switch self {
         case .serverVAD(let config):
             try config.encode(to: encoder)
@@ -58,7 +58,7 @@ enum RealtimeTurnDetection: Codable, Sendable {
 
 // MARK: - Server VAD
 
-struct RealtimeServerVAD: Codable, Sendable {
+public struct RealtimeServerVAD: Codable, Sendable {
     let type: String = "server_vad"
     let threshold: Double?
     let prefixPaddingMs: Int?
@@ -79,7 +79,7 @@ struct RealtimeServerVAD: Codable, Sendable {
         case autoTruncate = "auto_truncate"
     }
 
-    init(
+    public init(
         threshold: Double? = nil,
         prefixPaddingMs: Int? = nil,
         silenceDurationMs: Int? = nil,
@@ -100,7 +100,7 @@ struct RealtimeServerVAD: Codable, Sendable {
 
 // MARK: - Semantic VAD
 
-struct RealtimeSemanticVAD: Codable, Sendable {
+public struct RealtimeSemanticVAD: Codable, Sendable {
     let type: String = "semantic_vad"
     let eagerness: String?
     let createResponse: Bool?
@@ -113,7 +113,7 @@ struct RealtimeSemanticVAD: Codable, Sendable {
         case interruptResponse = "interrupt_response"
     }
 
-    init(
+    public init(
         eagerness: String? = nil,
         createResponse: Bool? = nil,
         interruptResponse: Bool? = nil
@@ -126,7 +126,7 @@ struct RealtimeSemanticVAD: Codable, Sendable {
 
 // MARK: - Azure Semantic VAD
 
-struct RealtimeAzureSemanticVAD: Codable, Sendable {
+public struct RealtimeAzureSemanticVAD: Codable, Sendable {
     let type: String = "azure_semantic_vad"
     let threshold: Double?
     let prefixPaddingMs: Int?
@@ -153,7 +153,7 @@ struct RealtimeAzureSemanticVAD: Codable, Sendable {
         case autoTruncate = "auto_truncate"
     }
 
-    init(
+    public init(
         threshold: Double? = nil,
         prefixPaddingMs: Int? = nil,
         silenceDurationMs: Int? = nil,
@@ -180,7 +180,7 @@ struct RealtimeAzureSemanticVAD: Codable, Sendable {
 
 // MARK: - Azure Semantic VAD Multilingual
 
-struct RealtimeAzureSemanticVADMultilingual: Codable, Sendable {
+public struct RealtimeAzureSemanticVADMultilingual: Codable, Sendable {
     let type: String = "azure_semantic_vad_multilingual"
     let threshold: Double?
     let prefixPaddingMs: Int?
@@ -207,7 +207,7 @@ struct RealtimeAzureSemanticVADMultilingual: Codable, Sendable {
         case autoTruncate = "auto_truncate"
     }
 
-    init(
+    public init(
         threshold: Double? = nil,
         prefixPaddingMs: Int? = nil,
         silenceDurationMs: Int? = nil,
@@ -234,7 +234,7 @@ struct RealtimeAzureSemanticVADMultilingual: Codable, Sendable {
 
 // MARK: - End of Utterance Detection
 
-struct RealtimeEOUDetection: Codable, Sendable {
+public struct RealtimeEOUDetection: Codable, Sendable {
     let model: String
     let thresholdLevel: String?
     let timeoutMs: Double?
@@ -245,7 +245,7 @@ struct RealtimeEOUDetection: Codable, Sendable {
         case timeoutMs = "timeout_ms"
     }
 
-    init(
+    public init(
         model: String,
         thresholdLevel: String? = nil,
         timeoutMs: Double? = nil

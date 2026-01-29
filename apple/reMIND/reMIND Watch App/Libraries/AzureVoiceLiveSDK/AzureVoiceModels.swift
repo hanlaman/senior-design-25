@@ -10,7 +10,7 @@ import Foundation
 
 // MARK: - RealtimeVoice (Union Type)
 
-enum RealtimeVoice: Codable, Sendable {
+public enum RealtimeVoice: Codable, Sendable {
     case openai(RealtimeOpenAIVoice)
     case azureStandard(RealtimeAzureStandardVoice)
     case azureCustom(RealtimeAzureCustomVoice)
@@ -20,7 +20,7 @@ enum RealtimeVoice: Codable, Sendable {
         case type
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
 
@@ -42,7 +42,7 @@ enum RealtimeVoice: Codable, Sendable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         switch self {
         case .openai(let voice):
             try voice.encode(to: encoder)
@@ -58,7 +58,7 @@ enum RealtimeVoice: Codable, Sendable {
 
 // MARK: - OpenAI Voice
 
-struct RealtimeOpenAIVoice: Codable, Sendable {
+public struct RealtimeOpenAIVoice: Codable, Sendable {
     let type: String = "openai"
     let name: String
 
@@ -67,14 +67,14 @@ struct RealtimeOpenAIVoice: Codable, Sendable {
         case name
     }
 
-    init(name: String) {
+    public init(name: String) {
         self.name = name
     }
 }
 
 // MARK: - Azure Standard Voice
 
-struct RealtimeAzureStandardVoice: Codable, Sendable {
+public struct RealtimeAzureStandardVoice: Codable, Sendable {
     let type: String = "azure-standard"
     let name: String
     let temperature: Double?
@@ -124,7 +124,7 @@ struct RealtimeAzureStandardVoice: Codable, Sendable {
 
 // MARK: - Azure Custom Voice
 
-struct RealtimeAzureCustomVoice: Codable, Sendable {
+public struct RealtimeAzureCustomVoice: Codable, Sendable {
     let type: String = "azure-custom"
     let name: String
     let endpointId: String
@@ -178,7 +178,7 @@ struct RealtimeAzureCustomVoice: Codable, Sendable {
 
 // MARK: - Azure Personal Voice
 
-struct RealtimeAzurePersonalVoice: Codable, Sendable {
+public struct RealtimeAzurePersonalVoice: Codable, Sendable {
     let type: String = "azure-personal"
     let name: String
     let model: String

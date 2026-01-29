@@ -10,7 +10,7 @@ import Foundation
 
 // MARK: - RealtimeContentPart (Union Type)
 
-enum RealtimeContentPart: Codable, Sendable {
+public enum RealtimeContentPart: Codable, Sendable {
     case inputText(RealtimeInputTextContentPart)
     case outputText(RealtimeOutputTextContentPart)
     case inputAudio(RealtimeInputAudioContentPart)
@@ -21,7 +21,7 @@ enum RealtimeContentPart: Codable, Sendable {
         case type
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
 
@@ -57,7 +57,7 @@ enum RealtimeContentPart: Codable, Sendable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         switch self {
         case .inputText(let part):
             try part.encode(to: encoder)
@@ -72,7 +72,7 @@ enum RealtimeContentPart: Codable, Sendable {
         }
     }
 
-    var type: String {
+    public var type: String {
         switch self {
         case .inputText(let part): return part.type
         case .outputText(let part): return part.type
@@ -85,7 +85,7 @@ enum RealtimeContentPart: Codable, Sendable {
 
 // MARK: - Content Part Types
 
-struct RealtimeInputTextContentPart: Codable, Sendable {
+public struct RealtimeInputTextContentPart: Codable, Sendable {
     let type: String = "input_text"
     let text: String
 
@@ -94,12 +94,12 @@ struct RealtimeInputTextContentPart: Codable, Sendable {
         case text
     }
 
-    init(text: String) {
+    public init(text: String) {
         self.text = text
     }
 }
 
-struct RealtimeOutputTextContentPart: Codable, Sendable {
+public struct RealtimeOutputTextContentPart: Codable, Sendable {
     let type: String = "text"
     let text: String
 
@@ -108,12 +108,12 @@ struct RealtimeOutputTextContentPart: Codable, Sendable {
         case text
     }
 
-    init(text: String) {
+    public init(text: String) {
         self.text = text
     }
 }
 
-struct RealtimeInputAudioContentPart: Codable, Sendable {
+public struct RealtimeInputAudioContentPart: Codable, Sendable {
     let type: String = "input_audio"
     let audio: String?
     let transcript: String?
@@ -124,13 +124,13 @@ struct RealtimeInputAudioContentPart: Codable, Sendable {
         case transcript
     }
 
-    init(audio: String? = nil, transcript: String? = nil) {
+    public init(audio: String? = nil, transcript: String? = nil) {
         self.audio = audio
         self.transcript = transcript
     }
 }
 
-struct RealtimeOutputAudioContentPart: Codable, Sendable {
+public struct RealtimeOutputAudioContentPart: Codable, Sendable {
     let type: String = "audio"
     let audio: String
     let transcript: String?
@@ -141,13 +141,13 @@ struct RealtimeOutputAudioContentPart: Codable, Sendable {
         case transcript
     }
 
-    init(audio: String, transcript: String? = nil) {
+    public init(audio: String, transcript: String? = nil) {
         self.audio = audio
         self.transcript = transcript
     }
 }
 
-struct RealtimeResponseAudioContentPart: Codable, Sendable {
+public struct RealtimeResponseAudioContentPart: Codable, Sendable {
     let type: String = "audio"
     let transcript: String?
 
@@ -156,14 +156,14 @@ struct RealtimeResponseAudioContentPart: Codable, Sendable {
         case transcript
     }
 
-    init(transcript: String? = nil) {
+    public init(transcript: String? = nil) {
         self.transcript = transcript
     }
 }
 
 // MARK: - RealtimeConversationRequestItem (Union Type)
 
-enum RealtimeConversationRequestItem: Codable, Sendable {
+public enum RealtimeConversationRequestItem: Codable, Sendable {
     case systemMessage(RealtimeSystemMessageRequestItem)
     case userMessage(RealtimeUserMessageRequestItem)
     case assistantMessage(RealtimeAssistantMessageRequestItem)
@@ -175,7 +175,7 @@ enum RealtimeConversationRequestItem: Codable, Sendable {
         case type
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
 
@@ -217,7 +217,7 @@ enum RealtimeConversationRequestItem: Codable, Sendable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         switch self {
         case .systemMessage(let item):
             try item.encode(to: encoder)
@@ -237,7 +237,7 @@ enum RealtimeConversationRequestItem: Codable, Sendable {
 
 // MARK: - Request Item Types
 
-struct RealtimeSystemMessageRequestItem: Codable, Sendable {
+public struct RealtimeSystemMessageRequestItem: Codable, Sendable {
     let type: String = "message"
     let role: String = "system"
     let content: [RealtimeInputTextContentPart]
@@ -250,13 +250,13 @@ struct RealtimeSystemMessageRequestItem: Codable, Sendable {
         case id
     }
 
-    init(content: [RealtimeInputTextContentPart], id: String? = nil) {
+    public init(content: [RealtimeInputTextContentPart], id: String? = nil) {
         self.content = content
         self.id = id
     }
 }
 
-struct RealtimeUserMessageRequestItem: Codable, Sendable {
+public struct RealtimeUserMessageRequestItem: Codable, Sendable {
     let type: String = "message"
     let role: String = "user"
     let content: [RealtimeContentPart]
@@ -269,13 +269,13 @@ struct RealtimeUserMessageRequestItem: Codable, Sendable {
         case id
     }
 
-    init(content: [RealtimeContentPart], id: String? = nil) {
+    public init(content: [RealtimeContentPart], id: String? = nil) {
         self.content = content
         self.id = id
     }
 }
 
-struct RealtimeAssistantMessageRequestItem: Codable, Sendable {
+public struct RealtimeAssistantMessageRequestItem: Codable, Sendable {
     let type: String = "message"
     let role: String = "assistant"
     let content: [RealtimeOutputTextContentPart]
@@ -286,12 +286,12 @@ struct RealtimeAssistantMessageRequestItem: Codable, Sendable {
         case content
     }
 
-    init(content: [RealtimeOutputTextContentPart]) {
+    public init(content: [RealtimeOutputTextContentPart]) {
         self.content = content
     }
 }
 
-struct RealtimeFunctionCallRequestItem: Codable, Sendable {
+public struct RealtimeFunctionCallRequestItem: Codable, Sendable {
     let type: String = "function_call"
     let name: String
     let arguments: String
@@ -306,7 +306,7 @@ struct RealtimeFunctionCallRequestItem: Codable, Sendable {
         case id
     }
 
-    init(name: String, arguments: String, callId: String, id: String? = nil) {
+    public init(name: String, arguments: String, callId: String, id: String? = nil) {
         self.name = name
         self.arguments = arguments
         self.callId = callId
@@ -314,7 +314,7 @@ struct RealtimeFunctionCallRequestItem: Codable, Sendable {
     }
 }
 
-struct RealtimeFunctionCallOutputRequestItem: Codable, Sendable {
+public struct RealtimeFunctionCallOutputRequestItem: Codable, Sendable {
     let type: String = "function_call_output"
     let callId: String
     let output: String
@@ -327,14 +327,14 @@ struct RealtimeFunctionCallOutputRequestItem: Codable, Sendable {
         case id
     }
 
-    init(callId: String, output: String, id: String? = nil) {
+    public init(callId: String, output: String, id: String? = nil) {
         self.callId = callId
         self.output = output
         self.id = id
     }
 }
 
-struct RealtimeMCPApprovalResponseRequestItem: Codable, Sendable {
+public struct RealtimeMCPApprovalResponseRequestItem: Codable, Sendable {
     let type: String = "mcp_approval_response"
     let approve: Bool
     let approvalRequestId: String
@@ -345,7 +345,7 @@ struct RealtimeMCPApprovalResponseRequestItem: Codable, Sendable {
         case approvalRequestId = "approval_request_id"
     }
 
-    init(approve: Bool, approvalRequestId: String) {
+    public init(approve: Bool, approvalRequestId: String) {
         self.approve = approve
         self.approvalRequestId = approvalRequestId
     }
@@ -353,7 +353,7 @@ struct RealtimeMCPApprovalResponseRequestItem: Codable, Sendable {
 
 // MARK: - RealtimeConversationResponseItem (Union Type)
 
-enum RealtimeConversationResponseItem: Codable, Sendable {
+public enum RealtimeConversationResponseItem: Codable, Sendable {
     case userMessage(RealtimeConversationUserMessageItem)
     case assistantMessage(RealtimeConversationAssistantMessageItem)
     case systemMessage(RealtimeConversationSystemMessageItem)
@@ -368,7 +368,7 @@ enum RealtimeConversationResponseItem: Codable, Sendable {
         case role
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
 
@@ -408,7 +408,7 @@ enum RealtimeConversationResponseItem: Codable, Sendable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         switch self {
         case .userMessage(let item):
             try item.encode(to: encoder)
@@ -429,7 +429,7 @@ enum RealtimeConversationResponseItem: Codable, Sendable {
         }
     }
 
-    var id: String {
+    public var id: String {
         switch self {
         case .userMessage(let item): return item.id
         case .assistantMessage(let item): return item.id
@@ -442,7 +442,7 @@ enum RealtimeConversationResponseItem: Codable, Sendable {
         }
     }
 
-    var type: String {
+    public var type: String {
         switch self {
         case .userMessage(let item): return item.type
         case .assistantMessage(let item): return item.type
@@ -458,7 +458,7 @@ enum RealtimeConversationResponseItem: Codable, Sendable {
 
 // MARK: - Response Item Types
 
-struct RealtimeConversationUserMessageItem: Codable, Sendable {
+public struct RealtimeConversationUserMessageItem: Codable, Sendable {
     let id: String
     let type: String
     let object: String
@@ -476,7 +476,7 @@ struct RealtimeConversationUserMessageItem: Codable, Sendable {
     }
 }
 
-struct RealtimeConversationAssistantMessageItem: Codable, Sendable {
+public struct RealtimeConversationAssistantMessageItem: Codable, Sendable {
     let id: String
     let type: String
     let object: String
@@ -494,7 +494,7 @@ struct RealtimeConversationAssistantMessageItem: Codable, Sendable {
     }
 }
 
-struct RealtimeConversationSystemMessageItem: Codable, Sendable {
+public struct RealtimeConversationSystemMessageItem: Codable, Sendable {
     let id: String
     let type: String
     let object: String
@@ -512,7 +512,7 @@ struct RealtimeConversationSystemMessageItem: Codable, Sendable {
     }
 }
 
-struct RealtimeConversationFunctionCallItem: Codable, Sendable {
+public struct RealtimeConversationFunctionCallItem: Codable, Sendable {
     let id: String
     let type: String
     let object: String
@@ -532,7 +532,7 @@ struct RealtimeConversationFunctionCallItem: Codable, Sendable {
     }
 }
 
-struct RealtimeConversationFunctionCallOutputItem: Codable, Sendable {
+public struct RealtimeConversationFunctionCallOutputItem: Codable, Sendable {
     let id: String
     let type: String
     let object: String
@@ -552,7 +552,7 @@ struct RealtimeConversationFunctionCallOutputItem: Codable, Sendable {
     }
 }
 
-struct RealtimeConversationMCPListToolsItem: Codable, Sendable {
+public struct RealtimeConversationMCPListToolsItem: Codable, Sendable {
     let id: String
     let type: String
     let serverLabel: String
@@ -564,7 +564,7 @@ struct RealtimeConversationMCPListToolsItem: Codable, Sendable {
     }
 }
 
-struct RealtimeConversationMCPCallItem: Codable, Sendable {
+public struct RealtimeConversationMCPCallItem: Codable, Sendable {
     let id: String
     let type: String
     let serverLabel: String
@@ -586,7 +586,7 @@ struct RealtimeConversationMCPCallItem: Codable, Sendable {
     }
 }
 
-struct RealtimeConversationMCPApprovalRequestItem: Codable, Sendable {
+public struct RealtimeConversationMCPApprovalRequestItem: Codable, Sendable {
     let id: String
     let type: String
     let serverLabel: String

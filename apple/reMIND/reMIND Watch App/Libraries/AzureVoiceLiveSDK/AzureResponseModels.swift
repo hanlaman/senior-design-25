@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - RealtimeResponse
 
-struct RealtimeResponse: Codable, Sendable {
+public struct RealtimeResponse: Codable, Sendable {
     let id: String?
     let object: String?
     let status: RealtimeResponseStatus?
@@ -41,7 +41,7 @@ struct RealtimeResponse: Codable, Sendable {
 
 // MARK: - Response Status Details
 
-struct RealtimeResponseStatusDetails: Codable, Sendable {
+public struct RealtimeResponseStatusDetails: Codable, Sendable {
     let type: String?
     let reason: String?
     let error: RealtimeErrorDetails?
@@ -55,7 +55,7 @@ struct RealtimeResponseStatusDetails: Codable, Sendable {
 
 // MARK: - Response Options
 
-struct RealtimeResponseOptions: Codable, Sendable {
+public struct RealtimeResponseOptions: Codable, Sendable {
     let modalities: [String]?
     let instructions: String?
     let voice: RealtimeVoice?
@@ -80,7 +80,7 @@ struct RealtimeResponseOptions: Codable, Sendable {
         case animation
     }
 
-    init(
+    public init(
         modalities: [String]? = nil,
         instructions: String? = nil,
         voice: RealtimeVoice? = nil,
@@ -107,7 +107,7 @@ struct RealtimeResponseOptions: Codable, Sendable {
 
 // MARK: - Usage
 
-struct RealtimeUsage: Codable, Sendable {
+public struct RealtimeUsage: Codable, Sendable {
     let totalTokens: Int
     let inputTokens: Int
     let outputTokens: Int
@@ -125,7 +125,7 @@ struct RealtimeUsage: Codable, Sendable {
 
 // MARK: - Token Details
 
-struct TokenDetails: Codable, Sendable {
+public struct TokenDetails: Codable, Sendable {
     let cachedTokens: Int?
     let textTokens: Int?
     let audioTokens: Int?
@@ -139,7 +139,7 @@ struct TokenDetails: Codable, Sendable {
 
 // MARK: - Error Details
 
-struct RealtimeErrorDetails: Codable, Sendable {
+public struct RealtimeErrorDetails: Codable, Sendable {
     let type: String
     let code: String?
     let message: String
@@ -157,7 +157,7 @@ struct RealtimeErrorDetails: Codable, Sendable {
 
 // MARK: - Rate Limits
 
-struct RealtimeRateLimitsItem: Codable, Sendable {
+public struct RealtimeRateLimitsItem: Codable, Sendable {
     let name: String
     let limit: Int
     let remaining: Int

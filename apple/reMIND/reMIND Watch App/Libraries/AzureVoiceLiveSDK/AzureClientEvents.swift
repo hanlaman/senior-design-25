@@ -10,7 +10,7 @@ import Foundation
 
 // MARK: - Session Management Events
 
-struct SessionUpdateEvent: Codable, Sendable {
+public struct SessionUpdateEvent: Codable, Sendable {
     let type: String = "session.update"
     let session: RealtimeRequestSession
 
@@ -19,12 +19,12 @@ struct SessionUpdateEvent: Codable, Sendable {
         case session
     }
 
-    init(session: RealtimeRequestSession) {
+    public init(session: RealtimeRequestSession) {
         self.session = session
     }
 }
 
-struct SessionAvatarConnectEvent: Codable, Sendable {
+public struct SessionAvatarConnectEvent: Codable, Sendable {
     let type: String = "session.avatar.connect"
     let clientSdp: String
 
@@ -33,14 +33,14 @@ struct SessionAvatarConnectEvent: Codable, Sendable {
         case clientSdp = "client_sdp"
     }
 
-    init(clientSdp: String) {
+    public init(clientSdp: String) {
         self.clientSdp = clientSdp
     }
 }
 
 // MARK: - Audio Buffer Events
 
-struct InputAudioBufferAppendEvent: Codable, Sendable {
+public struct InputAudioBufferAppendEvent: Codable, Sendable {
     let type: String = "input_audio_buffer.append"
     let audio: String
 
@@ -49,34 +49,34 @@ struct InputAudioBufferAppendEvent: Codable, Sendable {
         case audio
     }
 
-    init(audio: String) {
+    public init(audio: String) {
         self.audio = audio
     }
 }
 
-struct InputAudioBufferCommitEvent: Codable, Sendable {
+public struct InputAudioBufferCommitEvent: Codable, Sendable {
     let type: String = "input_audio_buffer.commit"
 
     enum CodingKeys: String, CodingKey {
         case type
     }
 
-    init() {}
+    public init() {}
 }
 
-struct InputAudioBufferClearEvent: Codable, Sendable {
+public struct InputAudioBufferClearEvent: Codable, Sendable {
     let type: String = "input_audio_buffer.clear"
 
     enum CodingKeys: String, CodingKey {
         case type
     }
 
-    init() {}
+    public init() {}
 }
 
 // MARK: - Conversation Management Events
 
-struct ConversationItemCreateEvent: Codable, Sendable {
+public struct ConversationItemCreateEvent: Codable, Sendable {
     let type: String = "conversation.item.create"
     let previousItemId: String?
     let item: RealtimeConversationRequestItem
@@ -87,13 +87,13 @@ struct ConversationItemCreateEvent: Codable, Sendable {
         case item
     }
 
-    init(previousItemId: String? = nil, item: RealtimeConversationRequestItem) {
+    public init(previousItemId: String? = nil, item: RealtimeConversationRequestItem) {
         self.previousItemId = previousItemId
         self.item = item
     }
 }
 
-struct ConversationItemRetrieveEvent: Codable, Sendable {
+public struct ConversationItemRetrieveEvent: Codable, Sendable {
     let type: String = "conversation.item.retrieve"
     let itemId: String
 
@@ -102,12 +102,12 @@ struct ConversationItemRetrieveEvent: Codable, Sendable {
         case itemId = "item_id"
     }
 
-    init(itemId: String) {
+    public init(itemId: String) {
         self.itemId = itemId
     }
 }
 
-struct ConversationItemTruncateEvent: Codable, Sendable {
+public struct ConversationItemTruncateEvent: Codable, Sendable {
     let type: String = "conversation.item.truncate"
     let itemId: String
     let contentIndex: Int
@@ -120,14 +120,14 @@ struct ConversationItemTruncateEvent: Codable, Sendable {
         case audioEndMs = "audio_end_ms"
     }
 
-    init(itemId: String, contentIndex: Int, audioEndMs: Int) {
+    public init(itemId: String, contentIndex: Int, audioEndMs: Int) {
         self.itemId = itemId
         self.contentIndex = contentIndex
         self.audioEndMs = audioEndMs
     }
 }
 
-struct ConversationItemDeleteEvent: Codable, Sendable {
+public struct ConversationItemDeleteEvent: Codable, Sendable {
     let type: String = "conversation.item.delete"
     let itemId: String
 
@@ -136,14 +136,14 @@ struct ConversationItemDeleteEvent: Codable, Sendable {
         case itemId = "item_id"
     }
 
-    init(itemId: String) {
+    public init(itemId: String) {
         self.itemId = itemId
     }
 }
 
 // MARK: - Response Management Events
 
-struct ResponseCreateEvent: Codable, Sendable {
+public struct ResponseCreateEvent: Codable, Sendable {
     let type: String = "response.create"
     let response: RealtimeResponseOptions?
 
@@ -152,24 +152,24 @@ struct ResponseCreateEvent: Codable, Sendable {
         case response
     }
 
-    init(response: RealtimeResponseOptions? = nil) {
+    public init(response: RealtimeResponseOptions? = nil) {
         self.response = response
     }
 }
 
-struct ResponseCancelEvent: Codable, Sendable {
+public struct ResponseCancelEvent: Codable, Sendable {
     let type: String = "response.cancel"
 
     enum CodingKeys: String, CodingKey {
         case type
     }
 
-    init() {}
+    public init() {}
 }
 
 // MARK: - MCP Tool Approval Event
 
-struct McpApprovalResponseEvent: Codable, Sendable {
+public struct McpApprovalResponseEvent: Codable, Sendable {
     let type: String = "mcp_approval_response"
     let approve: Bool
     let approvalRequestId: String
@@ -180,7 +180,7 @@ struct McpApprovalResponseEvent: Codable, Sendable {
         case approvalRequestId = "approval_request_id"
     }
 
-    init(approve: Bool, approvalRequestId: String) {
+    public init(approve: Bool, approvalRequestId: String) {
         self.approve = approve
         self.approvalRequestId = approvalRequestId
     }

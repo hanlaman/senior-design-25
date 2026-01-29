@@ -10,7 +10,7 @@ import Foundation
 
 // MARK: - RealtimeTool (Union Type)
 
-enum RealtimeTool: Codable, Sendable {
+public enum RealtimeTool: Codable, Sendable {
     case function(RealtimeFunctionTool)
     case mcp(RealtimeMCPTool)
 
@@ -18,7 +18,7 @@ enum RealtimeTool: Codable, Sendable {
         case type
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
 
@@ -36,7 +36,7 @@ enum RealtimeTool: Codable, Sendable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         switch self {
         case .function(let tool):
             try tool.encode(to: encoder)
@@ -48,7 +48,7 @@ enum RealtimeTool: Codable, Sendable {
 
 // MARK: - Function Tool
 
-struct RealtimeFunctionTool: Codable, Sendable {
+public struct RealtimeFunctionTool: Codable, Sendable {
     let type: String = "function"
     let name: String
     let description: String
@@ -61,7 +61,7 @@ struct RealtimeFunctionTool: Codable, Sendable {
         case parameters
     }
 
-    init(
+    public init(
         name: String,
         description: String,
         parameters: [String: AnyCodable]
@@ -74,7 +74,7 @@ struct RealtimeFunctionTool: Codable, Sendable {
 
 // MARK: - MCP Tool
 
-struct RealtimeMCPTool: Codable, Sendable {
+public struct RealtimeMCPTool: Codable, Sendable {
     let type: String = "mcp"
     let serverLabel: String
     let serverUrl: String
@@ -93,7 +93,7 @@ struct RealtimeMCPTool: Codable, Sendable {
         case requireApproval = "require_approval"
     }
 
-    init(
+    public init(
         serverLabel: String,
         serverUrl: String,
         allowedTools: [String]? = nil,
@@ -112,11 +112,11 @@ struct RealtimeMCPTool: Codable, Sendable {
 
 // MARK: - Require Approval
 
-enum RequireApproval: Codable, Sendable {
+public enum RequireApproval: Codable, Sendable {
     case string(String)
     case detailed(RequireApprovalDetailed)
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
 
         if let stringValue = try? container.decode(String.self) {
@@ -134,7 +134,7 @@ enum RequireApproval: Codable, Sendable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
         case .string(let value):
@@ -145,7 +145,7 @@ enum RequireApproval: Codable, Sendable {
     }
 }
 
-struct RequireApprovalDetailed: Codable, Sendable {
+public struct RequireApprovalDetailed: Codable, Sendable {
     let never: [String]
     let always: [String]
 
@@ -162,11 +162,11 @@ struct RequireApprovalDetailed: Codable, Sendable {
 
 // MARK: - Tool Choice
 
-enum RealtimeToolChoice: Codable, Sendable {
+public enum RealtimeToolChoice: Codable, Sendable {
     case string(String)
     case function(RealtimeToolChoiceFunction)
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
 
         if let stringValue = try? container.decode(String.self) {
@@ -184,7 +184,7 @@ enum RealtimeToolChoice: Codable, Sendable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
         case .string(let value):
@@ -195,7 +195,7 @@ enum RealtimeToolChoice: Codable, Sendable {
     }
 }
 
-struct RealtimeToolChoiceFunction: Codable, Sendable {
+public struct RealtimeToolChoiceFunction: Codable, Sendable {
     let type: String = "function"
     let name: String
 

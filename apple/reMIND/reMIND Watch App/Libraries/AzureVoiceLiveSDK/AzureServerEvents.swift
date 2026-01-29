@@ -10,7 +10,7 @@ import Foundation
 
 // MARK: - Event Envelope
 
-struct AzureEventEnvelope: Codable {
+public struct AzureEventEnvelope: Codable {
     let type: String
 
     enum CodingKeys: String, CodingKey {
@@ -20,7 +20,7 @@ struct AzureEventEnvelope: Codable {
 
 // MARK: - Error Event
 
-struct ErrorEvent: Codable, Sendable {
+public struct ErrorEvent: Codable, Sendable {
     let type: String
     let error: RealtimeErrorDetails
 
@@ -32,7 +32,7 @@ struct ErrorEvent: Codable, Sendable {
 
 // MARK: - Session Events
 
-struct SessionCreatedEvent: Codable, Sendable {
+public struct SessionCreatedEvent: Codable, Sendable {
     let type: String
     let session: RealtimeResponseSession
 
@@ -42,7 +42,7 @@ struct SessionCreatedEvent: Codable, Sendable {
     }
 }
 
-struct SessionUpdatedEvent: Codable, Sendable {
+public struct SessionUpdatedEvent: Codable, Sendable {
     let type: String
     let session: RealtimeResponseSession
 
@@ -52,7 +52,7 @@ struct SessionUpdatedEvent: Codable, Sendable {
     }
 }
 
-struct SessionAvatarConnectingEvent: Codable, Sendable {
+public struct SessionAvatarConnectingEvent: Codable, Sendable {
     let type: String
     let serverSdp: String
 
@@ -64,7 +64,7 @@ struct SessionAvatarConnectingEvent: Codable, Sendable {
 
 // MARK: - Input Audio Buffer Events
 
-struct InputAudioBufferCommittedEvent: Codable, Sendable {
+public struct InputAudioBufferCommittedEvent: Codable, Sendable {
     let type: String
     let previousItemId: String?
     let itemId: String
@@ -76,7 +76,7 @@ struct InputAudioBufferCommittedEvent: Codable, Sendable {
     }
 }
 
-struct InputAudioBufferClearedEvent: Codable, Sendable {
+public struct InputAudioBufferClearedEvent: Codable, Sendable {
     let type: String
 
     enum CodingKeys: String, CodingKey {
@@ -84,7 +84,7 @@ struct InputAudioBufferClearedEvent: Codable, Sendable {
     }
 }
 
-struct InputAudioBufferSpeechStartedEvent: Codable, Sendable {
+public struct InputAudioBufferSpeechStartedEvent: Codable, Sendable {
     let type: String
     let audioStartMs: Int
     let itemId: String
@@ -96,7 +96,7 @@ struct InputAudioBufferSpeechStartedEvent: Codable, Sendable {
     }
 }
 
-struct InputAudioBufferSpeechStoppedEvent: Codable, Sendable {
+public struct InputAudioBufferSpeechStoppedEvent: Codable, Sendable {
     let type: String
     let audioEndMs: Int
     let itemId: String
@@ -110,7 +110,7 @@ struct InputAudioBufferSpeechStoppedEvent: Codable, Sendable {
 
 // MARK: - Conversation Item Events
 
-struct ConversationItemCreatedEvent: Codable, Sendable {
+public struct ConversationItemCreatedEvent: Codable, Sendable {
     let type: String
     let previousItemId: String?
     let item: RealtimeConversationResponseItem
@@ -122,7 +122,7 @@ struct ConversationItemCreatedEvent: Codable, Sendable {
     }
 }
 
-struct ConversationItemRetrievedEvent: Codable, Sendable {
+public struct ConversationItemRetrievedEvent: Codable, Sendable {
     let type: String
     let item: RealtimeConversationResponseItem
 
@@ -132,7 +132,7 @@ struct ConversationItemRetrievedEvent: Codable, Sendable {
     }
 }
 
-struct ConversationItemTruncatedEvent: Codable, Sendable {
+public struct ConversationItemTruncatedEvent: Codable, Sendable {
     let type: String
     let itemId: String
     let contentIndex: Int
@@ -146,7 +146,7 @@ struct ConversationItemTruncatedEvent: Codable, Sendable {
     }
 }
 
-struct ConversationItemDeletedEvent: Codable, Sendable {
+public struct ConversationItemDeletedEvent: Codable, Sendable {
     let type: String
     let itemId: String
 
@@ -156,7 +156,7 @@ struct ConversationItemDeletedEvent: Codable, Sendable {
     }
 }
 
-struct ConversationItemTranscriptionCompletedEvent: Codable, Sendable {
+public struct ConversationItemTranscriptionCompletedEvent: Codable, Sendable {
     let type: String
     let itemId: String
     let contentIndex: Int
@@ -170,7 +170,7 @@ struct ConversationItemTranscriptionCompletedEvent: Codable, Sendable {
     }
 }
 
-struct ConversationItemTranscriptionDeltaEvent: Codable, Sendable {
+public struct ConversationItemTranscriptionDeltaEvent: Codable, Sendable {
     let type: String
     let itemId: String
     let contentIndex: Int
@@ -184,7 +184,7 @@ struct ConversationItemTranscriptionDeltaEvent: Codable, Sendable {
     }
 }
 
-struct ConversationItemTranscriptionFailedEvent: Codable, Sendable {
+public struct ConversationItemTranscriptionFailedEvent: Codable, Sendable {
     let type: String
     let itemId: String
     let contentIndex: Int
@@ -200,7 +200,7 @@ struct ConversationItemTranscriptionFailedEvent: Codable, Sendable {
 
 // MARK: - Response Events
 
-struct ResponseCreatedEvent: Codable, Sendable {
+public struct ResponseCreatedEvent: Codable, Sendable {
     let type: String
     let response: RealtimeResponse
 
@@ -210,7 +210,7 @@ struct ResponseCreatedEvent: Codable, Sendable {
     }
 }
 
-struct ResponseDoneEvent: Codable, Sendable {
+public struct ResponseDoneEvent: Codable, Sendable {
     let type: String
     let response: RealtimeResponse
 
@@ -220,7 +220,7 @@ struct ResponseDoneEvent: Codable, Sendable {
     }
 }
 
-struct ResponseOutputItemAddedEvent: Codable, Sendable {
+public struct ResponseOutputItemAddedEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let outputIndex: Int
@@ -234,7 +234,7 @@ struct ResponseOutputItemAddedEvent: Codable, Sendable {
     }
 }
 
-struct ResponseOutputItemDoneEvent: Codable, Sendable {
+public struct ResponseOutputItemDoneEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let outputIndex: Int
@@ -248,7 +248,7 @@ struct ResponseOutputItemDoneEvent: Codable, Sendable {
     }
 }
 
-struct ResponseContentPartAddedEvent: Codable, Sendable {
+public struct ResponseContentPartAddedEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -266,7 +266,7 @@ struct ResponseContentPartAddedEvent: Codable, Sendable {
     }
 }
 
-struct ResponseContentPartDoneEvent: Codable, Sendable {
+public struct ResponseContentPartDoneEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -286,7 +286,7 @@ struct ResponseContentPartDoneEvent: Codable, Sendable {
 
 // MARK: - Text Streaming Events
 
-struct ResponseTextDeltaEvent: Codable, Sendable {
+public struct ResponseTextDeltaEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -304,7 +304,7 @@ struct ResponseTextDeltaEvent: Codable, Sendable {
     }
 }
 
-struct ResponseTextDoneEvent: Codable, Sendable {
+public struct ResponseTextDoneEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -324,7 +324,7 @@ struct ResponseTextDoneEvent: Codable, Sendable {
 
 // MARK: - Audio Streaming Events
 
-struct ResponseAudioDeltaEvent: Codable, Sendable {
+public struct ResponseAudioDeltaEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -342,7 +342,7 @@ struct ResponseAudioDeltaEvent: Codable, Sendable {
     }
 }
 
-struct ResponseAudioDoneEvent: Codable, Sendable {
+public struct ResponseAudioDoneEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -358,7 +358,7 @@ struct ResponseAudioDoneEvent: Codable, Sendable {
     }
 }
 
-struct ResponseAudioTranscriptDeltaEvent: Codable, Sendable {
+public struct ResponseAudioTranscriptDeltaEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -376,7 +376,7 @@ struct ResponseAudioTranscriptDeltaEvent: Codable, Sendable {
     }
 }
 
-struct ResponseAudioTranscriptDoneEvent: Codable, Sendable {
+public struct ResponseAudioTranscriptDoneEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -396,7 +396,7 @@ struct ResponseAudioTranscriptDoneEvent: Codable, Sendable {
 
 // MARK: - Animation Blendshapes Events
 
-struct ResponseAnimationBlendshapesDeltaEvent: Codable, Sendable {
+public struct ResponseAnimationBlendshapesDeltaEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -416,7 +416,7 @@ struct ResponseAnimationBlendshapesDeltaEvent: Codable, Sendable {
     }
 }
 
-struct ResponseAnimationBlendshapesDoneEvent: Codable, Sendable {
+public struct ResponseAnimationBlendshapesDoneEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -432,7 +432,7 @@ struct ResponseAnimationBlendshapesDoneEvent: Codable, Sendable {
 
 // MARK: - Audio Timestamp Events
 
-struct ResponseAudioTimestampDeltaEvent: Codable, Sendable {
+public struct ResponseAudioTimestampDeltaEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -456,7 +456,7 @@ struct ResponseAudioTimestampDeltaEvent: Codable, Sendable {
     }
 }
 
-struct ResponseAudioTimestampDoneEvent: Codable, Sendable {
+public struct ResponseAudioTimestampDoneEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -474,7 +474,7 @@ struct ResponseAudioTimestampDoneEvent: Codable, Sendable {
 
 // MARK: - Animation Viseme Events
 
-struct ResponseAnimationVisemeDeltaEvent: Codable, Sendable {
+public struct ResponseAnimationVisemeDeltaEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -494,7 +494,7 @@ struct ResponseAnimationVisemeDeltaEvent: Codable, Sendable {
     }
 }
 
-struct ResponseAnimationVisemeDoneEvent: Codable, Sendable {
+public struct ResponseAnimationVisemeDoneEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -512,7 +512,7 @@ struct ResponseAnimationVisemeDoneEvent: Codable, Sendable {
 
 // MARK: - Function Call Events
 
-struct ResponseFunctionCallArgumentsDeltaEvent: Codable, Sendable {
+public struct ResponseFunctionCallArgumentsDeltaEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -530,7 +530,7 @@ struct ResponseFunctionCallArgumentsDeltaEvent: Codable, Sendable {
     }
 }
 
-struct ResponseFunctionCallArgumentsDoneEvent: Codable, Sendable {
+public struct ResponseFunctionCallArgumentsDoneEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -550,7 +550,7 @@ struct ResponseFunctionCallArgumentsDoneEvent: Codable, Sendable {
 
 // MARK: - MCP List Tools Events
 
-struct McpListToolsInProgressEvent: Codable, Sendable {
+public struct McpListToolsInProgressEvent: Codable, Sendable {
     let type: String
     let itemId: String
 
@@ -560,7 +560,7 @@ struct McpListToolsInProgressEvent: Codable, Sendable {
     }
 }
 
-struct McpListToolsCompletedEvent: Codable, Sendable {
+public struct McpListToolsCompletedEvent: Codable, Sendable {
     let type: String
     let itemId: String
 
@@ -570,7 +570,7 @@ struct McpListToolsCompletedEvent: Codable, Sendable {
     }
 }
 
-struct McpListToolsFailedEvent: Codable, Sendable {
+public struct McpListToolsFailedEvent: Codable, Sendable {
     let type: String
     let itemId: String
 
@@ -582,7 +582,7 @@ struct McpListToolsFailedEvent: Codable, Sendable {
 
 // MARK: - MCP Call Events
 
-struct ResponseMcpCallArgumentsDeltaEvent: Codable, Sendable {
+public struct ResponseMcpCallArgumentsDeltaEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -598,7 +598,7 @@ struct ResponseMcpCallArgumentsDeltaEvent: Codable, Sendable {
     }
 }
 
-struct ResponseMcpCallArgumentsDoneEvent: Codable, Sendable {
+public struct ResponseMcpCallArgumentsDoneEvent: Codable, Sendable {
     let type: String
     let responseId: String
     let itemId: String
@@ -614,7 +614,7 @@ struct ResponseMcpCallArgumentsDoneEvent: Codable, Sendable {
     }
 }
 
-struct ResponseMcpCallInProgressEvent: Codable, Sendable {
+public struct ResponseMcpCallInProgressEvent: Codable, Sendable {
     let type: String
     let itemId: String
     let outputIndex: Int
@@ -626,7 +626,7 @@ struct ResponseMcpCallInProgressEvent: Codable, Sendable {
     }
 }
 
-struct ResponseMcpCallCompletedEvent: Codable, Sendable {
+public struct ResponseMcpCallCompletedEvent: Codable, Sendable {
     let type: String
     let itemId: String
     let outputIndex: Int
@@ -638,7 +638,7 @@ struct ResponseMcpCallCompletedEvent: Codable, Sendable {
     }
 }
 
-struct ResponseMcpCallFailedEvent: Codable, Sendable {
+public struct ResponseMcpCallFailedEvent: Codable, Sendable {
     let type: String
     let itemId: String
     let outputIndex: Int
@@ -652,7 +652,7 @@ struct ResponseMcpCallFailedEvent: Codable, Sendable {
 
 // MARK: - Rate Limits Event
 
-struct RateLimitsUpdatedEvent: Codable, Sendable {
+public struct RateLimitsUpdatedEvent: Codable, Sendable {
     let type: String
     let rateLimits: [RealtimeRateLimitsItem]
 

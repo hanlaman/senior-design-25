@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - RealtimeRequestSession
 
-struct RealtimeRequestSession: Codable, Sendable {
+public struct RealtimeRequestSession: Codable, Sendable {
     let model: String?
     let modalities: [RealtimeModality]?
     let animation: RealtimeAnimation?
@@ -50,7 +50,7 @@ struct RealtimeRequestSession: Codable, Sendable {
         case outputAudioTimestampTypes = "output_audio_timestamp_types"
     }
 
-    init(
+    public init(
         model: String? = nil,
         modalities: [RealtimeModality]? = nil,
         animation: RealtimeAnimation? = nil,
@@ -93,7 +93,7 @@ struct RealtimeRequestSession: Codable, Sendable {
 
 // MARK: - RealtimeResponseSession
 
-struct RealtimeResponseSession: Codable, Sendable {
+public struct RealtimeResponseSession: Codable, Sendable {
     let object: String
     let id: String
     let model: String

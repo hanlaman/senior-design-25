@@ -8,7 +8,7 @@
 import Foundation
 
 /// Protocol for Azure Voice Live service
-protocol AzureVoiceLiveProtocol: Actor {
+public protocol AzureVoiceLiveProtocol: Actor {
     /// Connection state
     var connectionState: ConnectionState { get }
 
@@ -68,7 +68,7 @@ protocol AzureVoiceLiveProtocol: Actor {
 }
 
 /// Azure server events - Complete set of all 44+ events
-enum AzureServerEvent {
+public enum AzureServerEvent {
     // Session events (3)
     case sessionCreated(SessionCreatedEvent)
     case sessionUpdated(SessionUpdatedEvent)

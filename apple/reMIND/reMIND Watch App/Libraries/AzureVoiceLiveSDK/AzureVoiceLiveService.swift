@@ -9,7 +9,7 @@ import Foundation
 import os
 
 /// Azure Voice Live service implementation
-actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
+public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
     // MARK: - Properties
 
     private let apiKey: String
@@ -17,11 +17,11 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
 
     private var webSocketManager: WebSocketManager?
 
-    private(set) var connectionState: ConnectionState = .disconnected
+    public private(set) var connectionState: ConnectionState = .disconnected
 
     // Event stream
     private var eventContinuation: AsyncStream<AzureServerEvent>.Continuation?
-    let eventStream: AsyncStream<AzureServerEvent>
+    public let eventStream: AsyncStream<AzureServerEvent>
 
     // Session state
     private var sessionId: String?
@@ -33,7 +33,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
 
     // MARK: - Initialization
 
-    init(apiKey: String, websocketURL: URL) {
+    public init(apiKey: String, websocketURL: URL) {
         self.apiKey = apiKey
         self.websocketURL = websocketURL
 
@@ -47,7 +47,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
 
     // MARK: - Connection Management
 
-    func connect() async throws {
+    public func connect() async throws {
         guard connectionState != .connected else {
             AppLogger.azure.warning("Already connected")
             return
@@ -80,7 +80,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         AppLogger.azure.info("WebSocket ready, will send session.update")
     }
 
-    func disconnect() async {
+    public func disconnect() async {
         AppLogger.azure.info("Disconnecting from Azure Voice Live API")
 
         await webSocketManager?.disconnect()
@@ -97,7 +97,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
 
     // MARK: - Session Management
 
-    func updateSession(_ config: RealtimeRequestSession) async throws {
+    public func updateSession(_ config: RealtimeRequestSession) async throws {
         guard connectionState == .connected else {
             throw AzureError.notConnected
         }
@@ -112,7 +112,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
 
     // MARK: - Audio Management
 
-    func sendAudioChunk(_ audioData: Data) async throws {
+    public func sendAudioChunk(_ audioData: Data) async throws {
         guard connectionState == .connected else {
             throw AzureError.notConnected
         }
@@ -132,7 +132,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         try await sendEvent(event)
     }
 
-    func commitAudioBuffer() async throws {
+    public func commitAudioBuffer() async throws {
         guard connectionState == .connected else {
             throw AzureError.notConnected
         }
@@ -157,7 +157,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         try await sendEvent(event)
     }
 
-    func clearAudioBuffer() async throws {
+    public func clearAudioBuffer() async throws {
         guard connectionState == .connected else {
             throw AzureError.notConnected
         }
@@ -172,7 +172,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         try await sendEvent(event)
     }
 
-    func cancelResponse() async throws {
+    public func cancelResponse() async throws {
         guard connectionState == .connected else {
             throw AzureError.notConnected
         }
@@ -185,7 +185,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
 
     // MARK: - Conversation Management
 
-    func createConversationItem(previousItemId: String?, item: RealtimeConversationRequestItem) async throws {
+    public func createConversationItem(previousItemId: String?, item: RealtimeConversationRequestItem) async throws {
         guard connectionState == .connected else {
             throw AzureError.notConnected
         }
@@ -200,7 +200,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         try await sendEvent(event)
     }
 
-    func retrieveConversationItem(itemId: String) async throws {
+    public func retrieveConversationItem(itemId: String) async throws {
         guard connectionState == .connected else {
             throw AzureError.notConnected
         }
@@ -215,7 +215,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         try await sendEvent(event)
     }
 
-    func truncateConversationItem(itemId: String, contentIndex: Int, audioEndMs: Int) async throws {
+    public func truncateConversationItem(itemId: String, contentIndex: Int, audioEndMs: Int) async throws {
         guard connectionState == .connected else {
             throw AzureError.notConnected
         }
@@ -230,7 +230,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         try await sendEvent(event)
     }
 
-    func deleteConversationItem(itemId: String) async throws {
+    public func deleteConversationItem(itemId: String) async throws {
         guard connectionState == .connected else {
             throw AzureError.notConnected
         }
@@ -247,7 +247,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
 
     // MARK: - Response Management
 
-    func createResponse(config: RealtimeResponseOptions?) async throws {
+    public func createResponse(config: RealtimeResponseOptions?) async throws {
         guard connectionState == .connected else {
             throw AzureError.notConnected
         }
@@ -264,7 +264,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
 
     // MARK: - MCP Tool Management
 
-    func sendMcpApproval(approve: Bool, approvalRequestId: String) async throws {
+    public func sendMcpApproval(approve: Bool, approvalRequestId: String) async throws {
         guard connectionState == .connected else {
             throw AzureError.notConnected
         }
@@ -622,7 +622,7 @@ actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         }
     }
 
-    func waitForSessionCreated() async throws {
+    public func waitForSessionCreated() async throws {
         AppLogger.azure.info("Waiting for session to be ready...")
 
         // Poll the isSessionReady flag with timeout
@@ -655,7 +655,7 @@ struct AudioBufferStatistics {
 
 // MARK: - Errors
 
-enum AzureError: LocalizedError {
+public enum AzureError: LocalizedError {
     case notConnected
     case invalidConfiguration
     case sessionNotReady
@@ -665,7 +665,7 @@ enum AzureError: LocalizedError {
     case connectionFailed
     case bufferTooSmall(durationMs: Double, bytes: Int, minimumMs: Double)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .notConnected:
             return "Not connected to Azure"

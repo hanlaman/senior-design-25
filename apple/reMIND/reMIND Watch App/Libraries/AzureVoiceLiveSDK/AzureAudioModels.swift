@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - Audio Input Transcription Settings
 
-struct RealtimeAudioInputTranscriptionSettings: Codable, Sendable {
+public struct RealtimeAudioInputTranscriptionSettings: Codable, Sendable {
     let model: String
     let language: String?
     let customSpeech: AnyCodable?
@@ -24,7 +24,7 @@ struct RealtimeAudioInputTranscriptionSettings: Codable, Sendable {
         case prompt
     }
 
-    init(
+    public init(
         model: String,
         language: String? = nil,
         customSpeech: AnyCodable? = nil,
@@ -41,7 +41,7 @@ struct RealtimeAudioInputTranscriptionSettings: Codable, Sendable {
 
 // MARK: - Input Audio Noise Reduction (Union Type)
 
-enum RealtimeInputAudioNoiseReductionSettings: Codable, Sendable {
+public enum RealtimeInputAudioNoiseReductionSettings: Codable, Sendable {
     case openai(RealtimeOpenAINoiseReduction)
     case azure(RealtimeAzureDeepNoiseSuppression)
 
@@ -49,7 +49,7 @@ enum RealtimeInputAudioNoiseReductionSettings: Codable, Sendable {
         case type
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
 
@@ -67,7 +67,7 @@ enum RealtimeInputAudioNoiseReductionSettings: Codable, Sendable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         switch self {
         case .openai(let config):
             try config.encode(to: encoder)
@@ -77,7 +77,7 @@ enum RealtimeInputAudioNoiseReductionSettings: Codable, Sendable {
     }
 }
 
-struct RealtimeOpenAINoiseReduction: Codable, Sendable {
+public struct RealtimeOpenAINoiseReduction: Codable, Sendable {
     let type: String
 
     enum CodingKeys: String, CodingKey {
@@ -89,7 +89,7 @@ struct RealtimeOpenAINoiseReduction: Codable, Sendable {
     }
 }
 
-struct RealtimeAzureDeepNoiseSuppression: Codable, Sendable {
+public struct RealtimeAzureDeepNoiseSuppression: Codable, Sendable {
     let type: String = "azure_deep_noise_suppression"
 
     enum CodingKeys: String, CodingKey {
@@ -99,7 +99,7 @@ struct RealtimeAzureDeepNoiseSuppression: Codable, Sendable {
 
 // MARK: - Input Audio Echo Cancellation
 
-struct RealtimeInputAudioEchoCancellationSettings: Codable, Sendable {
+public struct RealtimeInputAudioEchoCancellationSettings: Codable, Sendable {
     let type: String = "server_echo_cancellation"
 
     enum CodingKeys: String, CodingKey {
