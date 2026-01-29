@@ -59,6 +59,11 @@ const cosmosDbAccount = new cosmosdb.DatabaseAccount(`cosmos-db-account-${stack}
     resourceGroupName: resourceGroup.name,
     location: resourceGroup.location,
 
+    // Identity
+    identity: {
+        type: cosmosdb.ResourceIdentityType.SystemAssigned,
+    },
+
     // Account type
     kind: cosmosdb.DatabaseAccountKind.GlobalDocumentDB,
     databaseAccountOfferType: cosmosdb.DatabaseAccountOfferType.Standard,
