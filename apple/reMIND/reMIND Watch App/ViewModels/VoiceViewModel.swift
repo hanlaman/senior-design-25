@@ -28,6 +28,7 @@ class VoiceViewModel: ObservableObject {
 
     private var isInitialized = false
     private var isProcessingAudio = false
+    private var audioStateTask: Task<Void, Never>?
 
     // MARK: - Initialization
 
@@ -76,6 +77,9 @@ class VoiceViewModel: ObservableObject {
             connectionState = .connected
             voiceState = .idle
 
+            // Start observing audio state changes
+            startObservingAudioState()
+
             AppLogger.general.info("Voice assistant connected and ready")
 
         } catch {
@@ -95,6 +99,10 @@ class VoiceViewModel: ObservableObject {
         guard connectionState == .connected else { return }
 
         AppLogger.general.info("Disconnecting voice assistant")
+
+        // Cancel audio state observation
+        audioStateTask?.cancel()
+        audioStateTask = nil
 
         // Stop any active recording or playback
         await stopRecording()
@@ -210,6 +218,38 @@ class VoiceViewModel: ObservableObject {
 
     // MARK: - Private Methods
 
+    private func startObservingAudioState() {
+        audioStateTask?.cancel()
+
+        guard let audioService = audioService else {
+            AppLogger.general.warning("Cannot start observing audio state: no audio service")
+            return
+        }
+
+        AppLogger.general.info("Starting audio state observation")
+
+        audioStateTask = Task { @MainActor [weak self] in
+            for await isPlaying in await audioService.playbackStateStream {
+                guard let self = self else { break }
+
+                // Audio stream is the single source of truth for playback state
+                if isPlaying {
+                    // Audio started - transition to playing if not already
+                    if !self.voiceState.isPlaying {
+                        self.voiceState = .playing
+                        AppLogger.general.info("Voice state: playing")
+                    }
+                } else {
+                    // Audio stopped - transition to idle if we're playing
+                    if self.voiceState.isPlaying {
+                        self.voiceState = .idle
+                        AppLogger.general.info("Voice state: idle")
+                    }
+                }
+            }
+        }
+    }
+
     private func processAudioChunks(audioService: AudioService, azureService: AzureVoiceLiveService) async {
         guard !isProcessingAudio else { return }
         isProcessingAudio = true
@@ -297,11 +337,7 @@ class VoiceViewModel: ObservableObject {
 
         case .responseDone:
             AppLogger.azure.info("Response done")
-            // Wait a bit for playback to finish
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-            if voiceState.isPlaying {
-                voiceState = .idle
-            }
+            // Audio state observation will automatically transition to .idle when playback completes
 
         case .error(let errorEvent):
             AppLogger.azure.error("Azure error: \(errorEvent.error.message)")
@@ -410,12 +446,9 @@ class VoiceViewModel: ObservableObject {
             return
         }
 
-        // Update state to playing if not already
-        if !voiceState.isPlaying {
-            voiceState = .playing
-        }
-
-        // Play audio
+        // Play audio - state transition handled by audio stream observer
+        // AudioService will emit playback state changes via playbackStateStream
+        // The observer will transition from .processing → .playing when audio starts
         do {
             try await audioService.playAudio(audioData)
         } catch {

@@ -13,6 +13,9 @@ protocol AudioServiceProtocol: Actor {
     /// Audio chunk stream (captured audio ready for transmission)
     var audioChunkStream: AsyncStream<Data> { get }
 
+    /// Playback state stream (emits true when playback starts, false when it ends)
+    var playbackStateStream: AsyncStream<Bool> { get }
+
     /// Start capturing audio from microphone
     func startCapture() async throws
 

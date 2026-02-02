@@ -22,10 +22,16 @@ actor AudioService: AudioServiceProtocol {
     private var isEngineRunning = false
 
     private var audioFormat: AVAudioFormat?
+    private var scheduledBufferCount = 0
+    private var completedBufferCount = 0
 
     // Audio chunk stream
     private var chunkContinuation: AsyncStream<Data>.Continuation?
     let audioChunkStream: AsyncStream<Data>
+
+    // Playback state stream
+    private var playbackStateContinuation: AsyncStream<Bool>.Continuation?
+    let playbackStateStream: AsyncStream<Bool>
 
     // MARK: - Initialization
 
@@ -36,6 +42,20 @@ actor AudioService: AudioServiceProtocol {
             continuationHolder = continuation
         }
         self.chunkContinuation = continuationHolder
+
+        // Create playback state stream
+        var stateContinuation: AsyncStream<Bool>.Continuation?
+        self.playbackStateStream = AsyncStream { continuation in
+            stateContinuation = continuation
+        }
+        self.playbackStateContinuation = stateContinuation
+    }
+
+    // MARK: - Playback State Management
+
+    private func setPlayingState(_ playing: Bool) {
+        isPlaying = playing
+        playbackStateContinuation?.yield(playing)
     }
 
     // MARK: - Audio Session Configuration
@@ -118,22 +138,14 @@ actor AudioService: AudioServiceProtocol {
         // Remove tap
         audioEngine.inputNode.removeTap(onBus: 0)
 
-        // Only stop engine if not playing
-        if !isPlaying {
-            stopEngineIfNeeded()
-        }
-
         isCapturing = false
 
         // Clear capture buffer
         await bufferManager.clearCaptureBuffer()
 
-        // Only deactivate audio session if not playing
-        if !isPlaying {
-            deactivateAudioSession()
-        }
-
-        AppLogger.audio.info("Audio capture stopped")
+        // Keep engine and session active for incoming audio response
+        // They will be cleaned up on disconnect or explicit stop
+        AppLogger.audio.info("Audio capture stopped, keeping engine/session active for response")
     }
 
     private func processCapturedAudio(buffer: AVAudioPCMBuffer, converter: AVAudioConverter?, targetFormat: AVAudioFormat) async {
@@ -196,20 +208,19 @@ actor AudioService: AudioServiceProtocol {
         // Start player node if not already playing
         if !isPlaying {
             playerNode.play()
-            isPlaying = true
-            AppLogger.audio.info("Started audio playback")
+            setPlayingState(true)
         }
 
         // Schedule buffer for playback
+        scheduledBufferCount += 1
+        let bufferNum = scheduledBufferCount
         playerNode.scheduleBuffer(buffer) { [weak self] in
             Task {
-                await self?.handlePlaybackComplete()
+                await self?.handleBufferComplete(bufferNum: bufferNum)
             }
         }
 
         await bufferManager.addToPlaybackBuffer(data)
-
-        AppLogger.audio.debug("Scheduled audio buffer for playback: \(buffer.frameLength) frames")
     }
 
     func stopPlayback() async {
@@ -218,7 +229,7 @@ actor AudioService: AudioServiceProtocol {
         AppLogger.audio.info("Stopping audio playback")
 
         playerNode.stop()
-        isPlaying = false
+        setPlayingState(false)
 
         await bufferManager.clearPlaybackBuffer()
 
@@ -227,22 +238,27 @@ actor AudioService: AudioServiceProtocol {
             stopEngineIfNeeded()
             deactivateAudioSession()
         }
+    }
 
-        AppLogger.audio.info("Audio playback stopped")
+    private func handleBufferComplete(bufferNum: Int) async {
+        self.completedBufferCount += 1
+        await self.handlePlaybackComplete()
     }
 
     private func handlePlaybackComplete() async {
-        let hasMoreData = await bufferManager.hasPlaybackData()
+        // Check if all scheduled buffers have completed
+        let allBuffersComplete = (self.completedBufferCount >= self.scheduledBufferCount)
 
-        if !hasMoreData {
-            isPlaying = false
-            AppLogger.audio.info("Playback complete")
+        if allBuffersComplete {
+            AppLogger.audio.info("Audio playback complete")
+            setPlayingState(false)
 
-            // Stop engine and deactivate audio session if not capturing
-            if !isCapturing {
-                stopEngineIfNeeded()
-                deactivateAudioSession()
-            }
+            // Reset counters for next playback
+            self.scheduledBufferCount = 0
+            self.completedBufferCount = 0
+
+            // Keep engine and session active for subsequent playback
+            // Only deactivate if explicitly stopped or disconnected
         }
     }
 
