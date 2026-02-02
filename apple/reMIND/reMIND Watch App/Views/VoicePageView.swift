@@ -15,7 +15,7 @@ struct VoicePageView: View {
     var body: some View {
         ZStack {
             // Background layer: Full-screen color based on voice state
-            backgroundColor(for: viewModel.voiceState)
+            backgroundColor(for: viewModel.state)
                 .ignoresSafeArea()
 
             // Content layer: Center icon, status text, and error message
@@ -23,21 +23,21 @@ struct VoicePageView: View {
                 Spacer()
 
                 // Large center icon
-                Image(systemName: iconName(for: viewModel.voiceState))
+                Image(systemName: iconName(for: viewModel.state))
                     .font(.system(size: 64, weight: .medium))
                     .foregroundColor(.white)
-                    .scaleEffect(isPulsing && viewModel.voiceState.isRecording ? 1.15 : 1.0)
+                    .scaleEffect(isPulsing && viewModel.state.isRecording ? 1.15 : 1.0)
                     .animation(
-                        viewModel.voiceState.isRecording ?
+                        viewModel.state.isRecording ?
                             .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default,
                         value: isPulsing
                     )
-                    .onChange(of: viewModel.voiceState) { _, newState in
+                    .onChange(of: viewModel.state) { _, newState in
                         isPulsing = newState.isRecording
                     }
 
                 // Status text below icon
-                Text(viewModel.voiceState.displayText)
+                Text(viewModel.state.displayText)
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.9))
                     .multilineTextAlignment(.center)
@@ -45,7 +45,7 @@ struct VoicePageView: View {
                 Spacer()
 
                 // Error message at bottom (only visible if error exists)
-                if let errorMessage = viewModel.errorMessage {
+                if let errorMessage = viewModel.state.errorMessage {
                     Text(errorMessage)
                         .font(.caption2)
                         .foregroundColor(.white.opacity(0.9))
@@ -60,13 +60,13 @@ struct VoicePageView: View {
         .onTapGesture {
             handleTap()
         }
-        .allowsHitTesting(canInteract(viewModel.voiceState))
-        .animation(.easeInOut(duration: 0.3), value: viewModel.voiceState)
+        .allowsHitTesting(canInteract(viewModel.state))
+        .animation(.easeInOut(duration: 0.3), value: viewModel.state)
     }
 
     // MARK: - Helper Functions
 
-    private func backgroundColor(for state: VoiceState) -> Color {
+    private func backgroundColor(for state: VoiceInteractionState) -> Color {
         switch state {
         case .idle:
             return Color.blue
@@ -76,7 +76,7 @@ struct VoicePageView: View {
             return Color.orange
         case .playing:
             return Color.green
-        case .error:
+        case .error, .connectionFailed:
             return Color.gray
         case .disconnected:
             return Color(white: 0.3) // Dark gray
@@ -85,7 +85,7 @@ struct VoicePageView: View {
         }
     }
 
-    private func iconName(for state: VoiceState) -> String {
+    private func iconName(for state: VoiceInteractionState) -> String {
         switch state {
         case .idle, .recording:
             return "mic.fill"
@@ -93,7 +93,7 @@ struct VoicePageView: View {
             return "waveform"
         case .playing:
             return "speaker.wave.2.fill"
-        case .error:
+        case .error, .connectionFailed:
             return "exclamationmark.triangle.fill"
         case .disconnected:
             return "mic.slash.fill"
@@ -102,7 +102,7 @@ struct VoicePageView: View {
         }
     }
 
-    private func canInteract(_ state: VoiceState) -> Bool {
+    private func canInteract(_ state: VoiceInteractionState) -> Bool {
         switch state {
         case .idle, .recording:
             return true
@@ -116,7 +116,7 @@ struct VoicePageView: View {
         WKInterfaceDevice.current().play(.click)
 
         Task {
-            switch viewModel.voiceState {
+            switch viewModel.state {
             case .idle:
                 // Start recording
                 await viewModel.startRecording()

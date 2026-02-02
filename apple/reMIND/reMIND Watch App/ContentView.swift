@@ -24,12 +24,12 @@ struct ContentView: View {
                 .tag(NavigationPage.voice as NavigationPage?)
 
             // Settings page (swipe down to reveal)
-            SettingsPageView(connectionState: viewModel.connectionState)
+            SettingsPageView(state: viewModel.state)
                 .tag(NavigationPage.settings as NavigationPage?)
         }
         .tabViewStyle(.verticalPage)
         // Disable page swiping during recording to prevent accidental navigation
-        .allowsHitTesting(!viewModel.voiceState.isRecording)
+        .allowsHitTesting(!viewModel.state.isRecording)
         .ignoresSafeArea()
         .task {
             // Auto-connect on appear

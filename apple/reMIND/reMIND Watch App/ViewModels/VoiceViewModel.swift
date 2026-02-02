@@ -15,9 +15,13 @@ import os
 class VoiceViewModel: ObservableObject {
     // MARK: - Published Properties
 
-    @Published private(set) var voiceState: VoiceState = .disconnected
-    @Published private(set) var connectionState: ConnectionState = .disconnected
-    @Published private(set) var errorMessage: String?
+    // Unified state machine (single source of truth)
+    private let stateMachine = VoiceStateMachine()
+
+    // Computed property for new code to access unified state
+    var state: VoiceInteractionState {
+        stateMachine.state
+    }
 
     // MARK: - Services
 
@@ -29,34 +33,38 @@ class VoiceViewModel: ObservableObject {
     private var isInitialized = false
     private var isProcessingAudio = false
     private var audioStateTask: Task<Void, Never>?
+    private var stateMachineObserver: AnyCancellable?
 
     // MARK: - Initialization
 
     init() {
         // Services will be initialized on connect
+
+        // Observe state machine changes to trigger view updates
+        stateMachineObserver = stateMachine.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
     }
 
     // MARK: - Connection Management
 
     func connect() async {
-        guard connectionState != .connected else { return }
+        guard !stateMachine.isConnected else { return }
 
         // Validate configuration
         let config = AzureVoiceLiveConfig.fromBuildSettings
         if let validationError = config.validate() {
-            errorMessage = validationError
-            voiceState = .error(validationError)
+            stateMachine.transitionTo(.connectionFailed(validationError))
             return
         }
 
         guard let websocketURL = config.websocketURL else {
-            errorMessage = "Invalid WebSocket URL"
-            voiceState = .error("Invalid WebSocket URL")
+            let errorMsg = "Invalid WebSocket URL"
+            stateMachine.transitionTo(.connectionFailed(errorMsg))
             return
         }
 
-        connectionState = .connecting
-        voiceState = .connecting
+        stateMachine.transitionTo(.connecting)
 
         do {
             // Create services
@@ -73,9 +81,14 @@ class VoiceViewModel: ObservableObject {
             // This now handles the entire flow: WebSocket connect → session.created → session.update → ready
             try await azure.connect()
 
+            // Get session ID from Azure
+            let azureSessionState = await azure.sessionState
+            guard let sessionId = azureSessionState.sessionId else {
+                throw NSError(domain: "VoiceViewModel", code: 1, userInfo: [NSLocalizedDescriptionKey: "Session ID not available"])
+            }
+
             // Session is now ready, update UI state
-            connectionState = .connected
-            voiceState = .idle
+            stateMachine.transitionTo(.idle(sessionId: sessionId))
 
             // Start observing audio state changes
             startObservingAudioState()
@@ -84,9 +97,7 @@ class VoiceViewModel: ObservableObject {
 
         } catch {
             AppLogger.logError(error, category: AppLogger.general, context: "Connection failed")
-            connectionState = .error(error.localizedDescription)
-            voiceState = .error(error.localizedDescription)
-            errorMessage = error.localizedDescription
+            stateMachine.transitionTo(.connectionFailed(error.localizedDescription))
 
             // Clean up on failure
             await azureService?.disconnect()
@@ -96,7 +107,7 @@ class VoiceViewModel: ObservableObject {
     }
 
     func disconnect() async {
-        guard connectionState == .connected else { return }
+        guard stateMachine.isConnected else { return }
 
         AppLogger.general.info("Disconnecting voice assistant")
 
@@ -111,8 +122,7 @@ class VoiceViewModel: ObservableObject {
         // Disconnect from Azure
         await azureService?.disconnect()
 
-        connectionState = .disconnected
-        voiceState = .disconnected
+        stateMachine.transitionTo(.disconnected)
 
         azureService = nil
         audioService = nil
@@ -123,25 +133,26 @@ class VoiceViewModel: ObservableObject {
     // MARK: - Voice Interaction
 
     func startRecording() async {
-        guard connectionState == .connected else {
-            errorMessage = "Not connected to Azure"
-            return
-        }
-
-        guard voiceState.canStartRecording else {
-            AppLogger.general.warning("Cannot start recording in current state: \(self.voiceState)")
+        guard stateMachine.canStartRecording else {
+            AppLogger.general.warning("Cannot start recording in current state: \(self.stateMachine.state)")
             return
         }
 
         guard let audioService = audioService, let azureService = azureService else {
-            errorMessage = "Services not initialized"
+            AppLogger.general.warning("Services not initialized")
+            return
+        }
+
+        // Get session ID for state machine
+        guard let sessionId = stateMachine.sessionId else {
+            AppLogger.general.warning("No active session")
             return
         }
 
         do {
             AppLogger.general.info("Starting voice recording")
 
-            voiceState = .recording
+            stateMachine.transitionTo(.recording(sessionId: sessionId, bufferBytes: 0))
 
             // Start audio capture
             try await audioService.startCapture()
@@ -153,15 +164,17 @@ class VoiceViewModel: ObservableObject {
 
         } catch {
             AppLogger.logError(error, category: AppLogger.general, context: "Failed to start recording")
-            voiceState = .error(error.localizedDescription)
-            errorMessage = error.localizedDescription
+            stateMachine.transitionTo(.error(sessionId: sessionId, message: error.localizedDescription))
         }
     }
 
     func stopRecording() async {
-        guard voiceState.isRecording else { return }
+        guard stateMachine.isRecording else { return }
 
         AppLogger.general.info("Stopping voice recording")
+
+        // Get session ID
+        guard let sessionId = stateMachine.sessionId else { return }
 
         // Stop audio capture
         await audioService?.stopCapture()
@@ -177,29 +190,29 @@ class VoiceViewModel: ObservableObject {
         // Commit audio buffer to Azure
         do {
             try await azureService.commitAudioBuffer()
-            voiceState = .processing
+            stateMachine.transitionTo(.processing(sessionId: sessionId))
             AppLogger.general.info("Audio buffer committed, processing...")
         } catch let error as AzureError {
             // Handle buffer too small error specifically
             if case .bufferTooSmall = error {
                 AppLogger.general.warning("Audio buffer too small, clearing buffer")
                 try? await azureService.clearAudioBuffer()
-                voiceState = .idle
-                errorMessage = error.localizedDescription
+                stateMachine.transitionTo(.idle(sessionId: sessionId))
             } else {
                 AppLogger.logError(error, category: AppLogger.general, context: "Failed to commit audio buffer")
-                voiceState = .error(error.localizedDescription)
-                errorMessage = error.localizedDescription
+                stateMachine.transitionTo(.error(sessionId: sessionId, message: error.localizedDescription))
             }
         } catch {
             AppLogger.logError(error, category: AppLogger.general, context: "Failed to commit audio buffer")
-            voiceState = .error(error.localizedDescription)
-            errorMessage = error.localizedDescription
+            stateMachine.transitionTo(.error(sessionId: sessionId, message: error.localizedDescription))
         }
     }
 
     func cancelInteraction() async {
         AppLogger.general.info("Canceling interaction")
+
+        // Get session ID
+        guard let sessionId = stateMachine.sessionId else { return }
 
         // Stop recording if active
         await audioService?.stopCapture()
@@ -213,7 +226,7 @@ class VoiceViewModel: ObservableObject {
         // Clear audio buffer
         try? await azureService?.clearAudioBuffer()
 
-        voiceState = .idle
+        stateMachine.transitionTo(.idle(sessionId: sessionId))
     }
 
     // MARK: - Private Methods
@@ -232,17 +245,24 @@ class VoiceViewModel: ObservableObject {
             for await isPlaying in await audioService.playbackStateStream {
                 guard let self = self else { break }
 
+                // Get current session ID
+                guard let sessionId = self.stateMachine.sessionId else {
+                    AppLogger.general.warning("No session ID during audio state change")
+                    continue
+                }
+
                 // Audio stream is the single source of truth for playback state
                 if isPlaying {
                     // Audio started - transition to playing if not already
-                    if !self.voiceState.isPlaying {
-                        self.voiceState = .playing
+                    if !self.stateMachine.isPlaying {
+                        let bufferCount = await audioService.activeBufferCount
+                        self.stateMachine.transitionTo(.playing(sessionId: sessionId, activeBuffers: bufferCount))
                         AppLogger.general.info("Voice state: playing")
                     }
                 } else {
                     // Audio stopped - transition to idle if we're playing
-                    if self.voiceState.isPlaying {
-                        self.voiceState = .idle
+                    if self.stateMachine.isPlaying {
+                        self.stateMachine.transitionTo(.idle(sessionId: sessionId))
                         AppLogger.general.info("Voice state: idle")
                     }
                 }
@@ -255,7 +275,7 @@ class VoiceViewModel: ObservableObject {
         isProcessingAudio = true
 
         for await chunk in await audioService.audioChunkStream {
-            guard voiceState.isRecording else {
+            guard stateMachine.isRecording else {
                 break
             }
 
@@ -296,17 +316,21 @@ class VoiceViewModel: ObservableObject {
             AppLogger.azure.info("Speech stopped (VAD)")
             // Server VAD auto-commits the buffer, so just stop capturing
             // Do NOT call stopRecording() as that would try to commit again
-            if voiceState.isRecording {
+            if stateMachine.isRecording {
                 await audioService?.stopCapture()
-                voiceState = .processing
+                if let sessionId = stateMachine.sessionId {
+                    stateMachine.transitionTo(.processing(sessionId: sessionId))
+                }
                 AppLogger.general.info("Stopped capture, waiting for server to commit buffer")
             }
 
         case .inputAudioBufferCommitted:
             AppLogger.azure.info("Audio buffer committed")
             // Server has committed the buffer, transition to processing if not already
-            if voiceState.isRecording {
-                voiceState = .processing
+            if stateMachine.isRecording {
+                if let sessionId = stateMachine.sessionId {
+                    stateMachine.transitionTo(.processing(sessionId: sessionId))
+                }
             }
 
         case .conversationItemCreated(let itemEvent):
@@ -314,7 +338,7 @@ class VoiceViewModel: ObservableObject {
 
         case .responseCreated:
             AppLogger.azure.info("Response created")
-            voiceState = .processing
+            // Note: State will transition to processing when audio chunks arrive
 
         case .responseOutputItemAdded(let itemEvent):
             AppLogger.azure.info("Response output item added: \(itemEvent.item.id) (type: \(itemEvent.item.type))")
@@ -341,8 +365,11 @@ class VoiceViewModel: ObservableObject {
 
         case .error(let errorEvent):
             AppLogger.azure.error("Azure error: \(errorEvent.error.message)")
-            voiceState = .error(errorEvent.error.message)
-            errorMessage = errorEvent.error.message
+            if let sessionId = stateMachine.sessionId {
+                stateMachine.transitionTo(.error(sessionId: sessionId, message: errorEvent.error.message))
+            } else {
+                stateMachine.transitionTo(.connectionFailed(errorEvent.error.message))
+            }
 
         // Events with default handling (logged but no action needed)
         case .sessionAvatarConnecting:

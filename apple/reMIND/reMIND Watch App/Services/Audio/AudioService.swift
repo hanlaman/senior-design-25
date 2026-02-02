@@ -26,6 +26,11 @@ actor AudioService: AudioServiceProtocol {
     // Buffer tracking with UUID tokens (prevents race conditions)
     private var activeBuffers: Set<UUID> = []
 
+    // Public accessor for active buffer count
+    var activeBufferCount: Int {
+        activeBuffers.count
+    }
+
     // Interruption handling
     private var interruptionTask: Task<Void, Never>?
 

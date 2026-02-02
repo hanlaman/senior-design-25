@@ -135,12 +135,8 @@ enum VoiceInteractionState: Equatable {
             }
         case .processing:
             return "Processing..."
-        case .playing(_, let buffers):
-            if buffers > 0 {
-                return "Playing... (\(buffers) chunks)"
-            } else {
-                return "Playing..."
-            }
+        case .playing:
+            return "Playing..."
         case .error(_, let message):
             return "Error: \(message)"
         }
