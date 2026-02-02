@@ -24,8 +24,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
     public let eventStream: AsyncStream<AzureServerEvent>
 
     // Session state
-    private var sessionId: String?
-    private var isSessionReady = false
+    public private(set) var sessionState: AzureSessionState = .uninitialized
 
     // Audio buffer tracking
     private var audioBufferBytes: Int = 0
@@ -53,7 +52,13 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             return
         }
 
+        guard sessionState == .uninitialized else {
+            AppLogger.azure.warning("Session already exists: \(self.self.sessionState.displayText)")
+            return
+        }
+
         connectionState = .connecting
+        sessionState = .establishing(sessionId: nil)
         AppLogger.azure.info("Connecting to Azure Voice Live API")
 
         // Create WebSocket manager
@@ -64,7 +69,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         try await manager.connect()
 
         connectionState = .connected
-        AppLogger.azure.info("Connected to Azure Voice Live API")
+        AppLogger.azure.info("Connected to Azure Voice Live API, waiting for session.created")
 
         // Start processing events
         AppLogger.azure.info("Creating Task to process WebSocket events")
@@ -77,18 +82,26 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         // Give WebSocket a moment to be fully ready
         try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
 
-        AppLogger.azure.info("WebSocket ready, will send session.update")
+        // Send session.update to configure the session
+        AppLogger.azure.info("Sending session.update to configure session")
+        try await updateSession(.basicAudioConversation())
+
+        // Wait for session to be ready (session.created and session.updated)
+        try await waitForSessionReady()
+
+        AppLogger.azure.info("Session ready: \(self.sessionState.displayText)")
     }
 
     public func disconnect() async {
         AppLogger.azure.info("Disconnecting from Azure Voice Live API")
 
+        sessionState = .terminating
+
         await webSocketManager?.disconnect()
         webSocketManager = nil
 
         connectionState = .disconnected
-        sessionId = nil
-        isSessionReady = false
+        sessionState = .uninitialized
 
         eventContinuation?.finish()
 
@@ -117,7 +130,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.notConnected
         }
 
-        guard isSessionReady else {
+        guard sessionState.canAcceptAudio else {
             throw AzureError.sessionNotReady
         }
 
@@ -137,7 +150,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.notConnected
         }
 
-        guard isSessionReady else {
+        guard sessionState.canAcceptAudio else {
             throw AzureError.sessionNotReady
         }
 
@@ -190,7 +203,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.notConnected
         }
 
-        guard isSessionReady else {
+        guard sessionState.canAcceptConversation else {
             throw AzureError.sessionNotReady
         }
 
@@ -205,7 +218,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.notConnected
         }
 
-        guard isSessionReady else {
+        guard sessionState.canAcceptConversation else {
             throw AzureError.sessionNotReady
         }
 
@@ -220,7 +233,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.notConnected
         }
 
-        guard isSessionReady else {
+        guard sessionState.canAcceptConversation else {
             throw AzureError.sessionNotReady
         }
 
@@ -235,7 +248,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.notConnected
         }
 
-        guard isSessionReady else {
+        guard sessionState.canAcceptConversation else {
             throw AzureError.sessionNotReady
         }
 
@@ -252,7 +265,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.notConnected
         }
 
-        guard isSessionReady else {
+        guard sessionState.canAcceptConversation else {
             throw AzureError.sessionNotReady
         }
 
@@ -269,7 +282,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.notConnected
         }
 
-        guard isSessionReady else {
+        guard sessionState.canAcceptConversation else {
             throw AzureError.sessionNotReady
         }
 
@@ -373,20 +386,35 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             // Decode specific event based on type
             let event = try decodeEvent(type: envelope.type, data: data, decoder: decoder)
 
-            // Handle session events specially
-            if case .sessionCreated(let sessionCreated) = event {
-                sessionId = sessionCreated.session.id
-                isSessionReady = true
-                audioBufferBytes = 0
-                audioBufferChunks = 0
-                AppLogger.azure.info("Session created: \(sessionCreated.session.id) - Session ready!")
-            }
+            // Handle session state transitions
+            switch event {
+            case .sessionCreated(let sessionCreated):
+                let newSessionId = sessionCreated.session.id
 
-            if case .sessionUpdated = event {
-                isSessionReady = true
-                audioBufferBytes = 0
-                audioBufferChunks = 0
-                AppLogger.azure.info("Session updated - Session ready!")
+                // Transition from establishing → establishing(with ID)
+                if case .establishing = sessionState {
+                    sessionState = .establishing(sessionId: newSessionId)
+                    AppLogger.azure.info("Session created: \(newSessionId) - Waiting for session.updated")
+                } else {
+                    AppLogger.azure.warning("Received session.created in unexpected state: \(self.sessionState.displayText)")
+                }
+
+            case .sessionUpdated:
+                // Transition from establishing → ready
+                if case .establishing(let id) = sessionState, let sessionId = id {
+                    sessionState = .ready(sessionId: sessionId)
+                    audioBufferBytes = 0
+                    audioBufferChunks = 0
+                    AppLogger.azure.info("Session ready: \(sessionId)")
+                } else {
+                    AppLogger.azure.warning("Received session.updated in unexpected state: \(self.sessionState.displayText)")
+                }
+
+            case .error(let errorEvent):
+                sessionState = .error(errorEvent.error.message)
+
+            default:
+                break
             }
 
             // Yield event to stream
@@ -622,17 +650,17 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         }
     }
 
-    public func waitForSessionCreated() async throws {
+    public func waitForSessionReady() async throws {
         AppLogger.azure.info("Waiting for session to be ready...")
 
-        // Poll the isSessionReady flag with timeout
+        // Poll the session state with timeout
         let startTime = Date()
         let timeout: TimeInterval = 10.0 // 10 seconds
 
-        while !isSessionReady {
+        while !sessionState.canAcceptAudio {
             // Check if timed out
             if Date().timeIntervalSince(startTime) > timeout {
-                AppLogger.azure.error("Timeout waiting for session ready")
+                AppLogger.azure.error("Timeout waiting for session ready, current state: \(self.sessionState.displayText)")
                 throw AzureError.connectionTimeout
             }
 
@@ -640,7 +668,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             try await Task.sleep(nanoseconds: 100_000_000) // 100ms
         }
 
-        AppLogger.azure.info("Session ready, continuing...")
+        AppLogger.azure.info("Session ready: \(self.sessionState.displayText)")
     }
 }
 

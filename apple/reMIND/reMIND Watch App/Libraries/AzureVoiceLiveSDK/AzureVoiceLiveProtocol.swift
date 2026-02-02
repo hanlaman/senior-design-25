@@ -12,6 +12,9 @@ public protocol AzureVoiceLiveProtocol: Actor {
     /// Connection state
     var connectionState: ConnectionState { get }
 
+    /// Session state
+    var sessionState: AzureSessionState { get }
+
     /// Stream of events from Azure
     var eventStream: AsyncStream<AzureServerEvent> { get }
 

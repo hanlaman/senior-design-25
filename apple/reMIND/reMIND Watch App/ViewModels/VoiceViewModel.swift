@@ -65,21 +65,14 @@ class VoiceViewModel: ObservableObject {
             self.azureService = azure
             self.audioService = audio
 
-            // Connect to Azure WebSocket
-            try await azure.connect()
-
-            // Start processing events immediately
+            // Start processing events before connect (to receive session.created/updated events)
             await startProcessingEvents()
 
-            // Send session.update to configure the session (required as first message)
-            AppLogger.general.info("Sending session.update to configure session")
-            try await azure.updateSession(.basicAudioConversation())
+            // Connect to Azure WebSocket and establish session
+            // This now handles the entire flow: WebSocket connect → session.created → session.update → ready
+            try await azure.connect()
 
-            // Wait for session.created event (with 10 second timeout)
-            AppLogger.general.info("Waiting for session.created event...")
-            try await azure.waitForSessionCreated()
-
-            // Mark as ready
+            // Session is now ready, update UI state
             connectionState = .connected
             voiceState = .idle
 
@@ -90,6 +83,11 @@ class VoiceViewModel: ObservableObject {
             connectionState = .error(error.localizedDescription)
             voiceState = .error(error.localizedDescription)
             errorMessage = error.localizedDescription
+
+            // Clean up on failure
+            await azureService?.disconnect()
+            azureService = nil
+            audioService = nil
         }
     }
 
@@ -245,11 +243,11 @@ class VoiceViewModel: ObservableObject {
         switch event {
         case .sessionCreated(let sessionEvent):
             AppLogger.azure.info("Session created: \(sessionEvent.session.id)")
-            // State transition happens in connect() after waitForSessionCreated()
+            // State transition handled by AzureVoiceLiveService
 
         case .sessionUpdated:
             AppLogger.azure.info("Session updated")
-            // State transition happens in connect() after waitForSessionCreated()
+            // State transition handled by AzureVoiceLiveService
 
         case .inputAudioBufferSpeechStarted:
             AppLogger.azure.info("Speech started (VAD)")
