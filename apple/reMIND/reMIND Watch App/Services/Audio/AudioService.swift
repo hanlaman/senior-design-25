@@ -22,8 +22,12 @@ actor AudioService: AudioServiceProtocol {
     private var isEngineRunning = false
 
     private var audioFormat: AVAudioFormat?
-    private var scheduledBufferCount = 0
-    private var completedBufferCount = 0
+
+    // Buffer tracking with UUID tokens (prevents race conditions)
+    private var activeBuffers: Set<UUID> = []
+
+    // Interruption handling
+    private var interruptionTask: Task<Void, Never>?
 
     // Audio chunk stream
     private var chunkContinuation: AsyncStream<Data>.Continuation?
@@ -64,19 +68,112 @@ actor AudioService: AudioServiceProtocol {
         let audioSession = AVAudioSession.sharedInstance()
 
         try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetoothHFP, .allowBluetoothA2DP])
-        try audioSession.setActive(true)
+        try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
 
         AppLogger.audio.info("Audio session configured: category=playAndRecord, mode=voiceChat")
+
+        // Start monitoring for interruptions
+        startMonitoringInterruptions()
     }
 
     private func deactivateAudioSession() {
         let audioSession = AVAudioSession.sharedInstance()
+
+        // Stop monitoring interruptions
+        stopMonitoringInterruptions()
 
         do {
             try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
             AppLogger.audio.info("Audio session deactivated")
         } catch {
             AppLogger.logError(error, category: AppLogger.audio, context: "Failed to deactivate audio session")
+        }
+    }
+
+    // MARK: - Interruption Handling
+
+    private func startMonitoringInterruptions() {
+        // Cancel any existing monitoring task
+        interruptionTask?.cancel()
+
+        interruptionTask = Task { [weak self] in
+            let notificationCenter = NotificationCenter.default
+            let notifications = notificationCenter.notifications(named: AVAudioSession.interruptionNotification)
+
+            for await notification in notifications {
+                await self?.handleInterruption(notification)
+            }
+        }
+
+        AppLogger.audio.info("Started monitoring audio interruptions")
+    }
+
+    private func stopMonitoringInterruptions() {
+        interruptionTask?.cancel()
+        interruptionTask = nil
+        AppLogger.audio.info("Stopped monitoring audio interruptions")
+    }
+
+    private func handleInterruption(_ notification: Notification) async {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+
+        switch type {
+        case .began:
+            // Interruption started (e.g., phone call, notification)
+            AppLogger.audio.warning("Audio session interrupted - stopping playback/capture")
+            await handleInterruptionBegan()
+
+        case .ended:
+            // Interruption ended
+            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                let shouldResume = options.contains(.shouldResume)
+                AppLogger.audio.info("Audio session interruption ended - shouldResume: \(shouldResume)")
+                await handleInterruptionEnded(shouldResume: shouldResume)
+            }
+
+        @unknown default:
+            AppLogger.audio.warning("Unknown interruption type received")
+        }
+    }
+
+    private func handleInterruptionBegan() async {
+        // Stop any active playback
+        if isPlaying {
+            playerNode.stop()
+            setPlayingState(false)
+            activeBuffers.removeAll()
+            await bufferManager.clearPlaybackBuffer()
+        }
+
+        // Stop any active capture
+        if isCapturing {
+            audioEngine.inputNode.removeTap(onBus: 0)
+            isCapturing = false
+            await bufferManager.clearCaptureBuffer()
+        }
+
+        // Stop engine
+        if isEngineRunning {
+            audioEngine.stop()
+            isEngineRunning = false
+        }
+    }
+
+    private func handleInterruptionEnded(shouldResume: Bool) async {
+        if shouldResume {
+            // Try to reactivate audio session
+            do {
+                let audioSession = AVAudioSession.sharedInstance()
+                try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
+                AppLogger.audio.info("Audio session reactivated after interruption")
+            } catch {
+                AppLogger.logError(error, category: AppLogger.audio, context: "Failed to reactivate audio session after interruption")
+            }
         }
     }
 
@@ -211,16 +308,19 @@ actor AudioService: AudioServiceProtocol {
             setPlayingState(true)
         }
 
-        // Schedule buffer for playback
-        scheduledBufferCount += 1
-        let bufferNum = scheduledBufferCount
-        playerNode.scheduleBuffer(buffer) { [weak self] in
+        // Schedule buffer for playback with UUID token
+        let bufferID = UUID()
+        activeBuffers.insert(bufferID)
+
+        playerNode.scheduleBuffer(buffer) { [weak self, bufferID] in
             Task {
-                await self?.handleBufferComplete(bufferNum: bufferNum)
+                await self?.handleBufferComplete(bufferID)
             }
         }
 
         await bufferManager.addToPlaybackBuffer(data)
+
+        AppLogger.audio.debug("Scheduled buffer \(bufferID) - \(self.activeBuffers.count) active buffers")
     }
 
     func stopPlayback() async {
@@ -231,6 +331,9 @@ actor AudioService: AudioServiceProtocol {
         playerNode.stop()
         setPlayingState(false)
 
+        // Clear active buffers
+        activeBuffers.removeAll()
+
         await bufferManager.clearPlaybackBuffer()
 
         // Stop engine and deactivate audio session if not capturing
@@ -240,22 +343,18 @@ actor AudioService: AudioServiceProtocol {
         }
     }
 
-    private func handleBufferComplete(bufferNum: Int) async {
-        self.completedBufferCount += 1
-        await self.handlePlaybackComplete()
+    private func handleBufferComplete(_ bufferID: UUID) async {
+        activeBuffers.remove(bufferID)
+        AppLogger.audio.debug("Buffer \(bufferID) completed - \(self.activeBuffers.count) remaining")
+
+        await handlePlaybackComplete()
     }
 
     private func handlePlaybackComplete() async {
-        // Check if all scheduled buffers have completed
-        let allBuffersComplete = (self.completedBufferCount >= self.scheduledBufferCount)
-
-        if allBuffersComplete {
-            AppLogger.audio.info("Audio playback complete")
+        // Check if all buffers have completed
+        if activeBuffers.isEmpty {
+            AppLogger.audio.info("Audio playback complete - all buffers finished")
             setPlayingState(false)
-
-            // Reset counters for next playback
-            self.scheduledBufferCount = 0
-            self.completedBufferCount = 0
 
             // Keep engine and session active for subsequent playback
             // Only deactivate if explicitly stopped or disconnected
