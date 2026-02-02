@@ -2,13 +2,18 @@
 //  SettingsPageView.swift
 //  reMIND Watch App
 //
-//  Settings page with connection status and settings list
+//  Settings page with connection status and voice settings
 //
 
 import SwiftUI
 
 struct SettingsPageView: View {
     let state: VoiceInteractionState
+
+    @ObservedObject private var settingsManager = VoiceSettingsManager.shared
+
+    // State for the picker binding
+    @State private var selectedSpeed: SpeedPreset = .normal
 
     var body: some View {
         List {
@@ -30,11 +35,52 @@ struct SettingsPageView: View {
                     }
                 }
             }
+
+            // Voice Settings Section
+            Section {
+                // Simple inline picker for speaking speed
+                Picker(selection: $selectedSpeed) {
+                    ForEach(SpeedPreset.allCases) { preset in
+                        Text(preset.rawValue)
+                            .tag(preset)
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "gauge.with.dots.needle.bottom.50percent")
+                            .font(.title3)
+                            .foregroundColor(.blue)
+                        Text("Speaking Speed")
+                            .font(.body)
+                    }
+                }
+                .pickerStyle(.navigationLink)
+                .onChange(of: selectedSpeed) { oldValue, newValue in
+                    handleSpeedChange(newValue)
+                }
+            } header: {
+                Text("Voice Settings")
+            } footer: {
+                Text("Reconnect required for changes to take effect")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
         }
         .listStyle(.carousel)
+        .onAppear {
+            // Initialize picker selection from current settings
+            selectedSpeed = SpeedPreset.from(rate: settingsManager.settings.speakingRate)
+        }
     }
 
     // MARK: - Helper Functions
+
+    private func handleSpeedChange(_ newSpeed: SpeedPreset) {
+        // Haptic feedback for better accessibility
+        WKInterfaceDevice.current().play(.click)
+
+        // Save the new speed
+        settingsManager.updateSpeakingRate(newSpeed.rate)
+    }
 
     private func wifiSymbol(for state: VoiceInteractionState) -> String {
         switch state {
@@ -83,5 +129,7 @@ struct SettingsPageView: View {
 }
 
 #Preview {
-    SettingsPageView(state: .idle(sessionId: "preview-session"))
+    NavigationStack {
+        SettingsPageView(state: .idle(sessionId: "preview-session"))
+    }
 }

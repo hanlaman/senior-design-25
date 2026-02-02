@@ -27,6 +27,7 @@ class VoiceViewModel: ObservableObject {
 
     private var azureService: AzureVoiceLiveService?
     private var audioService: AudioService?
+    private let settingsManager = VoiceSettingsManager.shared
 
     // MARK: - State
 
@@ -44,6 +45,10 @@ class VoiceViewModel: ObservableObject {
         stateMachineObserver = stateMachine.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }
+
+        // Note: Voice settings (including rate) cannot be updated mid-session per Azure API
+        // Voice configuration is immutable once session is initialized
+        // Settings changes will apply on next connection
     }
 
     // MARK: - Connection Management
@@ -67,8 +72,12 @@ class VoiceViewModel: ObservableObject {
         stateMachine.transitionTo(.connecting)
 
         do {
-            // Create services
-            let azure = AzureVoiceLiveService(apiKey: config.apiKey, websocketURL: websocketURL)
+            // Create services with current settings
+            let azure = AzureVoiceLiveService(
+                apiKey: config.apiKey,
+                websocketURL: websocketURL,
+                settings: settingsManager.settings
+            )
             let audio = AudioService()
 
             self.azureService = azure

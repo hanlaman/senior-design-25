@@ -2,118 +2,46 @@
 //  AzureConfigurationHelpers.swift
 //  reMIND Watch App
 //
-//  Helper methods and default configurations for Azure Voice Live API
+//  Helper methods for Azure Voice Live API configuration
 //
 
 import Foundation
 
-// MARK: - Configuration Presets
+// MARK: - Dynamic Configuration
 
 extension RealtimeRequestSession {
 
-    /// Basic audio conversation configuration with default settings
-    static func basicAudioConversation(instructions: String? = nil) -> RealtimeRequestSession {
+    /// Create session configuration from VoiceSettings
+    /// - Parameter settings: Voice settings with user preferences
+    /// - Returns: Configured RealtimeRequestSession ready for Azure API
+    static func fromSettings(_ settings: VoiceSettings) -> RealtimeRequestSession {
         return RealtimeRequestSession(
             modalities: [.text, .audio],
-            voice: .openai(RealtimeOpenAIVoice(name: "alloy")),
-            instructions: instructions,
+            voice: .azureStandard(RealtimeAzureStandardVoice(
+                name: settings.voiceName,
+                temperature: settings.voiceTemperature,
+                rate: formatSpeakingRate(settings.speakingRate)
+            )),
+            instructions: settings.instructions,
             inputAudioFormat: .pcm16,
             outputAudioFormat: .pcm16,
             inputAudioTranscription: RealtimeAudioInputTranscriptionSettings(model: "whisper-1"),
             turnDetection: .serverVAD(RealtimeServerVAD(
-                threshold: 0.5,
-                prefixPaddingMs: 300,
-                silenceDurationMs: 500
+                threshold: settings.vadThreshold,
+                prefixPaddingMs: settings.vadPrefixPaddingMs,
+                silenceDurationMs: settings.vadSilenceDurationMs
             )),
-            temperature: 0.8
+            temperature: settings.sessionTemperature
         )
     }
 
-    /// Configuration with semantic VAD for more natural conversations
-    static func semanticVADConversation(
-        instructions: String? = nil,
-        eagerness: String = "auto"
-    ) -> RealtimeRequestSession {
-        return RealtimeRequestSession(
-            modalities: [.text, .audio],
-            voice: .openai(RealtimeOpenAIVoice(name: "alloy")),
-            instructions: instructions,
-            inputAudioFormat: .pcm16,
-            outputAudioFormat: .pcm16,
-            inputAudioTranscription: RealtimeAudioInputTranscriptionSettings(model: "whisper-1"),
-            turnDetection: .semanticVAD(RealtimeSemanticVAD(
-                eagerness: eagerness,
-                interruptResponse: true
-            )),
-            temperature: 0.8
-        )
-    }
+    // MARK: - Private Helpers
 
-    /// Configuration with Azure Semantic VAD
-    static func azureSemanticVAD(
-        instructions: String? = nil,
-        removeFillerWords: Bool = false
-    ) -> RealtimeRequestSession {
-        return RealtimeRequestSession(
-            modalities: [.text, .audio],
-            voice: .openai(RealtimeOpenAIVoice(name: "alloy")),
-            instructions: instructions,
-            inputAudioFormat: .pcm16,
-            outputAudioFormat: .pcm16,
-            inputAudioTranscription: RealtimeAudioInputTranscriptionSettings(model: "azure-speech"),
-            turnDetection: .azureSemanticVAD(RealtimeAzureSemanticVAD(
-                threshold: 0.5,
-                prefixPaddingMs: 300,
-                silenceDurationMs: 500,
-                speechDurationMs: 1000,
-                removeFillerWords: removeFillerWords,
-                languages: ["English"]
-            )),
-            temperature: 0.8
-        )
-    }
-
-    /// Manual turn control (no VAD)
-    static func manualTurnControl(instructions: String? = nil) -> RealtimeRequestSession {
-        return RealtimeRequestSession(
-            modalities: [.text, .audio],
-            voice: .openai(RealtimeOpenAIVoice(name: "alloy")),
-            instructions: instructions,
-            inputAudioFormat: .pcm16,
-            outputAudioFormat: .pcm16,
-            inputAudioTranscription: RealtimeAudioInputTranscriptionSettings(model: "whisper-1"),
-            turnDetection: nil,
-            temperature: 0.8
-        )
-    }
-
-    /// Configuration with custom Azure voice
-    static func customVoiceConversation(
-        voiceName: String,
-        endpointId: String,
-        instructions: String? = nil,
-        style: String? = nil,
-        temperature: Double = 0.8
-    ) -> RealtimeRequestSession {
-        return RealtimeRequestSession(
-            modalities: [.text, .audio],
-            voice: .azureCustom(RealtimeAzureCustomVoice(
-                name: voiceName,
-                endpointId: endpointId,
-                temperature: temperature,
-                style: style
-            )),
-            instructions: instructions,
-            inputAudioFormat: .pcm16,
-            outputAudioFormat: .pcm16,
-            inputAudioTranscription: RealtimeAudioInputTranscriptionSettings(model: "azure-speech"),
-            turnDetection: .serverVAD(RealtimeServerVAD(
-                threshold: 0.5,
-                prefixPaddingMs: 300,
-                silenceDurationMs: 500
-            )),
-            temperature: temperature
-        )
+    /// Format speaking rate for Azure API
+    /// - Parameter rate: Speaking rate multiplier (0.5 - 1.5)
+    /// - Returns: String format accepted by Azure (e.g., "1.0", "0.5", "1.5")
+    private static func formatSpeakingRate(_ rate: Double) -> String {
+        return String(format: "%.1f", rate)
     }
 }
 
@@ -236,19 +164,19 @@ extension RealtimeVoice {
 /*
  EXAMPLE USAGE:
 
- // 1. Create and connect service
+ // 1. Get shared settings manager and current settings
+ let settingsManager = VoiceSettingsManager.shared
+ let settings = settingsManager.settings
+
+ // 2. Create and connect service with settings
  let service = AzureVoiceLiveService(
      apiKey: BuildConfiguration.azureAPIKey,
-     websocketURL: URL(string: "wss://\(BuildConfiguration.azureResourceName).services.ai.azure.com/voice-live/realtime?api-version=\(BuildConfiguration.azureAPIVersion)&model=gpt-realtime")!
+     websocketURL: URL(string: "wss://\(BuildConfiguration.azureResourceName).services.ai.azure.com/voice-live/realtime?api-version=\(BuildConfiguration.azureAPIVersion)&model=gpt-realtime")!,
+     settings: settings
  )
 
+ // Service automatically configures session using .fromSettings() on connect
  try await service.connect()
-
- // 2. Configure session
- let config = RealtimeRequestSession.basicAudioConversation(
-     instructions: "You are a helpful assistant for elderly users. Speak clearly and warmly."
- )
- try await service.updateSession(config)
 
  // 3. Listen to events
  Task {
@@ -290,6 +218,11 @@ extension RealtimeVoice {
  // 6. Trigger response
  try await service.createResponse(config: nil)
 
- // 7. Cleanup
+ // 7. Update settings (MUST reconnect - voice config is immutable per Azure API)
+ settingsManager.updateSpeakingRate(1.5)  // Set to 1.5x speed
+ await service.disconnect()  // Required: voice cannot be updated mid-session
+ try await service.connect()  // New settings applied on connection
+
+ // 8. Cleanup
  await service.disconnect()
  */

@@ -14,6 +14,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
 
     private let apiKey: String
     private let websocketURL: URL
+    private var settings: VoiceSettings
 
     private var webSocketManager: WebSocketManager?
 
@@ -32,9 +33,10 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
 
     // MARK: - Initialization
 
-    public init(apiKey: String, websocketURL: URL) {
+    public init(apiKey: String, websocketURL: URL, settings: VoiceSettings) {
         self.apiKey = apiKey
         self.websocketURL = websocketURL
+        self.settings = settings
 
         // Create event stream
         var continuationHolder: AsyncStream<AzureServerEvent>.Continuation?
@@ -82,9 +84,9 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         // Give WebSocket a moment to be fully ready
         try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
 
-        // Send session.update to configure the session
-        AppLogger.azure.info("Sending session.update to configure session")
-        try await updateSession(.basicAudioConversation())
+        // Send session.update to configure the session with user settings
+        AppLogger.azure.info("Sending session.update to configure session with settings (rate: \(self.settings.speakingRate)x)")
+        try await updateSession(.fromSettings(self.settings))
 
         // Wait for session to be ready (session.created and session.updated)
         try await waitForSessionReady()
@@ -122,6 +124,10 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
 
         AppLogger.azure.info("session.update sent, waiting for response")
     }
+
+    // Note: Voice configuration (including speaking rate) cannot be updated mid-session
+    // per Azure API documentation: "any field can be updated at any time, except for voice"
+    // Voice settings changes require disconnect and reconnect to take effect
 
     // MARK: - Audio Management
 

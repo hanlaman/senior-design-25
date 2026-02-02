@@ -24,8 +24,11 @@ struct ContentView: View {
                 .tag(NavigationPage.voice as NavigationPage?)
 
             // Settings page (swipe down to reveal)
-            SettingsPageView(state: viewModel.state)
-                .tag(NavigationPage.settings as NavigationPage?)
+            // Wrapped in NavigationStack to enable drill-down navigation
+            NavigationStack {
+                SettingsPageView(state: viewModel.state)
+            }
+            .tag(NavigationPage.settings as NavigationPage?)
         }
         .tabViewStyle(.verticalPage)
         // Disable page swiping during recording to prevent accidental navigation
