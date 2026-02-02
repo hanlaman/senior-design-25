@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  reMIND Watch App
 //
-//  Main view for voice assistant
+//  Main view for voice assistant with vertical page navigation
 //
 
 import SwiftUI
@@ -10,72 +10,30 @@ import WatchKit
 
 struct ContentView: View {
     @StateObject private var viewModel = VoiceViewModel()
+    @State private var currentPage: NavigationPage? = .voice
+
+    enum NavigationPage: Int, CaseIterable, Hashable {
+        case voice = 0
+        case settings = 1
+    }
 
     var body: some View {
-        VStack(spacing: 20) {
-            // Connection status
-            ConnectionStatusView(connectionState: viewModel.connectionState)
+        TabView(selection: $currentPage) {
+            // Main voice page (full screen, tappable)
+            VoicePageView(viewModel: viewModel)
+                .tag(NavigationPage.voice as NavigationPage?)
 
-            Spacer()
-
-            // Status text
-            Text(viewModel.voiceState.displayText)
-                .font(.headline)
-                .multilineTextAlignment(.center)
-                .foregroundColor(statusTextColor)
-
-            // Microphone button
-            MicrophoneButton(state: viewModel.voiceState) {
-                handleMicrophoneButtonTap()
-            }
-
-            Spacer()
-
-            // Error message
-            if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
-                    .font(.caption2)
-                    .foregroundColor(.red)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-            }
+            // Settings page (swipe down to reveal)
+            SettingsPageView(connectionState: viewModel.connectionState)
+                .tag(NavigationPage.settings as NavigationPage?)
         }
-        .padding()
+        .tabViewStyle(.verticalPage)
+        // Disable page swiping during recording to prevent accidental navigation
+        .allowsHitTesting(!viewModel.voiceState.isRecording)
+        .ignoresSafeArea()
         .task {
             // Auto-connect on appear
             await viewModel.connect()
-        }
-    }
-
-    private var statusTextColor: Color {
-        switch viewModel.voiceState {
-        case .error:
-            return .red
-        case .disconnected:
-            return .gray
-        default:
-            return .primary
-        }
-    }
-
-    private func handleMicrophoneButtonTap() {
-        // Play haptic feedback
-        WKInterfaceDevice.current().play(.click)
-
-        Task {
-            switch viewModel.voiceState {
-            case .idle:
-                // Start recording
-                await viewModel.startRecording()
-
-            case .recording:
-                // Stop recording (user manual override)
-                await viewModel.stopRecording()
-
-            default:
-                // Do nothing in other states
-                break
-            }
         }
     }
 }
