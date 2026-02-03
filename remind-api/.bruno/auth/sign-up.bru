@@ -12,8 +12,18 @@ post {
 
 body:json {
   {
+    "firstName": "Test",
+    "lastName": "User",
     "name": "Test User",
     "email": "test@example.com",
     "password": "password123"
+  }
+}
+
+script:post-response {
+  const headers = res.getHeaders();
+  const authToken = headers['set-auth-token'];
+  if (authToken) {
+    bru.setEnvVar('authToken', authToken);
   }
 }

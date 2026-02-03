@@ -1,4 +1,5 @@
 import { betterAuth } from 'better-auth';
+import { bearer } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { db } from '../db';
 import * as schema from '../db/schema';
@@ -14,12 +15,28 @@ export const auth = betterAuth({
       verification: schema.verification,
     },
   }),
+  user: {
+    additionalFields: {
+      firstName: {
+        type: 'string',
+        required: true,
+      },
+      lastName: {
+        type: 'string',
+        required: true,
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
     maxPasswordLength: 128,
   },
-  trustedOrigins: [process.env.BETTER_AUTH_URL || 'http://localhost:3000'],
+  basePath: '/api/auth',
+  advanced: {
+    disableOriginCheck: process.env.NODE_ENV !== 'production',
+  },
+  plugins: [bearer()],
 });
 
 export type Session = typeof auth.$Infer.Session;

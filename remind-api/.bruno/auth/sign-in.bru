@@ -16,3 +16,11 @@ body:json {
     "password": "password123"
   }
 }
+
+script:post-response {
+  const headers = res.getHeaders();
+  const authToken = headers['set-auth-token'];
+  if (authToken) {
+    bru.setEnvVar('authToken', authToken);
+  }
+}

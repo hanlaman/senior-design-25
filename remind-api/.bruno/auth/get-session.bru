@@ -5,12 +5,16 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}/api/auth/session
+  url: {{baseUrl}}/api/auth/get-session
   body: none
-  auth: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
 }
 
 docs {
   Returns the current session if authenticated.
-  Requires the session cookie from sign-in.
+  Requires Bearer token from sign-in.
 }
