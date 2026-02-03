@@ -1,0 +1,17 @@
+meta {
+  name: Get Profile
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/me
+  body: none
+  auth: none
+}
+
+docs {
+  Returns the authenticated user's profile.
+  Requires the session cookie from sign-in.
+  Returns 401 Unauthorized if not authenticated.
+}

@@ -1,0 +1,16 @@
+meta {
+  name: Get Session
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/auth/session
+  body: none
+  auth: none
+}
+
+docs {
+  Returns the current session if authenticated.
+  Requires the session cookie from sign-in.
+}
