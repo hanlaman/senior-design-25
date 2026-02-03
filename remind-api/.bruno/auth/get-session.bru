@@ -1,0 +1,20 @@
+meta {
+  name: Get Session
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/auth/get-session
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authToken}}
+}
+
+docs {
+  Returns the current session if authenticated.
+  Requires Bearer token from sign-in.
+}

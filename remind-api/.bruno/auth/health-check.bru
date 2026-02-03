@@ -1,0 +1,16 @@
+meta {
+  name: Health Check
+  type: http
+  seq: 0
+}
+
+get {
+  url: {{baseUrl}}/api/auth/ok
+  body: none
+  auth: none
+}
+
+docs {
+  Simple health check endpoint.
+  Returns { "ok": true } if better-auth is working.
+}

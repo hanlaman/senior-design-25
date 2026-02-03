@@ -1,0 +1,26 @@
+meta {
+  name: Sign In
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/auth/sign-in/email
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "test@example.com",
+    "password": "password123"
+  }
+}
+
+script:post-response {
+  const headers = res.getHeaders();
+  const authToken = headers['set-auth-token'];
+  if (authToken) {
+    bru.setEnvVar('authToken', authToken);
+  }
+}
