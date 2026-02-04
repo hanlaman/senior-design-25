@@ -53,6 +53,7 @@
 		094A7E462F22B4F100F3B8AE /* reMIND Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "reMIND Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		094A7E552F22B4F200F3B8AE /* reMIND Watch AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "reMIND Watch AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		094A7E5F2F22B4F200F3B8AE /* reMIND Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "reMIND Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		094A7EBA2F2AD54300F3B8AE /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -101,6 +102,7 @@
 		094A7E392F22B4F100F3B8AE = {
 			isa = PBXGroup;
 			children = (
+				094A7EBA2F2AD54300F3B8AE /* Config.xcconfig */,
 				094A7E4A2F22B4F100F3B8AE /* reMIND Watch App */,
 				094A7E582F22B4F200F3B8AE /* reMIND Watch AppTests */,
 				094A7E622F22B4F200F3B8AE /* reMIND Watch AppUITests */,
@@ -447,11 +449,13 @@
 		};
 		094A7E6A2F22B4F200F3B8AE /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 094A7EBA2F2AD54300F3B8AE /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 784SGN7T6M;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = reMIND;
@@ -473,17 +477,19 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 26.2;
+				WATCHOS_DEPLOYMENT_TARGET = 10.6;
 			};
 			name = Debug;
 		};
 		094A7E6B2F22B4F200F3B8AE /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 094A7EBA2F2AD54300F3B8AE /* Config.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 784SGN7T6M;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = reMIND;
@@ -506,7 +512,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				VALIDATE_PRODUCT = YES;
-				WATCHOS_DEPLOYMENT_TARGET = 26.2;
+				WATCHOS_DEPLOYMENT_TARGET = 10.6;
 			};
 			name = Release;
 		};
@@ -515,6 +521,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 784SGN7T6M;
 				INFOPLIST_KEY_CFBundleDisplayName = reMIND;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "HSDA-SD-26.reMIND";
@@ -531,6 +538,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 784SGN7T6M;
 				INFOPLIST_KEY_CFBundleDisplayName = reMIND;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "HSDA-SD-26.reMIND";
@@ -549,6 +557,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 784SGN7T6M;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "HSDA-SD-26.reMIND-Watch-AppTests";
@@ -571,6 +580,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 784SGN7T6M;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "HSDA-SD-26.reMIND-Watch-AppTests";
@@ -593,6 +603,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 784SGN7T6M;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "HSDA-SD-26.reMIND-Watch-AppUITests";
@@ -614,6 +625,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 784SGN7T6M;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "HSDA-SD-26.reMIND-Watch-AppUITests";

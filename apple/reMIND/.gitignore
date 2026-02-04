@@ -33,3 +33,9 @@ Carthage/Build/
 .lsbom
 .ncrc
 .swp
+
+# Configuration files with secrets
+Config.xcconfig
+
+# Generated configuration
+BuildConfiguration.swift

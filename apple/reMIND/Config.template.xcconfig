@@ -1,0 +1,8 @@
+// Config.template.xcconfig
+// Copy this file to Config.xcconfig and fill in your Azure credentials
+// Config.xcconfig should be added to .gitignore
+
+// Azure Voice Live API Configuration
+AZURE_API_KEY = YOUR_API_KEY_HERE
+AZURE_RESOURCE_NAME = YOUR_RESOURCE_NAME_HERE
+AZURE_API_VERSION = 2025-10-01
