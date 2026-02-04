@@ -72,7 +72,16 @@ actor AudioService: AudioServiceProtocol {
     private func configureAudioSession() throws {
         let audioSession = AVAudioSession.sharedInstance()
 
-        try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetoothHFP, .allowBluetoothA2DP])
+        // Build options with availability-safe flags
+        let options: AVAudioSession.CategoryOptions
+        if #available(watchOS 11.0, *) {
+            options = [.allowBluetoothHFP, .allowBluetoothA2DP]
+        } else {
+            // Fallback for older watchOS versions where HFP isn't available
+            options = [.allowBluetoothA2DP]
+        }
+
+        try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: options)
         try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
 
         AppLogger.audio.info("Audio session configured: category=playAndRecord, mode=voiceChat")
@@ -416,3 +425,4 @@ enum AudioServiceError: LocalizedError {
         }
     }
 }
+
