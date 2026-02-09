@@ -27,9 +27,19 @@
 
 ---
 
-## 🧠 Project Abstract
+## Project Abstract
 The wearable AI companion enhances memory support, safety, and communication for individuals with dementia. 
 This voice-activated device helps users recall personal information, receive reminders, and engage in comforting interactions through a customizable voice. 
 Connected to a caregiver mobile app, it securely manages data synchronization, emergency alerts, and real-time monitoring. 
 Emphasizing ethical design, privacy compliance (HIPAA), and affordability, the system integrates AI-driven speech recognition, text-to-speech, 
 and cloud-based memory retrieval to promote independence and dignity through human-centered design.
+
+## User Documentation
+
+This project includes separate documentation for different users:
+
+- [Patient User Guide](docs/PATIENT_GUIDE.md)
+- [Caregiver User Guide](docs/CAREGIVER_GUIDE.md)
+- [Full User Manual](docs/USER_MANUAL.md)
+- [FAQ](docs/FAQ.md)
+
