@@ -9,6 +9,11 @@ import Foundation
 import AVFoundation
 import os
 
+enum BufferOverflowEvent {
+    case captureOverflow(droppedChunks: Int, bufferSize: Int)
+    case playbackOverflow(droppedChunks: Int, bufferSize: Int)
+}
+
 /// Actor-based thread-safe audio buffer manager
 actor AudioBufferManager {
     // MARK: - Properties
@@ -18,6 +23,19 @@ actor AudioBufferManager {
 
     private let maxCaptureBufferSize = 100 // ~10 seconds at 100ms chunks
     private let maxPlaybackBufferSize = 50 // ~5 seconds at 100ms chunks
+
+    private var overflowContinuation: AsyncStream<BufferOverflowEvent>.Continuation?
+    let overflowStream: AsyncStream<BufferOverflowEvent>
+
+    // MARK: - Initialization
+
+    init() {
+        var continuationHolder: AsyncStream<BufferOverflowEvent>.Continuation?
+        self.overflowStream = AsyncStream { continuation in
+            continuationHolder = continuation
+        }
+        self.overflowContinuation = continuationHolder
+    }
 
     // MARK: - Capture Buffer Management
 
@@ -30,6 +48,11 @@ actor AudioBufferManager {
             let excess = captureBuffer.count - maxCaptureBufferSize
             captureBuffer.removeFirst(excess)
             AppLogger.audio.warning("Capture buffer overflow, removed \(excess) chunks")
+
+            overflowContinuation?.yield(.captureOverflow(
+                droppedChunks: excess,
+                bufferSize: maxCaptureBufferSize
+            ))
         }
     }
 
@@ -63,6 +86,11 @@ actor AudioBufferManager {
             let excess = playbackBuffers.count - maxPlaybackBufferSize
             playbackBuffers.removeFirst(excess)
             AppLogger.audio.warning("Playback buffer overflow, removed \(excess) chunks")
+
+            overflowContinuation?.yield(.playbackOverflow(
+                droppedChunks: excess,
+                bufferSize: maxPlaybackBufferSize
+            ))
         }
     }
 

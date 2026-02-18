@@ -34,6 +34,7 @@ class VoiceViewModel: ObservableObject {
     private var isInitialized = false
     private var isProcessingAudio = false
     private var audioStateTask: Task<Void, Never>?
+    private var bufferOverflowTask: Task<Void, Never>?
     private var stateMachineObserver: AnyCancellable?
 
     // MARK: - Initialization
@@ -102,6 +103,9 @@ class VoiceViewModel: ObservableObject {
             // Start observing audio state changes
             startObservingAudioState()
 
+            // Start monitoring buffer overflow
+            startMonitoringBufferOverflow()
+
             AppLogger.general.info("Voice assistant connected and ready")
 
         } catch {
@@ -123,6 +127,10 @@ class VoiceViewModel: ObservableObject {
         // Cancel audio state observation
         audioStateTask?.cancel()
         audioStateTask = nil
+
+        // Cancel buffer overflow monitoring
+        bufferOverflowTask?.cancel()
+        bufferOverflowTask = nil
 
         // Stop any active recording or playback
         await stopRecording()
@@ -274,6 +282,31 @@ class VoiceViewModel: ObservableObject {
                         self.stateMachine.transitionTo(.idle(sessionId: sessionId))
                         AppLogger.general.info("Voice state: idle")
                     }
+                }
+            }
+        }
+    }
+
+    private func startMonitoringBufferOverflow() {
+        bufferOverflowTask?.cancel()
+
+        guard let audioService = audioService else {
+            AppLogger.general.warning("Cannot start monitoring buffer overflow: no audio service")
+            return
+        }
+
+        AppLogger.general.info("Starting buffer overflow monitoring")
+
+        bufferOverflowTask = Task { @MainActor [weak self] in
+            for await event in await audioService.bufferOverflowStream {
+                guard let self = self else { break }
+
+                switch event {
+                case .captureOverflow(let droppedChunks, let bufferSize):
+                    AppLogger.audio.warning("Capture buffer overflow: dropped \(droppedChunks) chunks (max: \(bufferSize))")
+
+                case .playbackOverflow(let droppedChunks, let bufferSize):
+                    AppLogger.audio.warning("Playback buffer overflow: dropped \(droppedChunks) chunks (max: \(bufferSize))")
                 }
             }
         }
@@ -489,6 +522,14 @@ class VoiceViewModel: ObservableObject {
             try await audioService.playAudio(audioData)
         } catch {
             AppLogger.logError(error, category: AppLogger.audio, context: "Failed to play audio")
+
+            // Transition to error state if engine failed
+            if let audioError = error as? AudioServiceError,
+               case .engineStartFailed = audioError {
+                if let sessionId = stateMachine.sessionId {
+                    stateMachine.transitionTo(.error(sessionId: sessionId, message: "Audio engine failed"))
+                }
+            }
         }
     }
 

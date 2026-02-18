@@ -16,6 +16,9 @@ protocol AudioServiceProtocol: Actor {
     /// Playback state stream (emits true when playback starts, false when it ends)
     var playbackStateStream: AsyncStream<Bool> { get }
 
+    /// Buffer overflow stream (emits when buffers overflow)
+    var bufferOverflowStream: AsyncStream<BufferOverflowEvent> { get }
+
     /// Start capturing audio from microphone
     func startCapture() async throws
 

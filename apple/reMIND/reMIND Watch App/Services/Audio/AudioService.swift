@@ -34,6 +34,10 @@ actor AudioService: AudioServiceProtocol {
     // Interruption handling
     private var interruptionTask: Task<Void, Never>?
 
+    // Session timeout configuration
+    private let sessionTimeoutSeconds: TimeInterval = 10.0
+    private var sessionTimeoutTask: Task<Void, Never>?
+
     // Audio chunk stream
     private var chunkContinuation: AsyncStream<Data>.Continuation?
     let audioChunkStream: AsyncStream<Data>
@@ -41,6 +45,11 @@ actor AudioService: AudioServiceProtocol {
     // Playback state stream
     private var playbackStateContinuation: AsyncStream<Bool>.Continuation?
     let playbackStateStream: AsyncStream<Bool>
+
+    // Buffer overflow stream
+    var bufferOverflowStream: AsyncStream<BufferOverflowEvent> {
+        bufferManager.overflowStream
+    }
 
     // MARK: - Initialization
 
@@ -235,7 +244,7 @@ actor AudioService: AudioServiceProtocol {
         }
 
         // Start audio engine
-        startEngineIfNeeded()
+        try startEngineIfNeeded()
 
         isCapturing = true
         AppLogger.audio.info("Audio capture started")
@@ -254,9 +263,10 @@ actor AudioService: AudioServiceProtocol {
         // Clear capture buffer
         await bufferManager.clearCaptureBuffer()
 
-        // Keep engine and session active for incoming audio response
-        // They will be cleaned up on disconnect or explicit stop
-        AppLogger.audio.info("Audio capture stopped, keeping engine/session active for response")
+        // Start timeout to cleanup if no playback occurs
+        startSessionTimeout()
+
+        AppLogger.audio.info("Audio capture stopped, session will timeout in \(self.sessionTimeoutSeconds)s if no playback")
     }
 
     private func processCapturedAudio(buffer: AVAudioPCMBuffer, converter: AVAudioConverter?, targetFormat: AVAudioFormat) async {
@@ -297,6 +307,9 @@ actor AudioService: AudioServiceProtocol {
             throw AudioServiceError.invalidFormat
         }
 
+        // Cancel session timeout since playback is starting
+        cancelSessionTimeout()
+
         // Convert data to buffer
         guard let buffer = AudioConverter.dataToBuffer(data, format: format) else {
             throw AudioServiceError.conversionFailed
@@ -314,7 +327,7 @@ actor AudioService: AudioServiceProtocol {
         }
 
         // Start audio engine if needed
-        startEngineIfNeeded()
+        try startEngineIfNeeded()
 
         // Start player node if not already playing
         if !isPlaying {
@@ -377,7 +390,7 @@ actor AudioService: AudioServiceProtocol {
 
     // MARK: - Audio Engine Management
 
-    private func startEngineIfNeeded() {
+    private func startEngineIfNeeded() throws {
         guard !isEngineRunning else {
             AppLogger.audio.debug("Audio engine already running")
             return
@@ -389,6 +402,7 @@ actor AudioService: AudioServiceProtocol {
             AppLogger.audio.info("Audio engine started")
         } catch {
             AppLogger.logError(error, category: AppLogger.audio, context: "Failed to start audio engine")
+            throw AudioServiceError.engineStartFailed(error)
         }
     }
 
@@ -401,6 +415,37 @@ actor AudioService: AudioServiceProtocol {
         audioEngine.stop()
         isEngineRunning = false
         AppLogger.audio.info("Audio engine stopped")
+    }
+
+    // MARK: - Session Timeout Management
+
+    private func startSessionTimeout() {
+        cancelSessionTimeout()
+
+        sessionTimeoutTask = Task {
+            do {
+                try await Task.sleep(nanoseconds: UInt64(10.0 * 1_000_000_000))
+
+                await self.checkAndCleanupSession()
+            } catch {
+                AppLogger.audio.debug("Session timeout cancelled")
+            }
+        }
+    }
+
+    private func checkAndCleanupSession() {
+        if !isCapturing && !isPlaying {
+            AppLogger.audio.info("Session timeout expired, cleaning up audio resources")
+            stopEngineIfNeeded()
+            deactivateAudioSession()
+        } else {
+            AppLogger.audio.debug("Session timeout expired but audio is active")
+        }
+    }
+
+    private func cancelSessionTimeout() {
+        sessionTimeoutTask?.cancel()
+        sessionTimeoutTask = nil
     }
 }
 
