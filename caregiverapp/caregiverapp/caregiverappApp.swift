@@ -84,6 +84,20 @@ struct caregiverappApp: App {
     @State private var dataProvider: PatientDataProvider = MockDataService()
 
     // ┌─────────────────────────────────────────────────────────────────────────┐
+    // │ AUTHENTICATION                                                          │
+    // │                                                                         │
+    // │ AuthService handles user authentication with the backend API.          │
+    // │ AuthViewModel manages auth state and exposes it to views.              │
+    // │                                                                         │
+    // │ The auth flow:                                                          │
+    // │   1. App launches → check for stored session                            │
+    // │   2. If no session → show login/signup screens                          │
+    // │   3. If session exists → show main app                                  │
+    // └─────────────────────────────────────────────────────────────────────────┘
+    @State private var authService: AuthService = APIAuthService()
+    @State private var authViewModel: AuthViewModel?
+
+    // ┌─────────────────────────────────────────────────────────────────────────┐
     // │ COMPUTED PROPERTY: body                                                 │
     // │                                                                         │
     // │ 'var body: some Scene' is a COMPUTED PROPERTY - it doesn't store a     │
@@ -111,10 +125,18 @@ struct caregiverappApp: App {
         // │ Everything inside this closure is what users see.                  │
         // └─────────────────────────────────────────────────────────────────────┘
         WindowGroup {
-            // Pass the dataProvider to ContentView
-            // This is "dependency injection" - we give ContentView what it needs
-            // rather than having it create its own MockDataService
-            ContentView(dataProvider: dataProvider)
+            // RootView handles showing auth screens or main content
+            // based on authentication state
+            if let authViewModel = authViewModel {
+                RootView(authViewModel: authViewModel, dataProvider: dataProvider)
+            } else {
+                // Show loading while initializing
+                ProgressView()
+                    .task {
+                        // Initialize the auth view model on first appear
+                        authViewModel = AuthViewModel(authService: authService)
+                    }
+            }
         }
     }
 }

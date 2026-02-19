@@ -163,6 +163,12 @@ struct LocationView: View {
         // └─────────────────────────────────────────────────────────────────────┘
         .sheet(item: $selectedZone) { zone in SafeZoneDetailSheet(zone: zone, onUpdate: { viewModel.updateSafeZoneRadius($0, newRadius: $1) }, onDelete: { viewModel.removeSafeZone($0) }, onToggle: { viewModel.toggleSafeZone($0) }) }
         .onAppear { viewModel.onAppear(); if let region = viewModel.centerOnPatient() { mapPosition = .region(region) } }
+        .onDisappear { viewModel.onDisappear() }
+        .onChange(of: viewModel.currentLocation?.coordinate.latitude) {
+            if let region = viewModel.centerOnPatient() {
+                withAnimation { mapPosition = .region(region) }
+            }
+        }
     }
 
     private var locationStatusBanner: some View {
@@ -171,6 +177,9 @@ struct LocationView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(viewModel.locationStatusText).font(.subheadline).fontWeight(.medium)
                 if let address = viewModel.currentLocation?.address { Text(address).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                if let lastUpdated = viewModel.lastUpdated {
+                    Text("Updated \(lastUpdated.formatted(.relative(presentation: .named)))").font(.caption2).foregroundStyle(.secondary)
+                }
             }
             Spacer()
             // ┌─────────────────────────────────────────────────────────────────┐

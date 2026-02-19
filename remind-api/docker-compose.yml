@@ -1,21 +1,45 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: remind-api-postgres
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    container_name: remind-api-mssql
     restart: unless-stopped
     environment:
-      POSTGRES_USER: remind
-      POSTGRES_PASSWORD: remind_password
-      POSTGRES_DB: remind_db
+      ACCEPT_EULA: 'Y'
+      MSSQL_SA_PASSWORD: 'Remind_Password123!'
+      MSSQL_PID: 'Developer'
     ports:
-      - '5432:5432'
+      - '1433:1433'
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mssql_data:/var/opt/mssql
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U remind -d remind_db']
+      test:
+        [
+          'CMD-SHELL',
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Remind_Password123!' -C -Q 'SELECT 1' || exit 1",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
+
+  mssql-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    platform: linux/amd64
+    container_name: remind-api-mssql-init
+    depends_on:
+      mssql:
+        condition: service_healthy
+    volumes:
+      - ./docker/init-db.sql:/init-db.sql:ro
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        /opt/mssql-tools18/bin/sqlcmd -S mssql -U sa -P 'Remind_Password123!' -C -i /init-db.sql
+        echo "Database initialized successfully"
+    restart: 'no'
 
 volumes:
-  postgres_data:
+  mssql_data:
