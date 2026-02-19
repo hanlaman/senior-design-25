@@ -19,6 +19,7 @@ final class LocationViewModel {
     private(set) var locationHistory: [PatientLocation] = []
     private(set) var isLoading: Bool = false
     private(set) var error: Error?
+    private(set) var lastUpdated: Date?
 
     // Computed properties simplify view logic
     var isInSafeZone: Bool { currentLocation?.isInSafeZone ?? true }
@@ -32,7 +33,10 @@ final class LocationViewModel {
     }
 
     private let dataProvider: PatientDataProvider
+    private let locationAPIService = LocationAPIService()
     private var cancellables = Set<AnyCancellable>()
+    private var pollingTask: Task<Void, Never>?
+    private let pollingInterval: TimeInterval = 10
 
     init(dataProvider: PatientDataProvider) {
         self.dataProvider = dataProvider
@@ -62,6 +66,39 @@ final class LocationViewModel {
     func onAppear() {
         currentLocation = dataProvider.currentLocation
         safeZones = dataProvider.safeZones
+        startPolling()
+    }
+
+    func onDisappear() {
+        stopPolling()
+    }
+
+    private func startPolling() {
+        guard pollingTask == nil else { return }
+        pollingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.pollLocation()
+                try? await Task.sleep(for: .seconds(self?.pollingInterval ?? 60))
+            }
+        }
+    }
+
+    private func stopPolling() {
+        pollingTask?.cancel()
+        pollingTask = nil
+    }
+
+    private func pollLocation() async {
+        print("[LocationViewModel] Polling for location...")
+        if let location = await locationAPIService.fetchLatestLocation() {
+            print("[LocationViewModel] Got location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
+            currentLocation = location
+            lastUpdated = Date()
+            locationHistory.append(location)
+            if locationHistory.count > 100 { locationHistory.removeFirst() }
+        } else {
+            print("[LocationViewModel] No location received from API")
+        }
     }
 
     func addSafeZone(name: String, center: CLLocationCoordinate2D, radius: Double) {

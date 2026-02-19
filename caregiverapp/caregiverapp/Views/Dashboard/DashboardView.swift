@@ -29,6 +29,12 @@ struct DashboardView: View {
     // └─────────────────────────────────────────────────────────────────────────┘
     @State private var viewModel: DashboardViewModel
 
+    // Access the auth view model from the environment for sign-out
+    @Environment(AuthViewModel.self) private var authViewModel: AuthViewModel?
+
+    // State for showing the settings/profile sheet
+    @State private var showingSettings = false
+
     // ┌─────────────────────────────────────────────────────────────────────────┐
     // │ CUSTOM INITIALIZER FOR VIEWS                                            │
     // │                                                                         │
@@ -134,7 +140,16 @@ struct DashboardView: View {
         // │   .keyboard       - Above keyboard                                 │
         // │   .navigationBarBackButtonHidden - Replace back button             │
         // └─────────────────────────────────────────────────────────────────────┘
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(action: {}) { Image(systemName: "gearshape") } } }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: { showingSettings = true }) {
+                    Image(systemName: "gearshape")
+                }
+            }
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsSheet(authViewModel: authViewModel)
+        }
 
         // ┌─────────────────────────────────────────────────────────────────────┐
         // │ .refreshable MODIFIER (PULL TO REFRESH)                             │

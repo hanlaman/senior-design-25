@@ -10,6 +10,7 @@ import WatchKit
 
 struct ContentView: View {
     @StateObject private var viewModel = VoiceViewModel()
+    @StateObject private var locationViewModel = LocationViewModel()
     @State private var currentPage: NavigationPage? = .voice
 
     enum NavigationPage: Int, CaseIterable, Hashable {
@@ -26,7 +27,7 @@ struct ContentView: View {
             // Settings page (swipe down to reveal)
             // Wrapped in NavigationStack to enable drill-down navigation
             NavigationStack {
-                SettingsPageView(state: viewModel.state)
+                SettingsPageView(state: viewModel.state, locationViewModel: locationViewModel)
             }
             .tag(NavigationPage.settings as NavigationPage?)
         }
@@ -37,6 +38,8 @@ struct ContentView: View {
         .task {
             // Auto-connect on appear
             await viewModel.connect()
+            // Start location tracking
+            await locationViewModel.startTracking()
         }
     }
 }

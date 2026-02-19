@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SettingsPageView: View {
     let state: VoiceInteractionState
+    @ObservedObject var locationViewModel: LocationViewModel
 
     @ObservedObject private var settingsManager = VoiceSettingsManager.shared
 
@@ -32,6 +33,25 @@ struct SettingsPageView: View {
                             .font(.caption2)
                             .fontWeight(.semibold)
                             .foregroundColor(statusColor(for: state))
+                    }
+                }
+            }
+
+            // Location Tracking Section
+            Section {
+                HStack {
+                    Image(systemName: locationViewModel.isTracking ? "location.fill" : "location.slash")
+                        .foregroundColor(locationViewModel.isTracking ? .green : .gray)
+                        .font(.title3)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Location")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text(locationViewModel.isTracking ? locationViewModel.locationText : "Not tracking")
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                            .foregroundColor(locationViewModel.isTracking ? .green : .gray)
                     }
                 }
             }
@@ -130,6 +150,6 @@ struct SettingsPageView: View {
 
 #Preview {
     NavigationStack {
-        SettingsPageView(state: .idle(sessionId: "preview-session"))
+        SettingsPageView(state: .idle(sessionId: "preview-session"), locationViewModel: LocationViewModel())
     }
 }
