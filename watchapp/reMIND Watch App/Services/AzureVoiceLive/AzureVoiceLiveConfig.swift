@@ -43,4 +43,13 @@ public struct AzureVoiceLiveConfig {
         }
         return nil
     }
+
+    public static var fromBuildSettings: AzureVoiceLiveConfig {
+        return AzureVoiceLiveConfig(
+            apiKey: BuildConfiguration.azureAPIKey,
+            resourceName: BuildConfiguration.azureResourceName,
+            apiVersion: BuildConfiguration.azureAPIVersion,
+            model: BuildConfiguration.azureModel
+        )
+    }
 }
