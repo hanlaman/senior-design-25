@@ -2,10 +2,8 @@
 //  LocationViewModel.swift
 //  caregiverapp
 //
-//  ═══════════════════════════════════════════════════════════════════════════════
-//  ViewModel for location tracking and safe zone management.
-//  Demonstrates MKCoordinateRegion and location history tracking.
-//  ═══════════════════════════════════════════════════════════════════════════════
+//  ViewModel for location tracking, safe zone management, and geofence evaluation.
+//
 
 import Foundation
 import Combine
@@ -18,10 +16,10 @@ final class LocationViewModel {
     private(set) var safeZones: [SafeZone] = []
     private(set) var locationHistory: [PatientLocation] = []
     private(set) var isLoading: Bool = false
-    private(set) var error: Error?
+    private(set) var hasLoadedInitialData: Bool = false
+    private(set) var errorMessage: String?
     private(set) var lastUpdated: Date?
 
-    // Computed properties simplify view logic
     var isInSafeZone: Bool { currentLocation?.isInSafeZone ?? true }
     var currentZoneName: String? { currentLocation?.currentZoneName }
 
@@ -37,6 +35,7 @@ final class LocationViewModel {
     private var cancellables = Set<AnyCancellable>()
     private var pollingTask: Task<Void, Never>?
     private let pollingInterval: TimeInterval = 10
+    private var previouslyInsideZoneIds: Set<UUID> = []
 
     init(dataProvider: PatientDataProvider) {
         self.dataProvider = dataProvider
@@ -45,33 +44,66 @@ final class LocationViewModel {
 
     private func setupBindings() {
         dataProvider.locationPublisher.receive(on: DispatchQueue.main).sink { [weak self] location in
-            self?.currentLocation = location
-            // ┌─────────────────────────────────────────────────────────────────┐
-            // │ MAINTAINING A HISTORY BUFFER                                    │
-            // │                                                                 │
-            // │ Appends new locations to history, removing oldest when > 100.  │
-            // │ This pattern keeps memory bounded while tracking recent data.  │
-            // │                                                                 │
-            // │ .count returns the number of elements.                         │
-            // │ .removeFirst() removes and returns the first element.          │
-            // │ The ?? 0 handles the case where self is nil.                   │
-            // └─────────────────────────────────────────────────────────────────┘
-            if let location = location {
-                self?.locationHistory.append(location)
-                if self?.locationHistory.count ?? 0 > 100 { self?.locationHistory.removeFirst() }
+            guard let self else { return }
+            if let location {
+                let evaluated = self.evaluateGeofences(location)
+                self.currentLocation = evaluated
+                self.locationHistory.append(evaluated)
+                if self.locationHistory.count > 100 { self.locationHistory.removeFirst() }
+            } else {
+                self.currentLocation = nil
             }
         }.store(in: &cancellables)
     }
 
     func onAppear() {
-        currentLocation = dataProvider.currentLocation
-        safeZones = dataProvider.safeZones
+        Task { await loadInitialData() }
+    }
+
+    func retry() {
+        Task { await loadInitialData() }
+    }
+
+    private func loadInitialData() async {
+        isLoading = true
+        errorMessage = nil
+
+        async let locationResult = locationAPIService.fetchLatestLocation()
+        async let zonesResult = locationAPIService.fetchSafeZones()
+
+        let location = await locationResult
+        let zones = await zonesResult
+
+        if location == nil && zones.isEmpty {
+            errorMessage = "Unable to connect to server. Check your connection and try again."
+            isLoading = false
+            return
+        }
+
+        safeZones = zones
+
+        if let location {
+            let evaluated = evaluateGeofences(location)
+            currentLocation = evaluated
+            lastUpdated = Date()
+        }
+
+        // Seed geofence state to prevent false alerts on first poll
+        if let location = currentLocation {
+            let enabledZones = safeZones.filter { $0.isEnabled }
+            previouslyInsideZoneIds = Set(enabledZones.filter { $0.contains(location: location) }.map { $0.id })
+        }
+
+        hasLoadedInitialData = true
+        isLoading = false
         startPolling()
     }
 
     func onDisappear() {
         stopPolling()
     }
+
+    // MARK: - Polling
 
     private func startPolling() {
         guard pollingTask == nil else { return }
@@ -89,78 +121,99 @@ final class LocationViewModel {
     }
 
     private func pollLocation() async {
-        print("[LocationViewModel] Polling for location...")
         if let location = await locationAPIService.fetchLatestLocation() {
-            print("[LocationViewModel] Got location: \(location.coordinate.latitude), \(location.coordinate.longitude)")
-            currentLocation = location
+            errorMessage = nil
+            let evaluatedLocation = evaluateGeofences(location)
+            currentLocation = evaluatedLocation
             lastUpdated = Date()
-            locationHistory.append(location)
+            locationHistory.append(evaluatedLocation)
             if locationHistory.count > 100 { locationHistory.removeFirst() }
-        } else {
-            print("[LocationViewModel] No location received from API")
         }
     }
 
-    func addSafeZone(name: String, center: CLLocationCoordinate2D, radius: Double) {
-        let zone = SafeZone(name: name, center: Coordinate(from: center), radiusMeters: radius)
+    // MARK: - Geofence Evaluation
+
+    private func evaluateGeofences(_ location: PatientLocation) -> PatientLocation {
+        let enabledZones = safeZones.filter { $0.isEnabled }
+        let containingZones = enabledZones.filter { $0.contains(location: location) }
+        let currentZoneIds = Set(containingZones.map { $0.id })
+
+        var updatedLocation = location
+        if let firstZone = containingZones.first {
+            updatedLocation.isInSafeZone = true
+            updatedLocation.currentZoneName = firstZone.name
+        } else {
+            updatedLocation.isInSafeZone = false
+            updatedLocation.currentZoneName = nil
+        }
+
+        // Detect exit transitions (only if we had previous state)
+        let exitedZoneIds = previouslyInsideZoneIds.subtracting(currentZoneIds)
+        if !exitedZoneIds.isEmpty && !previouslyInsideZoneIds.isEmpty {
+            let exitedZoneNames = enabledZones
+                .filter { exitedZoneIds.contains($0.id) }
+                .map { $0.name }
+                .joined(separator: ", ")
+            generateGeofenceAlert(zoneNames: exitedZoneNames)
+        }
+
+        previouslyInsideZoneIds = currentZoneIds
+        return updatedLocation
+    }
+
+    private func generateGeofenceAlert(zoneNames: String) {
+        let alert = PatientAlert(
+            type: .geofence,
+            severity: .high,
+            title: "Left Safe Zone",
+            message: "Patient has left: \(zoneNames)",
+            timestamp: Date()
+        )
+        Task { try? await dataProvider.addAlert(alert) }
+    }
+
+    // MARK: - Safe Zone CRUD
+
+    func addSafeZone(name: String, center: CLLocationCoordinate2D, radius: Double, durationMinutes: Int = 15) {
+        let zone = SafeZone(name: name, center: Coordinate(from: center), radiusMeters: radius, durationMinutes: durationMinutes)
         Task {
             isLoading = true
-            // ┌─────────────────────────────────────────────────────────────────┐
-            // │ DEFER FOR CLEANUP                                               │
-            // │                                                                 │
-            // │ defer { isLoading = false } ensures isLoading is set to false  │
-            // │ when the scope exits, whether normally or due to an error.     │
-            // │ This pattern prevents forgotten loading states.                │
-            // └─────────────────────────────────────────────────────────────────┘
             defer { isLoading = false }
             try? await dataProvider.addSafeZone(zone)
+            _ = await locationAPIService.createSafeZone(zone)
             safeZones = dataProvider.safeZones
         }
     }
 
     func removeSafeZone(_ zone: SafeZone) {
-        Task { try? await dataProvider.removeSafeZone(id: zone.id); safeZones = dataProvider.safeZones }
+        Task {
+            try? await dataProvider.removeSafeZone(id: zone.id)
+            _ = await locationAPIService.deleteSafeZone(id: zone.id)
+            safeZones = dataProvider.safeZones
+        }
     }
 
-    func updateSafeZoneRadius(_ zone: SafeZone, newRadius: Double) {
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ MODIFYING A COPY                                                    │
-        // │                                                                     │
-        // │ Structs are value types, so 'var updatedZone = zone' creates a copy.│
-        // │ We modify the copy, then send it to the data provider.             │
-        // │ The original 'zone' is unchanged (it was passed by value).         │
-        // └─────────────────────────────────────────────────────────────────────┘
+    func updateSafeZone(_ zone: SafeZone, newRadius: Double, newDuration: Int) {
         var updatedZone = zone
         updatedZone.radiusMeters = newRadius
-        Task { try? await dataProvider.updateSafeZone(updatedZone); safeZones = dataProvider.safeZones }
+        updatedZone.durationMinutes = newDuration
+        Task {
+            try? await dataProvider.updateSafeZone(updatedZone)
+            _ = await locationAPIService.updateSafeZone(updatedZone)
+            safeZones = dataProvider.safeZones
+        }
     }
 
     func toggleSafeZone(_ zone: SafeZone) {
         var updatedZone = zone
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ .toggle() METHOD                                                    │
-        // │                                                                     │
-        // │ Bool has a toggle() method that flips true↔false.                  │
-        // │ It's mutating, so it changes the value in place.                   │
-        // │                                                                     │
-        // │ Equivalent to: updatedZone.isEnabled = !updatedZone.isEnabled      │
-        // └─────────────────────────────────────────────────────────────────────┘
         updatedZone.isEnabled.toggle()
-        Task { try? await dataProvider.updateSafeZone(updatedZone); safeZones = dataProvider.safeZones }
+        Task {
+            try? await dataProvider.updateSafeZone(updatedZone)
+            _ = await locationAPIService.updateSafeZone(updatedZone)
+            safeZones = dataProvider.safeZones
+        }
     }
 
-    // ┌─────────────────────────────────────────────────────────────────────────┐
-    // │ RETURNING OPTIONAL FROM FUNCTION                                        │
-    // │                                                                         │
-    // │ -> MKCoordinateRegion? returns nil if there's no location.             │
-    // │ Callers must handle the nil case (if let, guard let, ??, etc.)         │
-    // │                                                                         │
-    // │ MKCoordinateRegion defines a map area:                                 │
-    // │   - center: The center coordinate                                       │
-    // │   - span: How much area to show (lat/long deltas)                      │
-    // │     - Small delta = zoomed in                                          │
-    // │     - Large delta = zoomed out                                         │
-    // └─────────────────────────────────────────────────────────────────────────┘
     func centerOnPatient() -> MKCoordinateRegion? {
         guard let location = currentLocation else { return nil }
         return MKCoordinateRegion(center: location.clLocation, span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005))

@@ -91,6 +91,7 @@ struct SafeZone: Identifiable, Codable {
     var name: String
     var center: Coordinate
     var radiusMeters: Double
+    var durationMinutes: Int
     var isEnabled: Bool
 
     init(
@@ -98,12 +99,14 @@ struct SafeZone: Identifiable, Codable {
         name: String,
         center: Coordinate,
         radiusMeters: Double = 100,
+        durationMinutes: Int = 15,
         isEnabled: Bool = true
     ) {
         self.id = id
         self.name = name
         self.center = center
         self.radiusMeters = radiusMeters
+        self.durationMinutes = durationMinutes
         self.isEnabled = isEnabled
     }
 

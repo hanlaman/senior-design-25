@@ -104,6 +104,7 @@ protocol PatientDataProvider: AnyObject {
     var alertsPublisher: AnyPublisher<[PatientAlert], Never> { get }
     func acknowledgeAlert(id: UUID) async throws
     func clearAlert(id: UUID) async throws
+    func addAlert(_ alert: PatientAlert) async throws
 
     // Reminders
     var reminders: [Reminder] { get }

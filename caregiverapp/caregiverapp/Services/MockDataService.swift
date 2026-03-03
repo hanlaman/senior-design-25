@@ -137,19 +137,9 @@ final class MockDataService: PatientDataProvider, ObservableObject {
             ]
         )
 
-        // Create mock location
-        currentLocation = PatientLocation(
-            coordinate: Coordinate(latitude: 37.7749, longitude: -122.4194),
-            isInSafeZone: true,
-            currentZoneName: "Home",
-            address: "123 Main Street, San Francisco, CA"
-        )
-
-        // Create mock safe zones
-        safeZones = [
-            SafeZone(name: "Home", center: Coordinate(latitude: 37.7749, longitude: -122.4194), radiusMeters: 100),
-            SafeZone(name: "Park", center: Coordinate(latitude: 37.7694, longitude: -122.4862), radiusMeters: 200)
-        ]
+        // Location and safe zones are fetched from the API, not mocked
+        currentLocation = nil
+        safeZones = []
 
         // Create mock alerts
         alerts = [
@@ -448,6 +438,7 @@ final class MockDataService: PatientDataProvider, ObservableObject {
     }
 
     func clearAlert(id: UUID) async throws { alerts.removeAll { $0.id == id } }
+    func addAlert(_ alert: PatientAlert) async throws { alerts.insert(alert, at: 0) }
 
     func addReminder(_ reminder: Reminder) async throws {
         reminders.append(reminder)

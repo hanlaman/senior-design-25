@@ -57,117 +57,88 @@ struct LocationView: View {
     }
 
     var body: some View {
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ VStack(spacing: 0)                                                  │
-        // │                                                                     │
-        // │ spacing: 0 removes gaps between children.                          │
-        // │ This creates a seamless look where elements touch.                 │
-        // └─────────────────────────────────────────────────────────────────────┘
-        VStack(spacing: 0) {
-            locationStatusBanner.padding()
-
-            // ┌─────────────────────────────────────────────────────────────────┐
-            // │ Map WITH CONTENT BUILDER                                        │
-            // │                                                                 │
-            // │ Map(position: $mapPosition) { content }                        │
-            // │                                                                 │
-            // │ The binding lets the map update position AND lets you          │
-            // │ programmatically change what's shown.                          │
-            // │                                                                 │
-            // │ Inside the closure, you add map content:                       │
-            // │   - Annotations (markers/pins)                                 │
-            // │   - MapCircle, MapPolyline, MapPolygon                        │
-            // │   - UserAnnotation (for user location)                        │
-            // └─────────────────────────────────────────────────────────────────┘
-            Map(position: $mapPosition) {
-
-                // ┌─────────────────────────────────────────────────────────────┐
-                // │ CONDITIONAL MAP CONTENT                                     │
-                // │                                                             │
-                // │ if let location = ... { } unwraps the optional.            │
-                // │ Only adds the annotation if we have a location.            │
-                // └─────────────────────────────────────────────────────────────┘
-                if let location = viewModel.currentLocation {
-                    // ┌─────────────────────────────────────────────────────────┐
-                    // │ Annotation - CUSTOM MAP MARKER                          │
-                    // │                                                         │
-                    // │ Annotation creates a custom view at a coordinate.      │
-                    // │ Unlike Marker (simple pin), you can use any SwiftUI    │
-                    // │ view as the content.                                    │
-                    // │                                                         │
-                    // │ Parameters:                                              │
-                    // │   - Label: accessibility label                          │
-                    // │   - coordinate: where to place it                       │
-                    // │   - content closure: the custom view                    │
-                    // └─────────────────────────────────────────────────────────┘
-                    Annotation("Patient", coordinate: location.clLocation) { PatientMarker(isInSafeZone: location.isInSafeZone) }
-                }
-
-                // ┌─────────────────────────────────────────────────────────────┐
-                // │ ForEach FOR MULTIPLE MAP ELEMENTS                           │
-                // │                                                             │
-                // │ Creates a MapCircle for each safe zone.                    │
-                // │ Only enabled zones are shown (zone.isEnabled check).       │
-                // └─────────────────────────────────────────────────────────────┘
-                ForEach(viewModel.safeZones) { zone in
-                    if zone.isEnabled {
-                        // ┌─────────────────────────────────────────────────────┐
-                        // │ MapCircle - CIRCULAR OVERLAY                        │
-                        // │                                                     │
-                        // │ Draws a circle on the map for safe zones.          │
-                        // │                                                     │
-                        // │ .foregroundStyle() - Fill color (with opacity)     │
-                        // │ .stroke() - Border color and width                 │
-                        // └─────────────────────────────────────────────────────┘
-                        MapCircle(center: CLLocationCoordinate2D(latitude: zone.center.latitude, longitude: zone.center.longitude), radius: zone.radiusMeters).foregroundStyle(.blue.opacity(0.2)).stroke(.blue, lineWidth: 2)
-                    }
-                }
+        Group {
+            if viewModel.isLoading && !viewModel.hasLoadedInitialData {
+                loadingView
+            } else if let errorMessage = viewModel.errorMessage, !viewModel.hasLoadedInitialData {
+                errorView(message: errorMessage)
+            } else {
+                locationContent
             }
-            // ┌─────────────────────────────────────────────────────────────────┐
-            // │ MAP MODIFIERS                                                   │
-            // │                                                                 │
-            // │ .mapStyle(.standard) - Regular map (vs .satellite, .hybrid)   │
-            // │ .mapControls { } - Add map control buttons                     │
-            // │                                                                 │
-            // │ MapUserLocationButton - Button to center on user               │
-            // │ MapCompass - Compass that appears when rotated                 │
-            // │ MapScaleView - Shows distance scale                            │
-            // │ MapPitchToggle - Toggle 2D/3D view                             │
-            // └─────────────────────────────────────────────────────────────────┘
-            .mapStyle(.standard)
-            .mapControls { MapUserLocationButton(); MapCompass(); MapScaleView() }
-            bottomPanel
         }
         .navigationTitle("Location")
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(action: { showingAddZone = true }) { Image(systemName: "plus") } } }
-
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ .sheet(isPresented:) - MODAL SHEET                                  │
-        // │                                                                     │
-        // │ Shows a sheet when showingAddZone becomes true.                    │
-        // │ The sheet automatically dismisses when isPresented becomes false.  │
-        // │                                                                     │
-        // │ TRAILING CLOSURE: The view to show in the sheet.                   │
-        // │ The sheet is created each time it's presented.                     │
-        // └─────────────────────────────────────────────────────────────────────┘
-        .sheet(isPresented: $showingAddZone) { AddSafeZoneSheet(currentLocation: viewModel.currentLocation, onAdd: { name, center, radius in viewModel.addSafeZone(name: name, center: center, radius: radius) }) }
-
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ .sheet(item:) - SHEET WITH SELECTED ITEM                            │
-        // │                                                                     │
-        // │ Different from isPresented - this takes an optional Identifiable.  │
-        // │ When selectedZone becomes non-nil, sheet appears with that zone.   │
-        // │ When sheet dismisses, selectedZone automatically becomes nil.      │
-        // │                                                                     │
-        // │ The closure receives the unwrapped item (zone, not zone?).         │
-        // └─────────────────────────────────────────────────────────────────────┘
-        .sheet(item: $selectedZone) { zone in SafeZoneDetailSheet(zone: zone, onUpdate: { viewModel.updateSafeZoneRadius($0, newRadius: $1) }, onDelete: { viewModel.removeSafeZone($0) }, onToggle: { viewModel.toggleSafeZone($0) }) }
-        .onAppear { viewModel.onAppear(); if let region = viewModel.centerOnPatient() { mapPosition = .region(region) } }
+        .toolbar {
+            if viewModel.hasLoadedInitialData {
+                ToolbarItem(placement: .topBarTrailing) { Button(action: { showingAddZone = true }) { Image(systemName: "plus") } }
+            }
+        }
+        .sheet(isPresented: $showingAddZone) { AddSafeZoneSheet(currentLocation: viewModel.currentLocation, onAdd: { name, center, radius, duration in viewModel.addSafeZone(name: name, center: center, radius: radius, durationMinutes: duration) }) }
+        .sheet(item: $selectedZone) { zone in SafeZoneDetailSheet(zone: zone, onUpdate: { zone, radius, duration in viewModel.updateSafeZone(zone, newRadius: radius, newDuration: duration) }, onDelete: { viewModel.removeSafeZone($0) }, onToggle: { viewModel.toggleSafeZone($0) }) }
+        .onAppear { viewModel.onAppear() }
         .onDisappear { viewModel.onDisappear() }
         .onChange(of: viewModel.currentLocation?.coordinate.latitude) {
             if let region = viewModel.centerOnPatient() {
                 withAnimation { mapPosition = .region(region) }
             }
+        }
+        .onChange(of: viewModel.hasLoadedInitialData) {
+            if viewModel.hasLoadedInitialData, let region = viewModel.centerOnPatient() {
+                mapPosition = .region(region)
+            }
+        }
+    }
+
+    private var loadingView: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Loading location data...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func errorView(message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text("Connection Error")
+                .font(.title3)
+                .fontWeight(.semibold)
+            Text(message)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+            Button(action: { viewModel.retry() }) {
+                Label("Retry", systemImage: "arrow.clockwise")
+                    .fontWeight(.medium)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var locationContent: some View {
+        VStack(spacing: 0) {
+            locationStatusBanner.padding()
+
+            Map(position: $mapPosition) {
+                if let location = viewModel.currentLocation {
+                    Annotation("Patient", coordinate: location.clLocation) { PatientMarker(isInSafeZone: location.isInSafeZone) }
+                }
+
+                ForEach(viewModel.safeZones) { zone in
+                    if zone.isEnabled {
+                        MapCircle(center: CLLocationCoordinate2D(latitude: zone.center.latitude, longitude: zone.center.longitude), radius: zone.radiusMeters).foregroundStyle(.blue.opacity(0.2)).stroke(.blue, lineWidth: 2)
+                    }
+                }
+            }
+            .mapStyle(.standard)
+            .mapControls { MapUserLocationButton(); MapCompass(); MapScaleView() }
+            bottomPanel
         }
     }
 
@@ -260,77 +231,101 @@ struct SafeZoneChip: View {
         Button(action: onTap) {
             HStack(spacing: 8) {
                 Image(systemName: zone.isEnabled ? "checkmark.circle.fill" : "circle").foregroundStyle(zone.isEnabled ? .green : .secondary)
-                VStack(alignment: .leading, spacing: 2) { Text(zone.name).font(.subheadline).fontWeight(.medium); Text("\(Int(zone.radiusMeters))m radius").font(.caption).foregroundStyle(.secondary) }
+                VStack(alignment: .leading, spacing: 2) { Text(zone.name).font(.subheadline).fontWeight(.medium); Text("\(Int(zone.radiusMeters))m radius · \(zone.durationMinutes)min").font(.caption).foregroundStyle(.secondary) }
             }
             .padding(.horizontal, 12).padding(.vertical, 8).background(Color(.secondarySystemBackground)).clipShape(RoundedRectangle(cornerRadius: 10))
         }.buttonStyle(.plain)
     }
 }
 
-// ┌─────────────────────────────────────────────────────────────────────────────┐
-// │ SHEET VIEW WITH @Environment(\.dismiss)                                     │
-// │                                                                             │
-// │ Sheet views often need to dismiss themselves.                              │
-// │ @Environment(\.dismiss) provides a dismiss action.                         │
-// └─────────────────────────────────────────────────────────────────────────────┘
 struct AddSafeZoneSheet: View {
     let currentLocation: PatientLocation?
-    let onAdd: (String, CLLocationCoordinate2D, Double) -> Void
-
-    // ┌─────────────────────────────────────────────────────────────────────────┐
-    // │ @Environment - READING FROM SWIFTUI ENVIRONMENT                         │
-    // │                                                                         │
-    // │ Environment provides system values and actions.                        │
-    // │ \.dismiss is an action that dismisses the current presentation.        │
-    // │                                                                         │
-    // │ Other useful environment values:                                        │
-    // │   \.colorScheme      - Light or dark mode                              │
-    // │   \.horizontalSizeClass - Compact or regular (iPhone vs iPad)          │
-    // │   \.locale           - User's locale settings                          │
-    // │   \.openURL          - Action to open URLs                             │
-    // │   \.scenePhase       - App is active, inactive, or background          │
-    // └─────────────────────────────────────────────────────────────────────────┘
+    let onAdd: (String, CLLocationCoordinate2D, Double, Int) -> Void
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
     @State private var radius: Double = 100
+    @State private var durationMinutes: Double = 15
+    @State private var locationMode: LocationMode = .currentLocation
+    @State private var pickedCoordinate: CLLocationCoordinate2D?
+    @State private var pickedAddress: String?
+
+    enum LocationMode: String, CaseIterable {
+        case currentLocation = "Current Location"
+        case pickOnMap = "Pick on Map"
+    }
+
+    private var selectedCoordinate: CLLocationCoordinate2D? {
+        switch locationMode {
+        case .currentLocation: currentLocation?.clLocation
+        case .pickOnMap: pickedCoordinate
+        }
+    }
 
     var body: some View {
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ NavigationStack IN SHEET                                            │
-        // │                                                                     │
-        // │ Sheets often have their own NavigationStack for:                   │
-        // │   - Title bar                                                       │
-        // │   - Toolbar buttons (Cancel, Done)                                 │
-        // │   - Navigation within the sheet                                    │
-        // └─────────────────────────────────────────────────────────────────────┘
         NavigationStack {
-            // ┌─────────────────────────────────────────────────────────────────┐
-            // │ Form - GROUPED INPUT SECTIONS                                   │
-            // │                                                                 │
-            // │ Form is a container for input controls.                        │
-            // │ It provides automatic styling and grouping.                    │
-            // │                                                                 │
-            // │ Section groups related controls with optional headers/footers. │
-            // └─────────────────────────────────────────────────────────────────┘
             Form {
-                Section("Zone Name") { TextField("e.g., Home, Park", text: $name) }
-                Section("Location") { if let location = currentLocation { Text("Current: \(location.address ?? "Unknown")").font(.caption).foregroundStyle(.secondary) } }
-                Section("Radius") { VStack(alignment: .leading) { Text("\(Int(radius)) meters").font(.headline); Slider(value: $radius, in: 25...500, step: 25) } }
+                Section("Zone Name") {
+                    TextField("e.g., Home, Park", text: $name)
+                }
+
+                Section("Location") {
+                    Picker("Source", selection: $locationMode) {
+                        ForEach(LocationMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    switch locationMode {
+                    case .currentLocation:
+                        if let location = currentLocation {
+                            Text(location.address ?? "Current patient location")
+                                .font(.caption).foregroundStyle(.secondary)
+                        } else {
+                            Text("Patient location unavailable")
+                                .font(.caption).foregroundStyle(.red)
+                        }
+                    case .pickOnMap:
+                        if let addr = pickedAddress {
+                            Text(addr).font(.caption).foregroundStyle(.secondary)
+                        }
+                        NavigationLink("Choose on Map") {
+                            MapLocationPickerView(
+                                selectedCoordinate: $pickedCoordinate,
+                                selectedAddress: $pickedAddress
+                            )
+                        }
+                    }
+                }
+
+                Section("Radius") {
+                    VStack(alignment: .leading) {
+                        Text("\(Int(radius)) meters").font(.headline)
+                        Slider(value: $radius, in: 25...500, step: 25)
+                    }
+                }
+
+                Section("Grace Period") {
+                    VStack(alignment: .leading) {
+                        Text("\(Int(durationMinutes)) minutes").font(.headline)
+                        Text("How long before alerting when patient leaves this zone").font(.caption).foregroundStyle(.secondary)
+                        Slider(value: $durationMinutes, in: 5...120, step: 5)
+                    }
+                }
             }
             .navigationTitle("Add Safe Zone").navigationBarTitleDisplayMode(.inline)
-            // ┌─────────────────────────────────────────────────────────────────┐
-            // │ TOOLBAR WITH CANCEL/CONFIRM BUTTONS                             │
-            // │                                                                 │
-            // │ Standard pattern for sheets:                                    │
-            // │   - .cancellationAction: Left side, dismisses without saving   │
-            // │   - .confirmationAction: Right side, saves and dismisses       │
-            // │                                                                 │
-            // │ dismiss() is called to close the sheet.                        │
-            // └─────────────────────────────────────────────────────────────────┘
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Add") { if let location = currentLocation { onAdd(name, location.clLocation, radius) }; dismiss() }.disabled(name.isEmpty || currentLocation == nil) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        if let coord = selectedCoordinate {
+                            onAdd(name, coord, radius, Int(durationMinutes))
+                        }
+                        dismiss()
+                    }
+                    .disabled(name.isEmpty || selectedCoordinate == nil)
+                }
             }
         }
     }
@@ -338,11 +333,12 @@ struct AddSafeZoneSheet: View {
 
 struct SafeZoneDetailSheet: View {
     let zone: SafeZone
-    let onUpdate: (SafeZone, Double) -> Void
+    let onUpdate: (SafeZone, Double, Int) -> Void
     let onDelete: (SafeZone) -> Void
     let onToggle: (SafeZone) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var radius: Double
+    @State private var durationMinutes: Double
 
     // ┌─────────────────────────────────────────────────────────────────────────┐
     // │ INITIALIZER WITH @State INITIALIZATION                                  │
@@ -352,15 +348,17 @@ struct SafeZoneDetailSheet: View {
     // │                                                                         │
     // │ Without this, we'd need a separate @State and use .onAppear to set it. │
     // └─────────────────────────────────────────────────────────────────────────┘
-    init(zone: SafeZone, onUpdate: @escaping (SafeZone, Double) -> Void, onDelete: @escaping (SafeZone) -> Void, onToggle: @escaping (SafeZone) -> Void) {
-        self.zone = zone; self.onUpdate = onUpdate; self.onDelete = onDelete; self.onToggle = onToggle; _radius = State(initialValue: zone.radiusMeters)
+    init(zone: SafeZone, onUpdate: @escaping (SafeZone, Double, Int) -> Void, onDelete: @escaping (SafeZone) -> Void, onToggle: @escaping (SafeZone) -> Void) {
+        self.zone = zone; self.onUpdate = onUpdate; self.onDelete = onDelete; self.onToggle = onToggle; _radius = State(initialValue: zone.radiusMeters); _durationMinutes = State(initialValue: Double(zone.durationMinutes))
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section { HStack { Text("Status"); Spacer(); Text(zone.isEnabled ? "Enabled" : "Disabled").foregroundStyle(.secondary) }; Button(zone.isEnabled ? "Disable Zone" : "Enable Zone") { onToggle(zone); dismiss() } }
-                Section("Radius") { VStack(alignment: .leading) { Text("\(Int(radius)) meters").font(.headline); Slider(value: $radius, in: 25...500, step: 25) }; Button("Update Radius") { onUpdate(zone, radius); dismiss() } }
+                Section("Radius") { VStack(alignment: .leading) { Text("\(Int(radius)) meters").font(.headline); Slider(value: $radius, in: 25...500, step: 25) } }
+                Section("Grace Period") { VStack(alignment: .leading) { Text("\(Int(durationMinutes)) minutes").font(.headline); Text("How long before alerting when patient leaves").font(.caption).foregroundStyle(.secondary); Slider(value: $durationMinutes, in: 5...120, step: 5) } }
+                Section { Button("Save Changes") { onUpdate(zone, radius, Int(durationMinutes)); dismiss() } }
                 // ┌─────────────────────────────────────────────────────────────┐
                 // │ DESTRUCTIVE BUTTON                                          │
                 // │                                                             │

@@ -59,6 +59,19 @@ interface LocationTable {
   createdAt: Generated<Date>;
 }
 
+interface SafeZoneTable {
+  id: Generated<string>;
+  patientId: string;
+  name: string;
+  centerLatitude: number;
+  centerLongitude: number;
+  radiusMeters: number;
+  durationMinutes: Generated<number>;
+  isEnabled: Generated<boolean>;
+  createdAt: Generated<Date>;
+  updatedAt: Generated<Date>;
+}
+
 // Database interface combining all tables
 export interface Database {
   user: UserTable;
@@ -66,6 +79,7 @@ export interface Database {
   account: AccountTable;
   verification: VerificationTable;
   location: LocationTable;
+  safeZone: SafeZoneTable;
 }
 
 // Export the Kysely database instance
