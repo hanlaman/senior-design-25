@@ -1,41 +1,69 @@
 //
-//  AzureVoiceLiveService.swift
+//  VoiceLiveConnection.swift
 //  reMIND Watch App
 //
-//  Azure Voice Live API service implementation
+//  Azure Voice Live connection with resource-based API
 //
 
 import Foundation
 import os
 
-/// Azure Voice Live service implementation
-public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
+/// Azure Voice Live connection with resource-based organization
+public actor VoiceLiveConnection {
     // MARK: - Properties
 
     private let apiKey: String
-    private let websocketURL: URL
+    private let endpoint: String
+    private let model: String
+    private let apiVersion: String
     private var settings: VoiceSettings
 
     private var webSocketManager: WebSocketManager?
 
     public private(set) var connectionState: ConnectionState = .disconnected
+    public private(set) var sessionState: AzureSessionState = .uninitialized
 
     // Event stream
     private var eventContinuation: AsyncStream<AzureServerEvent>.Continuation?
     public let eventStream: AsyncStream<AzureServerEvent>
 
-    // Session state
-    public private(set) var sessionState: AzureSessionState = .uninitialized
+    // MARK: - Resources
 
-    // Audio buffer tracking
-    private var audioBufferBytes: Int = 0
-    private var audioBufferChunks: Int = 0
+    /// Session configuration management
+    public lazy var session: SessionResource = SessionResource(connection: self)
+
+    /// Input audio buffer management
+    public lazy var inputAudioBuffer: InputAudioBuffer = InputAudioBuffer(connection: self)
+
+    /// Output audio buffer management
+    public lazy var outputAudioBuffer: OutputAudioBuffer = OutputAudioBuffer(connection: self)
+
+    /// Conversation management
+    public lazy var conversation: Conversation = Conversation(connection: self)
+
+    /// Response management
+    public lazy var response: Response = Response(connection: self)
 
     // MARK: - Initialization
 
-    public init(apiKey: String, websocketURL: URL, settings: VoiceSettings) {
+    /// Initialize a new Voice Live connection
+    /// - Parameters:
+    ///   - endpoint: Azure resource endpoint (e.g., "your-resource.services.ai.azure.com")
+    ///   - apiKey: Azure API key
+    ///   - model: Model to use (e.g., "gpt-4o-realtime-preview")
+    ///   - apiVersion: API version (defaults to "2024-10-01-preview")
+    ///   - settings: Voice settings configuration
+    public init(
+        endpoint: String,
+        apiKey: String,
+        model: String,
+        apiVersion: String = "2024-10-01-preview",
+        settings: VoiceSettings
+    ) {
+        self.endpoint = endpoint
         self.apiKey = apiKey
-        self.websocketURL = websocketURL
+        self.model = model
+        self.apiVersion = apiVersion
         self.settings = settings
 
         // Create event stream
@@ -44,6 +72,8 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             continuationHolder = continuation
         }
         self.eventContinuation = continuationHolder
+
+        // Resources are lazy and will be initialized when first accessed
     }
 
     // MARK: - Connection Management
@@ -55,13 +85,19 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         }
 
         guard sessionState == .uninitialized else {
-            AppLogger.azure.warning("Session already exists: \(self.self.sessionState.displayText)")
+            AppLogger.azure.warning("Session already exists: \(self.sessionState.displayText)")
             return
         }
 
         connectionState = .connecting
         sessionState = .establishing(sessionId: nil)
         AppLogger.azure.info("Connecting to Azure Voice Live API")
+
+        // Build WebSocket URL
+        let urlString = "wss://\(endpoint)/voice-live/realtime?api-version=\(apiVersion)&model=\(model)"
+        guard let websocketURL = URL(string: urlString) else {
+            throw AzureError.invalidConfiguration
+        }
 
         // Create WebSocket manager
         let manager = WebSocketManager(url: websocketURL, apiKey: apiKey)
@@ -86,10 +122,10 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
 
         // Send session.update to configure the session with user settings
         AppLogger.azure.info("Sending session.update to configure session with settings (rate: \(self.settings.speakingRate)x)")
-        try await updateSession(.fromSettings(self.settings))
+        try await session.update(.fromSettings(self.settings))
 
         // Wait for session to be ready (session.created and session.updated)
-        try await waitForSessionReady()
+        try await session.waitForReady()
 
         AppLogger.azure.info("Session ready: \(self.sessionState.displayText)")
     }
@@ -108,195 +144,6 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         eventContinuation?.finish()
 
         AppLogger.azure.info("Disconnected from Azure Voice Live API")
-    }
-
-    // MARK: - Session Management
-
-    public func updateSession(_ config: RealtimeRequestSession) async throws {
-        guard connectionState == .connected else {
-            throw AzureError.notConnected
-        }
-
-        // Log configuration details for debugging
-        let voiceInfo: String
-        if let voice = config.voice {
-            switch voice {
-            case .openai(let v):
-                voiceInfo = "openai:\(v.name)"
-            case .azureStandard(let v):
-                voiceInfo = "azure-standard:\(v.name)"
-            case .azureCustom(let v):
-                voiceInfo = "azure-custom:\(v.name)/\(v.endpointId)"
-            case .azurePersonal(let v):
-                voiceInfo = "azure-personal:\(v.name)/\(v.model)"
-            }
-        } else {
-            voiceInfo = "default"
-        }
-
-        let instructionsPreview = config.instructions?.prefix(50).description ?? "none"
-        AppLogger.azure.info("Sending session.update event with configuration: voice=\(voiceInfo), instructions=\(instructionsPreview)...")
-
-        let event = SessionUpdateEvent(session: config)
-        try await sendEvent(event)
-
-        AppLogger.azure.debug("session.update event sent, waiting for server acknowledgment")
-    }
-
-    // Note: Voice configuration (including speaking rate) cannot be updated mid-session
-    // per Azure API documentation: "any field can be updated at any time, except for voice"
-    // Voice settings changes require disconnect and reconnect to take effect
-
-    // MARK: - Audio Management
-
-    public func sendAudioChunk(_ audioData: Data) async throws {
-        guard connectionState == .connected else {
-            throw AzureError.notConnected
-        }
-
-        guard sessionState.canAcceptAudio else {
-            throw AzureError.sessionNotReady
-        }
-
-        // Track buffer statistics
-        audioBufferBytes += audioData.count
-        audioBufferChunks += 1
-
-        // Base64 encode audio data
-        let base64Audio = audioData.base64EncodedString()
-
-        let event = InputAudioBufferAppendEvent(audio: base64Audio)
-        try await sendEvent(event)
-    }
-
-    public func commitAudioBuffer() async throws {
-        guard connectionState == .connected else {
-            throw AzureError.notConnected
-        }
-
-        guard sessionState.canAcceptAudio else {
-            throw AzureError.sessionNotReady
-        }
-
-        // Get buffer statistics
-        let stats = getAudioBufferStatistics()
-
-        // Validate minimum buffer size (100ms required by Azure)
-        let minimumMs: Double = 100.0
-        if stats.durationMs < minimumMs {
-            AppLogger.azure.error("Audio buffer too small: \(stats.durationMs)ms (minimum: \(minimumMs)ms), \(stats.bytes) bytes, \(stats.chunks) chunks")
-            throw AzureError.bufferTooSmall(durationMs: stats.durationMs, bytes: stats.bytes, minimumMs: minimumMs)
-        }
-
-        AppLogger.azure.info("Committing audio buffer: \(stats.durationMs)ms, \(stats.bytes) bytes, \(stats.chunks) chunks")
-
-        let event = InputAudioBufferCommitEvent()
-        try await sendEvent(event)
-    }
-
-    public func clearAudioBuffer() async throws {
-        guard connectionState == .connected else {
-            throw AzureError.notConnected
-        }
-
-        AppLogger.azure.info("Clearing audio buffer")
-
-        // Reset tracking
-        audioBufferBytes = 0
-        audioBufferChunks = 0
-
-        let event = InputAudioBufferClearEvent()
-        try await sendEvent(event)
-    }
-
-    public func cancelResponse() async throws {
-        guard connectionState == .connected else {
-            throw AzureError.notConnected
-        }
-
-        AppLogger.azure.info("Canceling response")
-
-        let event = ResponseCancelEvent()
-        try await sendEvent(event)
-    }
-
-    // MARK: - Conversation Management
-
-    public func createConversationItem(previousItemId: String?, item: RealtimeConversationRequestItem) async throws {
-        guard connectionState == .connected else {
-            throw AzureError.notConnected
-        }
-
-        guard sessionState.canAcceptConversation else {
-            throw AzureError.sessionNotReady
-        }
-
-        AppLogger.azure.debug("Creating conversation item")
-
-        let event = ConversationItemCreateEvent(previousItemId: previousItemId, item: item)
-        try await sendEvent(event)
-    }
-
-    public func retrieveConversationItem(itemId: String) async throws {
-        guard connectionState == .connected else {
-            throw AzureError.notConnected
-        }
-
-        guard sessionState.canAcceptConversation else {
-            throw AzureError.sessionNotReady
-        }
-
-        AppLogger.azure.debug("Retrieving conversation item: \(itemId)")
-
-        let event = ConversationItemRetrieveEvent(itemId: itemId)
-        try await sendEvent(event)
-    }
-
-    public func truncateConversationItem(itemId: String, contentIndex: Int, audioEndMs: Int) async throws {
-        guard connectionState == .connected else {
-            throw AzureError.notConnected
-        }
-
-        guard sessionState.canAcceptConversation else {
-            throw AzureError.sessionNotReady
-        }
-
-        AppLogger.azure.debug("Truncating conversation item: \(itemId) at content index \(contentIndex), audio end: \(audioEndMs)ms")
-
-        let event = ConversationItemTruncateEvent(itemId: itemId, contentIndex: contentIndex, audioEndMs: audioEndMs)
-        try await sendEvent(event)
-    }
-
-    public func deleteConversationItem(itemId: String) async throws {
-        guard connectionState == .connected else {
-            throw AzureError.notConnected
-        }
-
-        guard sessionState.canAcceptConversation else {
-            throw AzureError.sessionNotReady
-        }
-
-        AppLogger.azure.debug("Deleting conversation item: \(itemId)")
-
-        let event = ConversationItemDeleteEvent(itemId: itemId)
-        try await sendEvent(event)
-    }
-
-    // MARK: - Response Management
-
-    public func createResponse(config: RealtimeResponseOptions?) async throws {
-        guard connectionState == .connected else {
-            throw AzureError.notConnected
-        }
-
-        guard sessionState.canAcceptConversation else {
-            throw AzureError.sessionNotReady
-        }
-
-        AppLogger.azure.debug("Creating response")
-
-        let event = ResponseCreateEvent(response: config)
-        try await sendEvent(event)
     }
 
     // MARK: - MCP Tool Management
@@ -319,39 +166,12 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         try await sendEvent(event)
     }
 
-    // MARK: - Buffer Statistics
+    // MARK: - Internal Methods (for resources)
 
-    /// Get current audio buffer statistics
-    func getAudioBufferStatistics() -> AudioBufferStatistics {
-        let durationMs = calculateAudioDurationMs(bytes: audioBufferBytes)
-        return AudioBufferStatistics(
-            bytes: audioBufferBytes,
-            chunks: audioBufferChunks,
-            durationMs: durationMs
-        )
-    }
-
-    /// Calculate audio duration in milliseconds from bytes
-    /// Assumes PCM16 (16-bit), 24kHz sample rate, mono channel
-    private func calculateAudioDurationMs(bytes: Int) -> Double {
-        // PCM16 = 2 bytes per sample
-        // 24kHz = 24000 samples per second
-        // Duration (seconds) = samples / sample_rate
-        // Duration (ms) = (samples / sample_rate) * 1000
-
-        let bytesPerSample = 2
-        let sampleRate = 24000.0
-
-        let samples = Double(bytes) / Double(bytesPerSample)
-        let durationSeconds = samples / sampleRate
-        let durationMs = durationSeconds * 1000.0
-
-        return durationMs
-    }
-
-    // MARK: - Private Methods
-
-    private func sendEvent<T: Encodable>(_ event: T) async throws {
+    /// Send an event to the Azure Voice Live API
+    /// - Parameter event: The event to send
+    /// - Throws: `AzureError` if encoding or sending fails
+    internal func sendEvent<T: Encodable>(_ event: T) async throws {
         guard let manager = webSocketManager else {
             throw AzureError.notConnected
         }
@@ -373,6 +193,8 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.encodingFailed(error)
         }
     }
+
+    // MARK: - Private Methods
 
     private func processWebSocketEvents() async {
         guard let manager = webSocketManager else { return }
@@ -427,8 +249,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
                 // Transition from establishing → ready, or acknowledge mid-session update
                 if case .establishing(let id) = sessionState, let sessionId = id {
                     sessionState = .ready(sessionId: sessionId)
-                    audioBufferBytes = 0
-                    audioBufferChunks = 0
+                    await inputAudioBuffer.resetTracking()
                     AppLogger.azure.info("Session ready: \(sessionId)")
                 } else if case .ready(let sessionId) = sessionState {
                     AppLogger.azure.info("Session configuration updated successfully (mid-session): \(sessionId)")
@@ -675,36 +496,6 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             return .unknown(type)
         }
     }
-
-    public func waitForSessionReady() async throws {
-        AppLogger.azure.debug("Waiting for session to be ready...")
-
-        // Poll the session state with timeout
-        let startTime = Date()
-        let timeout: TimeInterval = 10.0 // 10 seconds
-
-        while !sessionState.canAcceptAudio {
-            // Check if timed out
-            if Date().timeIntervalSince(startTime) > timeout {
-                AppLogger.azure.error("Timeout waiting for session ready, current state: \(self.sessionState.displayText)")
-                throw AzureError.connectionTimeout
-            }
-
-            // Sleep briefly before checking again
-            try await Task.sleep(nanoseconds: 100_000_000) // 100ms
-        }
-
-        AppLogger.azure.info("Session ready: \(self.sessionState.displayText)")
-    }
-}
-
-// MARK: - Supporting Types
-
-/// Audio buffer statistics
-struct AudioBufferStatistics {
-    let bytes: Int
-    let chunks: Int
-    let durationMs: Double
 }
 
 // MARK: - Errors

@@ -168,19 +168,22 @@ extension RealtimeVoice {
  let settingsManager = VoiceSettingsManager.shared
  let settings = settingsManager.settings
 
- // 2. Create and connect service with settings
- let service = AzureVoiceLiveService(
+ // 2. Create and connect to Voice Live service with settings
+ let endpoint = "\(BuildConfiguration.azureResourceName).services.ai.azure.com"
+ let connection = VoiceLiveConnection(
+     endpoint: endpoint,
      apiKey: BuildConfiguration.azureAPIKey,
-     websocketURL: URL(string: "wss://\(BuildConfiguration.azureResourceName).services.ai.azure.com/voice-live/realtime?api-version=\(BuildConfiguration.azureAPIVersion)&model=gpt-realtime")!,
+     model: "gpt-4o-realtime-preview",
+     apiVersion: BuildConfiguration.azureAPIVersion,
      settings: settings
  )
 
- // Service automatically configures session using .fromSettings() on connect
- try await service.connect()
+ // Connection automatically configures session using .fromSettings() on connect
+ try await connection.connect()
 
  // 3. Listen to events
  Task {
-     for await event in service.eventStream {
+     for await event in connection.eventStream {
          switch event {
          case .sessionCreated(let session):
              print("Session created: \(session.session.id)")
@@ -205,24 +208,24 @@ extension RealtimeVoice {
      }
  }
 
- // 4. Send audio
- try await service.sendAudioChunk(audioData)
- try await service.commitAudioBuffer()
+ // 4. Send audio using resource-based API
+ try await connection.inputAudioBuffer.append(audioData)
+ try await connection.inputAudioBuffer.commit()
 
  // 5. Send text message
  let message = RealtimeConversationRequestItem.userTextMessage(
      "What's the weather like today?"
  )
- try await service.createConversationItem(previousItemId: nil, item: message)
+ try await connection.conversation.items.create(message)
 
  // 6. Trigger response
- try await service.createResponse(config: nil)
+ try await connection.response.create(options: nil)
 
  // 7. Update settings (MUST reconnect - voice config is immutable per Azure API)
  settingsManager.updateSpeakingRate(1.5)  // Set to 1.5x speed
- await service.disconnect()  // Required: voice cannot be updated mid-session
- try await service.connect()  // New settings applied on connection
+ await connection.disconnect()  // Required: voice cannot be updated mid-session
+ try await connection.connect()  // New settings applied on connection
 
  // 8. Cleanup
- await service.disconnect()
+ await connection.disconnect()
  */

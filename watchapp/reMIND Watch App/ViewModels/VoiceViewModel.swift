@@ -25,7 +25,7 @@ class VoiceViewModel: ObservableObject {
 
     // MARK: - Services
 
-    private var azureService: AzureVoiceLiveService?
+    private var azureService: VoiceLiveConnection?
     private var audioService: AudioService?
     private let settingsManager = VoiceSettingsManager.shared
 
@@ -76,19 +76,17 @@ class VoiceViewModel: ObservableObject {
             return
         }
 
-        guard let websocketURL = config.websocketURL else {
-            let errorMsg = "Invalid WebSocket URL"
-            stateMachine.transitionTo(.connectionFailed(errorMsg))
-            return
-        }
-
         stateMachine.transitionTo(.connecting)
 
         do {
             // Create services with current settings
-            let azure = AzureVoiceLiveService(
+            // Build endpoint from resource name
+            let endpoint = "\(config.resourceName).services.ai.azure.com"
+            let azure = VoiceLiveConnection(
+                endpoint: endpoint,
                 apiKey: config.apiKey,
-                websocketURL: websocketURL,
+                model: config.model,
+                apiVersion: config.apiVersion,
                 settings: settingsManager.settings
             )
             let audio = AudioService()
@@ -246,7 +244,7 @@ class VoiceViewModel: ObservableObject {
         }
 
         // Clear audio buffer to prevent overflow on reconnect
-        try? await azureService?.clearAudioBuffer()
+        try? await azureService?.inputAudioBuffer.clear()
 
         // Stop playback if active
         await audioService?.stopPlayback()
@@ -267,7 +265,7 @@ class VoiceViewModel: ObservableObject {
         do {
             // Send session.update with new configuration
             let config = RealtimeRequestSession.fromSettings(settings)
-            try await azure.updateSession(config)
+            try await azure.session.update(config)
 
             // Mark as synchronized
             settingsManager.markAsSynchronized(settings)
@@ -345,19 +343,19 @@ class VoiceViewModel: ObservableObject {
 
         // Get buffer statistics before committing
         guard let azureService = azureService else { return }
-        let bufferStats = await azureService.getAudioBufferStatistics()
+        let bufferStats = await azureService.inputAudioBuffer.statistics
         AppLogger.general.debug("Buffer statistics: \(bufferStats.durationMs)ms, \(bufferStats.bytes) bytes, \(bufferStats.chunks) chunks")
 
         // Commit audio buffer to Azure
         do {
-            try await azureService.commitAudioBuffer()
+            try await azureService.inputAudioBuffer.commit()
             stateMachine.transitionTo(.processing(sessionId: sessionId))
             AppLogger.general.debug("Audio buffer committed, processing...")
         } catch let error as AzureError {
             // Handle buffer too small error specifically
             if case .bufferTooSmall = error {
                 AppLogger.general.warning("Audio buffer too small, clearing buffer")
-                try? await azureService.clearAudioBuffer()
+                try? await azureService.inputAudioBuffer.clear()
                 stateMachine.transitionTo(.idle(sessionId: sessionId))
             } else {
                 AppLogger.logError(error, category: AppLogger.general, context: "Failed to commit audio buffer")
@@ -382,10 +380,10 @@ class VoiceViewModel: ObservableObject {
         await audioService?.stopPlayback()
 
         // Cancel Azure response
-        try? await azureService?.cancelResponse()
+        try? await azureService?.response.cancel()
 
         // Clear audio buffer
-        try? await azureService?.clearAudioBuffer()
+        try? await azureService?.inputAudioBuffer.clear()
 
         stateMachine.transitionTo(.idle(sessionId: sessionId))
     }
@@ -456,7 +454,7 @@ class VoiceViewModel: ObservableObject {
         }
     }
 
-    private func processAudioChunks(audioService: AudioService, azureService: AzureVoiceLiveService) async {
+    private func processAudioChunks(audioService: AudioService, azureService: VoiceLiveConnection) async {
         guard !isProcessingAudio else { return }
         isProcessingAudio = true
 
@@ -466,7 +464,7 @@ class VoiceViewModel: ObservableObject {
             }
 
             do {
-                try await azureService.sendAudioChunk(chunk)
+                try await azureService.inputAudioBuffer.append(chunk)
             } catch {
                 AppLogger.logError(error, category: AppLogger.audio, context: "Failed to send audio chunk")
             }
@@ -491,11 +489,11 @@ class VoiceViewModel: ObservableObject {
         switch event {
         case .sessionCreated(let sessionEvent):
             AppLogger.azure.info("Session created: \(sessionEvent.session.id)")
-            // State transition handled by AzureVoiceLiveService
+            // State transition handled by VoiceLiveConnection
 
         case .sessionUpdated:
             AppLogger.azure.debug("Session updated")
-            // State transition handled by AzureVoiceLiveService
+            // State transition handled by VoiceLiveConnection
 
         case .inputAudioBufferSpeechStarted:
             AppLogger.azure.debug("Speech started (VAD)")
