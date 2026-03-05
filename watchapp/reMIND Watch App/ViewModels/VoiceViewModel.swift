@@ -121,6 +121,9 @@ class VoiceViewModel: ObservableObject {
             // Mark settings as synchronized with active session
             settingsManager.markAsSynchronized(settingsManager.settings)
 
+            // Start conversation history session
+            ConversationHistoryManager.shared.startSession(sessionId)
+
             AppLogger.general.info("Voice assistant connected and ready")
 
         } catch {
@@ -158,6 +161,11 @@ class VoiceViewModel: ObservableObject {
 
         // Disconnect from Azure
         await azureService?.disconnect()
+
+        // End conversation history session
+        if let sessionId = stateMachine.sessionId {
+            ConversationHistoryManager.shared.endSession(sessionId)
+        }
 
         stateMachine.transitionTo(.disconnected)
 
@@ -516,6 +524,18 @@ class VoiceViewModel: ObservableObject {
         case .conversationItemCreated(let itemEvent):
             AppLogger.azure.debug("Conversation item created: \(itemEvent.item.id) (type: \(itemEvent.item.type))")
 
+            // Add to conversation history
+            if let sessionId = stateMachine.sessionId {
+                if let (role, content) = extractMessageData(from: itemEvent.item) {
+                    ConversationHistoryManager.shared.addMessage(
+                        itemId: itemEvent.item.id,
+                        role: role,
+                        content: content,
+                        sessionId: sessionId
+                    )
+                }
+            }
+
         case .responseCreated:
             AppLogger.azure.debug("Response created")
             // Note: State will transition to processing when audio chunks arrive
@@ -680,6 +700,42 @@ class VoiceViewModel: ObservableObject {
                     stateMachine.transitionTo(.error(sessionId: sessionId, message: "Audio engine failed"))
                 }
             }
+        }
+    }
+
+    /// Extract role and transcript content from conversation item
+    private func extractMessageData(
+        from item: RealtimeConversationResponseItem
+    ) -> (role: ConversationMessage.MessageRole, content: String)? {
+        switch item {
+        case .userMessage(let msg):
+            let transcript = msg.content.compactMap { part -> String? in
+                if case .inputAudio(let audio) = part {
+                    return audio.transcript
+                } else if case .inputText(let text) = part {
+                    return text.text
+                }
+                return nil
+            }.joined(separator: " ")
+
+            return transcript.isEmpty ? nil : (.user, transcript)
+
+        case .assistantMessage(let msg):
+            let transcript = msg.content.compactMap { part -> String? in
+                if case .outputAudio(let audio) = part {
+                    return audio.transcript
+                } else if case .outputText(let text) = part {
+                    return text.text
+                } else if case .responseAudio(let audio) = part {
+                    return audio.transcript
+                }
+                return nil
+            }.joined(separator: " ")
+
+            return transcript.isEmpty ? nil : (.assistant, transcript)
+
+        default:
+            return nil  // Skip system messages, function calls, etc.
         }
     }
 

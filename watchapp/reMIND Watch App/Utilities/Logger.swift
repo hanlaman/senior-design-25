@@ -72,6 +72,10 @@ enum AppLogger {
     /// Use for: view lifecycle, state changes, user interactions
     static let ui = os.Logger(subsystem: subsystem, category: "UI")
 
+    /// Conversation history management events
+    /// Use for: history persistence, session management, message storage
+    static let history = os.Logger(subsystem: subsystem, category: "History")
+
     /// Sampling support for high-frequency logs
     private static let logSampler = LogSampler()
 

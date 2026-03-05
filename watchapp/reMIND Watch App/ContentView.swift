@@ -17,20 +17,28 @@ struct ContentView: View {
     @State private var wasConnectedBeforeBackground = false
 
     enum NavigationPage: Int, CaseIterable, Hashable {
-        case voice = 0
-        case settings = 1
+        case history = 0
+        case voice = 1
+        case settings = 2
     }
 
     var body: some View {
         TabView(selection: $currentPage) {
-            // Main voice page (full screen, tappable)
+            // History page (swipe left from voice page)
+            // Wrapped in NavigationStack to enable drill-down navigation
+            NavigationStack {
+                HistoryPageView(currentPage: $currentPage)
+            }
+            .tag(NavigationPage.history as NavigationPage?)
+
+            // Main voice page (center, default)
             // Wrapped in NavigationStack for consistent toolbar navigation
             NavigationStack {
                 VoicePageView(viewModel: viewModel, currentPage: $currentPage)
             }
             .tag(NavigationPage.voice as NavigationPage?)
 
-            // Settings page (swipe right to reveal)
+            // Settings page (swipe right from voice page)
             // Wrapped in NavigationStack to enable drill-down navigation
             NavigationStack {
                 SettingsPageView(state: viewModel.state, locationViewModel: locationViewModel, currentPage: $currentPage)

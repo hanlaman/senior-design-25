@@ -79,6 +79,21 @@ struct VoicePageView: View {
         .allowsHitTesting(canInteract(viewModel.state))
         .animation(.easeInOut(duration: 0.3), value: viewModel.state)
         .toolbar {
+            // History button (top-left)
+            ToolbarItem(placement: .topBarLeading) {
+                if !viewModel.state.isRecording {
+                    Button {
+                        WKInterfaceDevice.current().play(.click)
+                        currentPage = .history
+                    } label: {
+                        Image(systemName: "bubble.left.and.bubble.right.fill")
+                            .font(.title3)
+                            .foregroundColor(.blue)
+                    }
+                }
+            }
+
+            // Settings button (top-right)
             ToolbarItem(placement: .topBarTrailing) {
                 if !viewModel.state.isRecording {
                     Button {
