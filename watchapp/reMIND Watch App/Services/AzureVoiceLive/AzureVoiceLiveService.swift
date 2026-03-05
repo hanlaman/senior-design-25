@@ -74,11 +74,11 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         AppLogger.azure.info("Connected to Azure Voice Live API, waiting for session.created")
 
         // Start processing events
-        AppLogger.azure.info("Creating Task to process WebSocket events")
+        AppLogger.azure.debug("Creating Task to process WebSocket events")
         Task {
-            AppLogger.azure.info("Task started, calling processWebSocketEvents()")
+            AppLogger.azure.debug("Task started, calling processWebSocketEvents()")
             await processWebSocketEvents()
-            AppLogger.azure.info("processWebSocketEvents() completed")
+            AppLogger.azure.debug("processWebSocketEvents() completed")
         }
 
         // Give WebSocket a moment to be fully ready
@@ -140,7 +140,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
         let event = SessionUpdateEvent(session: config)
         try await sendEvent(event)
 
-        AppLogger.azure.info("session.update event sent, waiting for server acknowledgment")
+        AppLogger.azure.debug("session.update event sent, waiting for server acknowledgment")
     }
 
     // Note: Voice configuration (including speaking rate) cannot be updated mid-session
@@ -231,7 +231,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.sessionNotReady
         }
 
-        AppLogger.azure.info("Creating conversation item")
+        AppLogger.azure.debug("Creating conversation item")
 
         let event = ConversationItemCreateEvent(previousItemId: previousItemId, item: item)
         try await sendEvent(event)
@@ -246,7 +246,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.sessionNotReady
         }
 
-        AppLogger.azure.info("Retrieving conversation item: \(itemId)")
+        AppLogger.azure.debug("Retrieving conversation item: \(itemId)")
 
         let event = ConversationItemRetrieveEvent(itemId: itemId)
         try await sendEvent(event)
@@ -261,7 +261,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.sessionNotReady
         }
 
-        AppLogger.azure.info("Truncating conversation item: \(itemId) at content index \(contentIndex), audio end: \(audioEndMs)ms")
+        AppLogger.azure.debug("Truncating conversation item: \(itemId) at content index \(contentIndex), audio end: \(audioEndMs)ms")
 
         let event = ConversationItemTruncateEvent(itemId: itemId, contentIndex: contentIndex, audioEndMs: audioEndMs)
         try await sendEvent(event)
@@ -276,7 +276,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.sessionNotReady
         }
 
-        AppLogger.azure.info("Deleting conversation item: \(itemId)")
+        AppLogger.azure.debug("Deleting conversation item: \(itemId)")
 
         let event = ConversationItemDeleteEvent(itemId: itemId)
         try await sendEvent(event)
@@ -293,7 +293,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.sessionNotReady
         }
 
-        AppLogger.azure.info("Creating response")
+        AppLogger.azure.debug("Creating response")
 
         let event = ResponseCreateEvent(response: config)
         try await sendEvent(event)
@@ -310,7 +310,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.sessionNotReady
         }
 
-        AppLogger.azure.info("Sending MCP approval: \(approve) for request \(approvalRequestId)")
+        AppLogger.azure.debug("Sending MCP approval: \(approve) for request \(approvalRequestId)")
 
         let event = McpApprovalResponseEvent(
             approve: approve,
@@ -677,7 +677,7 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
     }
 
     public func waitForSessionReady() async throws {
-        AppLogger.azure.info("Waiting for session to be ready...")
+        AppLogger.azure.debug("Waiting for session to be ready...")
 
         // Poll the session state with timeout
         let startTime = Date()

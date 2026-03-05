@@ -22,8 +22,8 @@ import os
 ///
 /// **Swift 6 Concurrency:**
 /// os.Logger conforms to Sendable, making static logger properties safe for cross-actor access
-/// without requiring explicit isolation annotations. Logger instances are immutable after
-/// initialization and internally thread-safe.
+/// without requiring explicit isolation annotations. All helper methods are marked `nonisolated`
+/// to be callable from any actor context.
 ///
 /// **Design:**
 /// Using an enum (not instantiable) ensures this type serves only as a namespace for loggers.
@@ -31,10 +31,24 @@ import os
 /// **Usage:**
 /// ```swift
 /// // From any isolation context (MainActor, actor, or nonisolated)
-/// AppLogger.general.info("Application started")
-/// AppLogger.audio.debug("Processing audio buffer")
+/// AppLogger.general.info("⚙️ Application started")
+/// AppLogger.audio.debug("🔊 Processing audio buffer")
 /// AppLogger.logError(error, category: AppLogger.network, context: "Failed to connect")
+///
+/// // With sampling for high-frequency logs
+/// AppLogger.debug("Delta event", category: .azure, every: 20)
 /// ```
+///
+/// **Xcode Filtering:**
+/// This app uses OSLog levels strategically to enable effective filtering:
+/// - Debug: Verbose diagnostics (use Xcode "TYPE Debug" filter)
+/// - Info: Important state changes (use Xcode "TYPE Info" filter)
+/// - Warning/Error/Fault: Issues (use Xcode "TYPE Error" filter)
+///
+/// Recommended filters:
+/// - Development: "TYPE Debug" or "TYPE Info AND category:Azure"
+/// - Production debugging: "TYPE Info" or "TYPE Error"
+/// - Specific subsystem: "subsystem:com.remind.watchapp"
 enum AppLogger {
     private static let subsystem = "com.remind.watchapp"
 
@@ -57,6 +71,63 @@ enum AppLogger {
     /// User interface events
     /// Use for: view lifecycle, state changes, user interactions
     static let ui = os.Logger(subsystem: subsystem, category: "UI")
+
+    /// Sampling support for high-frequency logs
+    private static let logSampler = LogSampler()
+
+    #if DEBUG
+    /// Verbose logging enabled in debug builds
+    static let enableVerboseLogging = true
+    #else
+    /// Minimal logging in release builds
+    static let enableVerboseLogging = false
+    #endif
+
+    /// Enhanced debug logging with optional sampling
+    ///
+    /// Only logs in DEBUG builds. Supports sampling to reduce high-frequency log spam.
+    ///
+    /// - Parameters:
+    ///   - message: The message to log
+    ///   - category: The logger category to use
+    ///   - every: Optional sampling rate - logs every Nth call (e.g., every: 20 logs 1 out of 20 calls)
+    ///
+    /// Example:
+    /// ```swift
+    /// // Log every delta event (verbose)
+    /// AppLogger.debug("Delta received", category: .azure)
+    ///
+    /// // Log only every 20th delta event
+    /// AppLogger.debug("Delta received", category: .azure, every: 20)
+    /// ```
+    nonisolated static func debug(_ message: String, category: os.Logger, every n: Int? = nil) {
+        #if DEBUG
+        if let n = n {
+            guard logSampler.shouldLog(every: n) else { return }
+        }
+        category.debug("\(message)")
+        #endif
+    }
+
+    /// Enhanced trace logging for method entry/exit
+    ///
+    /// Only logs in DEBUG builds. Useful for debugging control flow.
+    ///
+    /// - Parameters:
+    ///   - methodName: The name of the method being traced
+    ///   - category: The logger category to use
+    ///   - phase: Whether this is entry or exit from the method
+    nonisolated static func trace(_ methodName: String, category: os.Logger, phase: TracePhase = .entry) {
+        #if DEBUG
+        category.debug("[\(phase.rawValue)] \(methodName)")
+        #endif
+    }
+
+    /// Trace phase indicator
+    enum TracePhase: String {
+        case entry = "→"
+        case exit = "←"
+    }
 
     /// Log error with context
     ///
@@ -127,6 +198,35 @@ enum AppLogger {
     }
 }
 
+// MARK: - Log Sampling Helper
+
+/// Thread-safe log sampling for reducing high-frequency log spam
+///
+/// Use this to log only every Nth occurrence of a high-frequency event.
+/// Thread-safe using NSLock for cross-actor safety.
+final class LogSampler: @unchecked Sendable {
+    private let lock = NSLock()
+    private var counter = 0
+
+    /// Check if this call should be logged based on sampling rate
+    ///
+    /// - Parameter n: Log every Nth call (e.g., n=20 logs 1 out of 20 calls)
+    /// - Returns: true if this call should be logged, false otherwise
+    func shouldLog(every n: Int) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        counter += 1
+        return counter % n == 1
+    }
+
+    /// Reset the counter (useful for starting new sequences)
+    func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        counter = 0
+    }
+}
+
 // MARK: - WatchOS Logging Best Practices
 //
 // 1. Performance & Battery:
@@ -137,26 +237,38 @@ enum AppLogger {
 //
 // 2. Log Levels (in order of severity):
 //    - .debug:   Detailed information for debugging (filtered out in Release builds)
+//                Use for: Verbose diagnostics, method traces, high-frequency events
+//                Xcode filter: "TYPE Debug"
 //    - .info:    Important informational messages about app flow
+//                Use for: State changes, milestones, user actions
+//                Xcode filter: "TYPE Info"
 //    - .notice:  Significant but normal events (default level)
 //    - .error:   Error conditions that don't crash the app
+//                Use for: Errors affecting functionality
+//                Xcode filter: "TYPE Error"
 //    - .fault:   Critical errors that may lead to crashes
+//                Use for: Unrecoverable states, data corruption
+//                Xcode filter: "TYPE Fault"
 //
 // 3. Usage Guidelines:
-//    - Use .debug for verbose logging during development
-//    - Use .info for important state changes and events
-//    - Use .error for recoverable errors
-//    - Avoid logging in tight loops (consider sampling or aggregation)
-//    - Keep log messages concise but meaningful
-//    - Consider log volume impact on device performance
+//    - Use .debug() for verbose logging during development (auto-filtered in Release)
+//    - Use .info() ONLY for important state changes (keep these to ~30% of total logs)
+//    - Use .warning() for recoverable issues
+//    - Use .error() for errors affecting functionality
+//    - For high-frequency events (>10/sec), use AppLogger.debug() with sampling:
+//      AppLogger.debug("Delta event", category: .azure, every: 20)
+//    - Avoid logging in tight loops without sampling
+//    - Keep log messages concise but meaningful with context prefixes
+//    - Consider log volume impact on device performance and battery
 //
 // 4. Swift 6 Strict Concurrency (Current Implementation):
-//    - os.Logger now conforms to Sendable (no explicit annotations needed)
+//    - os.Logger conforms to Sendable (as of recent SDK updates)
 //    - Static let properties with Sendable types are safe for cross-actor access
 //    - Static methods use 'nonisolated' to be callable from any actor context
 //    - No async/await needed for logging - calls are synchronous and thread-safe
 //    - Safe to use from @MainActor, actor types, and nonisolated contexts
 //    - Logger is immutable after initialization and internally thread-safe
+//    - If you encounter MainActor isolation errors, ensure your SDK is up to date
 //
 // 5. Privacy:
 //    - By default, dynamic strings are redacted in logs for user privacy
@@ -166,11 +278,24 @@ enum AppLogger {
 //    - Never log sensitive data (passwords, authentication tokens, PII)
 //    - Test privacy settings before shipping to production
 //
-// 6. Debugging & Monitoring:
+// 6. Debugging & Monitoring with Xcode Filters:
+//    **Using Xcode's Built-in TYPE Filters:**
 //    - View logs in Xcode Console during development
-//    - Use Console.app to view logs from physical devices
-//    - Filter by subsystem: "com.remind.watchapp"
+//    - Use TYPE filters for effective log filtering:
+//      * "TYPE Debug" - See verbose diagnostics (debug build only)
+//      * "TYPE Info" - See only important state changes (~70 messages)
+//      * "TYPE Error" - See only warnings and errors
+//    - Combine filters: "TYPE Info AND category:Azure" for specific context
+//    - Filter by subsystem: "subsystem:com.remind.watchapp"
 //    - Filter by category: "General", "Audio", "Network", "Azure", "UI"
+//
+//    **Recommended Workflow:**
+//    - Development: Start with "TYPE Info" for clean overview
+//    - Deep debugging: Switch to "TYPE Debug" for verbose details
+//    - Production issues: Use "TYPE Error" to see only problems
+//
+//    **Other Tools:**
+//    - Use Console.app to view logs from physical devices
 //    - Use Instruments for performance profiling with log signposts
 //
 // 7. Historical Context:

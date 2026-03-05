@@ -167,7 +167,7 @@ actor WebSocketManager {
         receiveTask = Task {
             guard let webSocketTask = webSocketTask else { return }
 
-            AppLogger.network.info("Starting to receive WebSocket messages...")
+            AppLogger.network.debug("Starting to receive WebSocket messages...")
 
             do {
                 while isConnected && !Task.isCancelled {

@@ -279,7 +279,7 @@ class VoiceViewModel: ObservableObject {
         }
 
         pendingSettingsUpdate = nil
-        AppLogger.general.info("Applying pending settings update")
+        AppLogger.general.debug("Applying pending settings update")
         await handleSettingsChange(pending)
     }
 
@@ -338,13 +338,13 @@ class VoiceViewModel: ObservableObject {
         // Get buffer statistics before committing
         guard let azureService = azureService else { return }
         let bufferStats = await azureService.getAudioBufferStatistics()
-        AppLogger.general.info("Buffer statistics: \(bufferStats.durationMs)ms, \(bufferStats.bytes) bytes, \(bufferStats.chunks) chunks")
+        AppLogger.general.debug("Buffer statistics: \(bufferStats.durationMs)ms, \(bufferStats.bytes) bytes, \(bufferStats.chunks) chunks")
 
         // Commit audio buffer to Azure
         do {
             try await azureService.commitAudioBuffer()
             stateMachine.transitionTo(.processing(sessionId: sessionId))
-            AppLogger.general.info("Audio buffer committed, processing...")
+            AppLogger.general.debug("Audio buffer committed, processing...")
         } catch let error as AzureError {
             // Handle buffer too small error specifically
             if case .bufferTooSmall = error {
@@ -392,7 +392,7 @@ class VoiceViewModel: ObservableObject {
             return
         }
 
-        AppLogger.general.info("Starting audio state observation")
+        AppLogger.general.debug("Starting audio state observation")
 
         audioStateTask = Task { @MainActor [weak self] in
             for await isPlaying in await audioService.playbackStateStream {
@@ -431,7 +431,7 @@ class VoiceViewModel: ObservableObject {
             return
         }
 
-        AppLogger.general.info("Starting buffer overflow monitoring")
+        AppLogger.general.debug("Starting buffer overflow monitoring")
 
         bufferOverflowTask = Task { @MainActor [weak self] in
             for await event in await audioService.bufferOverflowStream {
@@ -486,14 +486,14 @@ class VoiceViewModel: ObservableObject {
             // State transition handled by AzureVoiceLiveService
 
         case .sessionUpdated:
-            AppLogger.azure.info("Session updated")
+            AppLogger.azure.debug("Session updated")
             // State transition handled by AzureVoiceLiveService
 
         case .inputAudioBufferSpeechStarted:
-            AppLogger.azure.info("Speech started (VAD)")
+            AppLogger.azure.debug("Speech started (VAD)")
 
         case .inputAudioBufferSpeechStopped:
-            AppLogger.azure.info("Speech stopped (VAD)")
+            AppLogger.azure.debug("Speech stopped (VAD)")
             // Server VAD auto-commits the buffer, so just stop capturing
             // Do NOT call stopRecording() as that would try to commit again
             if stateMachine.isRecording {
@@ -501,11 +501,11 @@ class VoiceViewModel: ObservableObject {
                 if let sessionId = stateMachine.sessionId {
                     stateMachine.transitionTo(.processing(sessionId: sessionId))
                 }
-                AppLogger.general.info("Stopped capture, waiting for server to commit buffer")
+                AppLogger.general.debug("Stopped capture, waiting for server to commit buffer")
             }
 
         case .inputAudioBufferCommitted:
-            AppLogger.azure.info("Audio buffer committed")
+            AppLogger.azure.debug("Audio buffer committed")
             // Server has committed the buffer, transition to processing if not already
             if stateMachine.isRecording {
                 if let sessionId = stateMachine.sessionId {
@@ -514,30 +514,32 @@ class VoiceViewModel: ObservableObject {
             }
 
         case .conversationItemCreated(let itemEvent):
-            AppLogger.azure.info("Conversation item created: \(itemEvent.item.id) (type: \(itemEvent.item.type))")
+            AppLogger.azure.debug("Conversation item created: \(itemEvent.item.id) (type: \(itemEvent.item.type))")
 
         case .responseCreated:
-            AppLogger.azure.info("Response created")
+            AppLogger.azure.debug("Response created")
             // Note: State will transition to processing when audio chunks arrive
 
         case .responseOutputItemAdded(let itemEvent):
-            AppLogger.azure.info("Response output item added: \(itemEvent.item.id) (type: \(itemEvent.item.type))")
+            AppLogger.azure.debug("Response output item added: \(itemEvent.item.id) (type: \(itemEvent.item.type))")
 
         case .responseContentPartAdded(let partEvent):
-            AppLogger.azure.info("Response content part added: \(partEvent.part.type)")
+            AppLogger.azure.debug("Response content part added: \(partEvent.part.type)")
 
         case .responseAudioTranscriptDelta(let transcriptEvent):
-            AppLogger.azure.debug("Transcript delta: \(transcriptEvent.delta)")
+            // High-frequency event - logging removed to reduce spam (fires 100s of times per interaction)
+            // Uncomment for debugging: AppLogger.debug("Transcript delta: \(transcriptEvent.delta)", category: .azure, every: 20)
+            break
 
         case .responseAudioTranscriptDone(let transcriptEvent):
-            AppLogger.azure.info("Complete transcript: \(transcriptEvent.transcript)")
+            AppLogger.azure.info("✓ Transcript complete: \(transcriptEvent.transcript)")
 
         case .responseAudioDelta(let deltaEvent):
             // Decode and play audio
             await handleResponseAudioDelta(deltaEvent)
 
         case .responseAudioDone:
-            AppLogger.azure.info("Response audio done")
+            AppLogger.azure.info("✓ Audio streaming complete")
 
         case .responseDone:
             AppLogger.azure.info("Response done")
@@ -556,91 +558,98 @@ class VoiceViewModel: ObservableObject {
 
         // Events with default handling (logged but no action needed)
         case .sessionAvatarConnecting:
-            AppLogger.azure.info("Avatar connecting")
+            AppLogger.azure.debug("Avatar connecting")
 
         case .inputAudioBufferCleared:
-            AppLogger.azure.info("Audio buffer cleared")
+            AppLogger.azure.debug("Audio buffer cleared")
 
         case .conversationItemRetrieved:
-            AppLogger.azure.info("Conversation item retrieved")
+            AppLogger.azure.debug("Conversation item retrieved")
 
         case .conversationItemTruncated:
-            AppLogger.azure.info("Conversation item truncated")
+            AppLogger.azure.debug("Conversation item truncated")
 
         case .conversationItemDeleted:
-            AppLogger.azure.info("Conversation item deleted")
+            AppLogger.azure.debug("Conversation item deleted")
 
         case .conversationItemTranscriptionCompleted:
-            AppLogger.azure.info("Transcription completed")
+            AppLogger.azure.debug("Transcription completed")
 
         case .conversationItemTranscriptionDelta:
-            AppLogger.azure.debug("Transcription delta")
+            // High-frequency event - logging removed to reduce spam
+            break
 
         case .conversationItemTranscriptionFailed:
             AppLogger.azure.warning("Transcription failed")
 
         case .responseOutputItemDone:
-            AppLogger.azure.info("Response output item done")
+            AppLogger.azure.debug("Response output item done")
 
         case .responseContentPartDone:
-            AppLogger.azure.info("Response content part done")
+            AppLogger.azure.debug("Response content part done")
 
         case .responseTextDelta:
-            AppLogger.azure.debug("Text delta")
+            // High-frequency event - logging removed to reduce spam
+            break
 
         case .responseTextDone:
-            AppLogger.azure.info("Text done")
+            AppLogger.azure.debug("Text done")
 
         case .responseAudioTimestampDelta:
-            AppLogger.azure.debug("Audio timestamp delta")
+            // High-frequency event - logging removed to reduce spam
+            break
 
         case .responseAudioTimestampDone:
-            AppLogger.azure.info("Audio timestamp done")
+            AppLogger.azure.debug("Audio timestamp done")
 
         case .responseAnimationBlendshapesDelta:
-            AppLogger.azure.debug("Animation blendshapes delta")
+            // High-frequency event - logging removed to reduce spam
+            break
 
         case .responseAnimationBlendshapesDone:
-            AppLogger.azure.info("Animation blendshapes done")
+            AppLogger.azure.debug("Animation blendshapes done")
 
         case .responseAnimationVisemeDelta:
-            AppLogger.azure.debug("Animation viseme delta")
+            // High-frequency event - logging removed to reduce spam
+            break
 
         case .responseAnimationVisemeDone:
-            AppLogger.azure.info("Animation viseme done")
+            AppLogger.azure.debug("Animation viseme done")
 
         case .responseFunctionCallArgumentsDelta:
-            AppLogger.azure.debug("Function call arguments delta")
+            // High-frequency event - logging removed to reduce spam
+            break
 
         case .responseFunctionCallArgumentsDone:
-            AppLogger.azure.info("Function call arguments done")
+            AppLogger.azure.debug("Function call arguments done")
 
         case .responseMcpCallArgumentsDelta:
-            AppLogger.azure.debug("MCP call arguments delta")
+            // High-frequency event - logging removed to reduce spam
+            break
 
         case .responseMcpCallArgumentsDone:
-            AppLogger.azure.info("MCP call arguments done")
+            AppLogger.azure.debug("MCP call arguments done")
 
         case .responseMcpCallInProgress:
-            AppLogger.azure.info("MCP call in progress")
+            AppLogger.azure.debug("MCP call in progress")
 
         case .responseMcpCallCompleted:
-            AppLogger.azure.info("MCP call completed")
+            AppLogger.azure.debug("MCP call completed")
 
         case .responseMcpCallFailed:
             AppLogger.azure.warning("MCP call failed")
 
         case .mcpListToolsInProgress:
-            AppLogger.azure.info("MCP list tools in progress")
+            AppLogger.azure.debug("MCP list tools in progress")
 
         case .mcpListToolsCompleted:
-            AppLogger.azure.info("MCP list tools completed")
+            AppLogger.azure.debug("MCP list tools completed")
 
         case .mcpListToolsFailed:
             AppLogger.azure.warning("MCP list tools failed")
 
         case .rateLimitsUpdated:
-            AppLogger.azure.info("Rate limits updated")
+            AppLogger.azure.debug("Rate limits updated")
 
         case .unknown(let type):
             AppLogger.azure.warning("Unknown event type: \(type)")

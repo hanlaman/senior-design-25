@@ -100,7 +100,7 @@ actor AudioService: AudioServiceProtocol {
         try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
 
         AppLogger.audio.info("Audio session configured: category=playAndRecord, mode=voiceChat")
-        AppLogger.audio.info("Current route: \(audioSession.currentRoute)")
+        AppLogger.audio.debug("Current route: \(audioSession.currentRoute)")
 
         // Start monitoring for interruptions and route changes
         startMonitoringInterruptions()
@@ -116,7 +116,7 @@ actor AudioService: AudioServiceProtocol {
 
         do {
             try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
-            AppLogger.audio.info("Audio session deactivated")
+            AppLogger.audio.debug("Audio session deactivated")
         } catch {
             AppLogger.logError(error, category: AppLogger.audio, context: "Failed to deactivate audio session")
         }
@@ -162,13 +162,13 @@ actor AudioService: AudioServiceProtocol {
             }
         }
 
-        AppLogger.audio.info("Started monitoring audio route changes")
+        AppLogger.audio.debug("Started monitoring audio route changes")
     }
 
     private func stopMonitoringRouteChanges() {
         routeChangeTask?.cancel()
         routeChangeTask = nil
-        AppLogger.audio.info("Stopped monitoring audio route changes")
+        AppLogger.audio.debug("Stopped monitoring audio route changes")
     }
 
     private func handleRouteChange(_ notification: Notification) async {
@@ -183,31 +183,31 @@ actor AudioService: AudioServiceProtocol {
 
         switch reason {
         case .newDeviceAvailable:
-            AppLogger.audio.info("Audio route: New device available")
+            AppLogger.audio.debug("Audio route: New device available")
             if let newDevice = currentRoute.inputs.first {
-                AppLogger.audio.info("New input device: \(newDevice.portName) (\(newDevice.portType.rawValue))")
+                AppLogger.audio.debug("New input device: \(newDevice.portName) (\(newDevice.portType.rawValue))")
             }
 
         case .oldDeviceUnavailable:
             AppLogger.audio.warning("Audio route: Device disconnected")
             if isCapturing || isPlaying {
-                AppLogger.audio.info("Audio session affected by route change")
+                AppLogger.audio.debug("Audio session affected by route change")
             }
 
         case .categoryChange:
-            AppLogger.audio.info("Audio route: Category changed")
+            AppLogger.audio.debug("Audio route: Category changed")
 
         case .override:
-            AppLogger.audio.info("Audio route: Override")
+            AppLogger.audio.debug("Audio route: Override")
 
         case .wakeFromSleep:
-            AppLogger.audio.info("Audio route: Wake from sleep")
+            AppLogger.audio.debug("Audio route: Wake from sleep")
 
         case .noSuitableRouteForCategory:
             AppLogger.audio.warning("Audio route: No suitable route for category")
 
         case .routeConfigurationChange:
-            AppLogger.audio.info("Audio route: Configuration change")
+            AppLogger.audio.debug("Audio route: Configuration change")
 
         @unknown default:
             AppLogger.audio.warning("Audio route: Unknown reason (\(reasonValue))")
@@ -232,7 +232,7 @@ actor AudioService: AudioServiceProtocol {
             if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
                 let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
                 let shouldResume = options.contains(.shouldResume)
-                AppLogger.audio.info("Audio session interruption ended - shouldResume: \(shouldResume)")
+                AppLogger.audio.debug("Audio session interruption ended - shouldResume: \(shouldResume)")
                 await handleInterruptionEnded(shouldResume: shouldResume)
             }
 
@@ -270,12 +270,12 @@ actor AudioService: AudioServiceProtocol {
             do {
                 let audioSession = AVAudioSession.sharedInstance()
                 try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
-                AppLogger.audio.info("Audio session reactivated after interruption")
+                AppLogger.audio.debug("Audio session reactivated after interruption")
 
                 // Restart audio engine if it was running before interruption
                 if (isCapturing || isPlaying) && !isEngineRunning {
                     try startEngineIfNeeded()
-                    AppLogger.audio.info("Audio engine restarted after interruption")
+                    AppLogger.audio.debug("Audio engine restarted after interruption")
                 }
             } catch {
                 AppLogger.logError(error, category: AppLogger.audio, context: "Failed to reactivate audio session after interruption")
@@ -307,8 +307,8 @@ actor AudioService: AudioServiceProtocol {
         let inputNode = audioEngine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
 
-        AppLogger.audio.info("Input format: \(inputFormat.sampleRate)Hz, \(inputFormat.channelCount) channels")
-        AppLogger.audio.info("Target format: \(targetFormat.sampleRate)Hz, \(targetFormat.channelCount) channels")
+        AppLogger.audio.debug("Input format: \(inputFormat.sampleRate)Hz, \(inputFormat.channelCount) channels")
+        AppLogger.audio.debug("Target format: \(targetFormat.sampleRate)Hz, \(targetFormat.channelCount) channels")
 
         // Create audio converter if formats don't match
         let converter = AVAudioConverter(from: inputFormat, to: targetFormat)
