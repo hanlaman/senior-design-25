@@ -35,7 +35,12 @@ class VoiceViewModel: ObservableObject {
     private var isProcessingAudio = false
     private var audioStateTask: Task<Void, Never>?
     private var bufferOverflowTask: Task<Void, Never>?
+    private var audioChunkTask: Task<Void, Never>?
     private var stateMachineObserver: AnyCancellable?
+
+    // Settings synchronization
+    private var settingsObserver: AnyCancellable?
+    private var pendingSettingsUpdate: VoiceSettings?
 
     // MARK: - Initialization
 
@@ -47,9 +52,16 @@ class VoiceViewModel: ObservableObject {
             self?.objectWillChange.send()
         }
 
-        // Note: Voice settings (including rate) cannot be updated mid-session per Azure API
-        // Voice configuration is immutable once session is initialized
-        // Settings changes will apply on next connection
+        // Observe settings changes for automatic synchronization
+        settingsObserver = settingsManager.$settings
+            .sink { [weak self] newSettings in
+                guard let self = self else { return }
+                Task { @MainActor in
+                    await self.handleSettingsChange(newSettings)
+                }
+            }
+
+        AppLogger.general.info("VoiceViewModel initialized with automatic settings sync")
     }
 
     // MARK: - Connection Management
@@ -106,6 +118,9 @@ class VoiceViewModel: ObservableObject {
             // Start monitoring buffer overflow
             startMonitoringBufferOverflow()
 
+            // Mark settings as synchronized with active session
+            settingsManager.markAsSynchronized(settingsManager.settings)
+
             AppLogger.general.info("Voice assistant connected and ready")
 
         } catch {
@@ -132,6 +147,11 @@ class VoiceViewModel: ObservableObject {
         bufferOverflowTask?.cancel()
         bufferOverflowTask = nil
 
+        // Cancel audio chunk processing
+        audioChunkTask?.cancel()
+        audioChunkTask = nil
+        isProcessingAudio = false
+
         // Stop any active recording or playback
         await stopRecording()
         await audioService?.stopPlayback()
@@ -141,10 +161,126 @@ class VoiceViewModel: ObservableObject {
 
         stateMachine.transitionTo(.disconnected)
 
+        // Clear active session from settings manager
+        settingsManager.clearActiveSession()
+
         azureService = nil
         audioService = nil
 
         AppLogger.general.info("Voice assistant disconnected")
+    }
+
+    // MARK: - Settings Synchronization
+
+    /// Handle settings changes and automatically synchronize with active session
+    private func handleSettingsChange(_ newSettings: VoiceSettings) async {
+        // Only sync if connected
+        guard stateMachine.isConnected else {
+            // Settings saved locally, will apply on next connection
+            return
+        }
+
+        // Compute what type of sync is needed
+        let syncState = settingsManager.computeSyncState()
+
+        // Check if we're in active interaction (recording, processing, or playing)
+        let isActiveInteraction = stateMachine.isActive
+
+        switch syncState {
+        case .pendingReconnection(let fields):
+            if isActiveInteraction {
+                // Defer reconnection until interaction completes
+                pendingSettingsUpdate = newSettings
+                AppLogger.general.info("Settings changed (\(fields.joined(separator: ", "))), will reconnect after current interaction")
+            } else {
+                // Safe to reconnect now
+                AppLogger.general.info("Settings changed (\(fields.joined(separator: ", "))), reconnecting...")
+                await performGracefulReconnection(with: newSettings)
+            }
+
+        case .pendingSessionUpdate(let fields):
+            if isActiveInteraction {
+                // Defer session update until interaction completes
+                pendingSettingsUpdate = newSettings
+                AppLogger.general.info("Settings changed (\(fields.joined(separator: ", "))), will update session after current interaction")
+            } else {
+                // Safe to update session now
+                AppLogger.general.info("Settings changed (\(fields.joined(separator: ", "))), updating session...")
+                await performSessionUpdate(with: newSettings)
+            }
+
+        case .synchronized:
+            // No changes needed
+            pendingSettingsUpdate = nil
+
+        case .notConnected:
+            // No active session to sync
+            break
+        }
+    }
+
+    /// Perform graceful reconnection with new settings
+    private func performGracefulReconnection(with settings: VoiceSettings) async {
+        AppLogger.general.info("Reconnecting to apply settings changes")
+
+        // Cancel any ongoing tasks
+        audioStateTask?.cancel()
+        audioStateTask = nil
+        bufferOverflowTask?.cancel()
+        bufferOverflowTask = nil
+        audioChunkTask?.cancel()
+        audioChunkTask = nil
+        isProcessingAudio = false
+
+        // Stop audio capture and clear buffer
+        if stateMachine.isRecording {
+            await audioService?.stopCapture()
+        }
+
+        // Clear audio buffer to prevent overflow on reconnect
+        try? await azureService?.clearAudioBuffer()
+
+        // Stop playback if active
+        await audioService?.stopPlayback()
+
+        // Disconnect and reconnect
+        await disconnect()
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s cleanup delay
+        await connect()
+    }
+
+    /// Perform session update with new settings
+    private func performSessionUpdate(with settings: VoiceSettings) async {
+        guard let azure = azureService else {
+            AppLogger.general.warning("Azure service not available for session update")
+            return
+        }
+
+        do {
+            // Send session.update with new configuration
+            let config = RealtimeRequestSession.fromSettings(settings)
+            try await azure.updateSession(config)
+
+            // Mark as synchronized
+            settingsManager.markAsSynchronized(settings)
+
+            AppLogger.general.info("Session updated successfully with new settings")
+
+        } catch {
+            AppLogger.logError(error, category: AppLogger.general, context: "Failed to update session with new settings")
+            // Keep sync state as pending - will retry on next change or interaction end
+        }
+    }
+
+    /// Check for and apply pending settings updates
+    private func applyPendingSettingsUpdate() async {
+        guard let pending = pendingSettingsUpdate else {
+            return
+        }
+
+        pendingSettingsUpdate = nil
+        AppLogger.general.info("Applying pending settings update")
+        await handleSettingsChange(pending)
     }
 
     // MARK: - Voice Interaction
@@ -174,8 +310,8 @@ class VoiceViewModel: ObservableObject {
             // Start audio capture
             try await audioService.startCapture()
 
-            // Process audio chunks
-            Task {
+            // Process audio chunks (store task reference for cancellation)
+            audioChunkTask = Task {
                 await processAudioChunks(audioService: audioService, azureService: azureService)
             }
 
@@ -329,6 +465,8 @@ class VoiceViewModel: ObservableObject {
         }
 
         isProcessingAudio = false
+
+        isProcessingAudio = false
     }
 
     private func startProcessingEvents() async {
@@ -404,6 +542,9 @@ class VoiceViewModel: ObservableObject {
         case .responseDone:
             AppLogger.azure.info("Response done")
             // Audio state observation will automatically transition to .idle when playback completes
+
+            // Check for pending settings updates to apply after interaction completes
+            await applyPendingSettingsUpdate()
 
         case .error(let errorEvent):
             AppLogger.azure.error("Azure error: \(errorEvent.error.message)")

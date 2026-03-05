@@ -80,10 +80,6 @@ struct SettingsPageView: View {
                 }
             } header: {
                 Text("Voice Settings")
-            } footer: {
-                Text("Reconnect required for changes to take effect")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
             }
         }
         .toolbar {

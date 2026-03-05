@@ -117,12 +117,30 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
             throw AzureError.notConnected
         }
 
-        AppLogger.azure.info("Sending session.update event with configuration")
+        // Log configuration details for debugging
+        let voiceInfo: String
+        if let voice = config.voice {
+            switch voice {
+            case .openai(let v):
+                voiceInfo = "openai:\(v.name)"
+            case .azureStandard(let v):
+                voiceInfo = "azure-standard:\(v.name)"
+            case .azureCustom(let v):
+                voiceInfo = "azure-custom:\(v.name)/\(v.endpointId)"
+            case .azurePersonal(let v):
+                voiceInfo = "azure-personal:\(v.name)/\(v.model)"
+            }
+        } else {
+            voiceInfo = "default"
+        }
+
+        let instructionsPreview = config.instructions?.prefix(50).description ?? "none"
+        AppLogger.azure.info("Sending session.update event with configuration: voice=\(voiceInfo), instructions=\(instructionsPreview)...")
 
         let event = SessionUpdateEvent(session: config)
         try await sendEvent(event)
 
-        AppLogger.azure.info("session.update sent, waiting for response")
+        AppLogger.azure.info("session.update event sent, waiting for server acknowledgment")
     }
 
     // Note: Voice configuration (including speaking rate) cannot be updated mid-session
@@ -406,12 +424,14 @@ public actor AzureVoiceLiveService: AzureVoiceLiveProtocol {
                 }
 
             case .sessionUpdated:
-                // Transition from establishing → ready
+                // Transition from establishing → ready, or acknowledge mid-session update
                 if case .establishing(let id) = sessionState, let sessionId = id {
                     sessionState = .ready(sessionId: sessionId)
                     audioBufferBytes = 0
                     audioBufferChunks = 0
                     AppLogger.azure.info("Session ready: \(sessionId)")
+                } else if case .ready(let sessionId) = sessionState {
+                    AppLogger.azure.info("Session configuration updated successfully (mid-session): \(sessionId)")
                 } else {
                     AppLogger.azure.warning("Received session.updated in unexpected state: \(self.sessionState.displayText)")
                 }
