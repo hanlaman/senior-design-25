@@ -10,36 +10,52 @@ import WatchKit
 
 struct VoicePageView: View {
     @ObservedObject var viewModel: VoiceViewModel
+    @Binding var currentPage: ContentView.NavigationPage?
     @State private var isPulsing = false
 
     var body: some View {
         ZStack {
-            // Background layer: Full-screen color based on voice state
-            backgroundColor(for: viewModel.state)
+            // Background layer: Consistent dark background
+            Color.black
                 .ignoresSafeArea()
 
             // Content layer: Center icon, status text, and error message
             VStack(spacing: 16) {
                 Spacer()
 
-                // Large center icon
-                Image(systemName: iconName(for: viewModel.state))
-                    .font(.system(size: 64, weight: .medium))
-                    .foregroundColor(.white)
-                    .scaleEffect(isPulsing && viewModel.state.isRecording ? 1.15 : 1.0)
-                    .animation(
-                        viewModel.state.isRecording ?
-                            .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default,
-                        value: isPulsing
-                    )
-                    .onChange(of: viewModel.state) { _, newState in
-                        isPulsing = newState.isRecording
+                // Large center icon with colored background circle
+                ZStack {
+                    // Subtle circular background for recording state
+                    if viewModel.state.isRecording {
+                        Circle()
+                            .fill(iconColor(for: viewModel.state).opacity(0.15))
+                            .frame(width: 120, height: 120)
+                            .scaleEffect(isPulsing ? 1.1 : 1.0)
+                            .animation(
+                                .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
+                                value: isPulsing
+                            )
                     }
+
+                    // Icon
+                    Image(systemName: iconName(for: viewModel.state))
+                        .font(.system(size: 64, weight: .medium))
+                        .foregroundColor(iconColor(for: viewModel.state))
+                        .scaleEffect(isPulsing && viewModel.state.isRecording ? 1.15 : 1.0)
+                        .animation(
+                            viewModel.state.isRecording ?
+                                .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default,
+                            value: isPulsing
+                        )
+                }
+                .onChange(of: viewModel.state) { _, newState in
+                    isPulsing = newState.isRecording
+                }
 
                 // Status text below icon
                 Text(viewModel.state.displayText)
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.9))
+                    .foregroundColor(.white.opacity(0.7))
                     .multilineTextAlignment(.center)
 
                 Spacer()
@@ -48,7 +64,7 @@ struct VoicePageView: View {
                 if let errorMessage = viewModel.state.errorMessage {
                     Text(errorMessage)
                         .font(.caption2)
-                        .foregroundColor(.white.opacity(0.9))
+                        .foregroundColor(.red.opacity(0.9))
                         .multilineTextAlignment(.center)
                         .lineLimit(3)
                         .padding(.horizontal)
@@ -62,26 +78,40 @@ struct VoicePageView: View {
         }
         .allowsHitTesting(canInteract(viewModel.state))
         .animation(.easeInOut(duration: 0.3), value: viewModel.state)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if !viewModel.state.isRecording {
+                    Button {
+                        WKInterfaceDevice.current().play(.click)
+                        currentPage = .settings
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                            .font(.title3)
+                            .foregroundColor(.blue)
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Helper Functions
 
-    private func backgroundColor(for state: VoiceInteractionState) -> Color {
+    private func iconColor(for state: VoiceInteractionState) -> Color {
         switch state {
         case .idle:
-            return Color.blue
+            return .blue
         case .recording:
-            return Color.red
+            return .red
         case .processing:
-            return Color.orange
+            return .orange
         case .playing:
-            return Color.green
+            return .green
         case .error, .connectionFailed:
-            return Color.gray
+            return .red
         case .disconnected:
-            return Color(white: 0.3) // Dark gray
+            return .gray
         case .connecting:
-            return Color.blue.opacity(0.6)
+            return .blue.opacity(0.6)
         }
     }
 
@@ -134,5 +164,7 @@ struct VoicePageView: View {
 }
 
 #Preview {
-    VoicePageView(viewModel: VoiceViewModel())
+    NavigationStack {
+        VoicePageView(viewModel: VoiceViewModel(), currentPage: .constant(.voice))
+    }
 }

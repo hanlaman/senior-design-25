@@ -23,17 +23,20 @@ struct ContentView: View {
     var body: some View {
         TabView(selection: $currentPage) {
             // Main voice page (full screen, tappable)
-            VoicePageView(viewModel: viewModel)
-                .tag(NavigationPage.voice as NavigationPage?)
+            // Wrapped in NavigationStack for consistent toolbar navigation
+            NavigationStack {
+                VoicePageView(viewModel: viewModel, currentPage: $currentPage)
+            }
+            .tag(NavigationPage.voice as NavigationPage?)
 
-            // Settings page (swipe down to reveal)
+            // Settings page (swipe right to reveal)
             // Wrapped in NavigationStack to enable drill-down navigation
             NavigationStack {
-                SettingsPageView(state: viewModel.state, locationViewModel: locationViewModel)
+                SettingsPageView(state: viewModel.state, locationViewModel: locationViewModel, currentPage: $currentPage)
             }
             .tag(NavigationPage.settings as NavigationPage?)
         }
-        .tabViewStyle(.verticalPage)
+        .tabViewStyle(.page)
         // Disable page swiping during recording to prevent accidental navigation
         .allowsHitTesting(!viewModel.state.isRecording)
         .ignoresSafeArea()

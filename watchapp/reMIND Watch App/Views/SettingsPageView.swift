@@ -10,6 +10,7 @@ import SwiftUI
 struct SettingsPageView: View {
     let state: VoiceInteractionState
     @ObservedObject var locationViewModel: LocationViewModel
+    @Binding var currentPage: ContentView.NavigationPage?
 
     @ObservedObject private var settingsManager = VoiceSettingsManager.shared
 
@@ -85,6 +86,18 @@ struct SettingsPageView: View {
                     .foregroundColor(.secondary)
             }
         }
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    WKInterfaceDevice.current().play(.click)
+                    currentPage = .voice
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.title3)
+                        .foregroundColor(.blue)
+                }
+            }
+        }
         .listStyle(.carousel)
         .onAppear {
             // Initialize picker selection from current settings
@@ -150,6 +163,10 @@ struct SettingsPageView: View {
 
 #Preview {
     NavigationStack {
-        SettingsPageView(state: .idle(sessionId: "preview-session"), locationViewModel: LocationViewModel())
+        SettingsPageView(
+            state: .idle(sessionId: "preview-session"),
+            locationViewModel: LocationViewModel(),
+            currentPage: .constant(.settings)
+        )
     }
 }

@@ -7,6 +7,45 @@
 
 import Foundation
 
+/// Speed preset options
+public enum SpeedPreset: String, CaseIterable, Identifiable {
+    case slowest = "Slowest"
+    case slower = "Slower"
+    case normal = "Normal"
+    case faster = "Faster"
+    case fastest = "Fastest"
+
+    public var id: String { rawValue }
+
+    /// Actual speaking rate multiplier (Azure supports 0.5-1.5)
+    public var rate: Double {
+        switch self {
+        case .slowest: return 0.5
+        case .slower: return 0.75
+        case .normal: return 1.0
+        case .faster: return 1.25
+        case .fastest: return 1.5
+        }
+    }
+
+    /// Icon for visual representation
+    public var icon: String {
+        switch self {
+        case .slowest: return "tortoise.fill"
+        case .slower: return "tortoise"
+        case .normal: return "hare"
+        case .faster: return "hare.fill"
+        case .fastest: return "bolt.fill"
+        }
+    }
+
+    /// Create preset from a rate value (finds closest match)
+    public static func from(rate: Double) -> SpeedPreset {
+        let presets = SpeedPreset.allCases
+        return presets.min(by: { abs($0.rate - rate) < abs($1.rate - rate) }) ?? .normal
+    }
+}
+
 /// Voice assistant configuration settings
 public struct VoiceSettings: Codable, Sendable {
     // MARK: - Voice Configuration
