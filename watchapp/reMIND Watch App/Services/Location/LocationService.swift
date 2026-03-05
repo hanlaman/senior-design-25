@@ -7,6 +7,7 @@
 
 import CoreLocation
 import Foundation
+import os
 
 actor LocationService: NSObject {
     private let locationManager = CLLocationManager()
@@ -55,9 +56,20 @@ actor LocationService: NSObject {
         self.delegate = delegate
 
         locationManager.delegate = delegate
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+
+        // watchOS battery optimization: Use reduced accuracy for location tracking
+        // kCLLocationAccuracyHundredMeters is sufficient for caregiver monitoring
+        // and uses significantly less battery than kCLLocationAccuracyBest
+        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+
+        // Only send location updates when user moves 50+ meters
+        // Prevents constant updates from GPS drift when stationary
+        locationManager.distanceFilter = 50 // meters
+
         locationManager.requestWhenInUseAuthorization()
         locationManager.startUpdatingLocation()
+
+        AppLogger.general.info("Location tracking started (accuracy: 100m, filter: 50m)")
 
         startPeriodicSending()
     }
@@ -94,28 +106,45 @@ actor LocationService: NSObject {
     }
 
     private func sendLocationToServer() async {
-        guard let location = lastLocation else { return }
+        guard let location = lastLocation else {
+            AppLogger.general.debug("No location available to send")
+            return
+        }
+
+        // Check if location is recent (< 5 minutes old)
+        let locationAge = Date().timeIntervalSince(location.timestamp)
+        guard locationAge < 300 else {
+            AppLogger.general.warning("Location too old (\(locationAge)s), skipping send")
+            return
+        }
 
         let url = URL(string: "\(baseURL)/location")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 10 // Short timeout for location posts
 
         let body: [String: Any] = [
             "patientId": patientId,
             "latitude": location.coordinate.latitude,
             "longitude": location.coordinate.longitude,
+            "timestamp": ISO8601DateFormatter().string(from: location.timestamp),
+            "accuracy": location.horizontalAccuracy,
         ]
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 {
-                print("[LocationService] Location sent successfully")
+            if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode == 201 {
+                    AppLogger.general.info("Location sent: lat=\(String(format: "%.4f", location.coordinate.latitude)), lon=\(String(format: "%.4f", location.coordinate.longitude)), accuracy=±\(Int(location.horizontalAccuracy))m")
+                } else {
+                    AppLogger.general.warning("Location send failed with status \(httpResponse.statusCode)")
+                }
             }
         } catch {
-            print("[LocationService] Failed to send location: \(error.localizedDescription)")
+            AppLogger.logError(error, category: AppLogger.general, context: "Failed to send location")
         }
     }
 }

@@ -84,26 +84,35 @@ actor AudioService: AudioServiceProtocol {
         // Build options with availability-safe flags
         let options: AVAudioSession.CategoryOptions
         if #available(watchOS 11.0, *) {
-            options = [.allowBluetoothHFP, .allowBluetoothA2DP]
+            // watchOS 11+: Use new Bluetooth flags (both allowBluetooth and HFP/A2DP available)
+            options = [.allowBluetooth, .allowBluetoothHFP, .allowBluetoothA2DP]
         } else {
-            // Fallback for older watchOS versions where HFP isn't available
+            // watchOS < 11: Only A2DP is available
+            // Note: .allowBluetooth is not available before watchOS 11
             options = [.allowBluetoothA2DP]
         }
 
         try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: options)
+
+        // Note: setPreferredInput is not available on watchOS
+        // watchOS automatically routes to Bluetooth when available based on category options
+
         try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
 
         AppLogger.audio.info("Audio session configured: category=playAndRecord, mode=voiceChat")
+        AppLogger.audio.info("Current route: \(audioSession.currentRoute)")
 
-        // Start monitoring for interruptions
+        // Start monitoring for interruptions and route changes
         startMonitoringInterruptions()
+        startMonitoringRouteChanges()
     }
 
     private func deactivateAudioSession() {
         let audioSession = AVAudioSession.sharedInstance()
 
-        // Stop monitoring interruptions
+        // Stop monitoring interruptions and route changes
         stopMonitoringInterruptions()
+        stopMonitoringRouteChanges()
 
         do {
             try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
@@ -135,6 +144,74 @@ actor AudioService: AudioServiceProtocol {
         interruptionTask?.cancel()
         interruptionTask = nil
         AppLogger.audio.info("Stopped monitoring audio interruptions")
+    }
+
+    // MARK: - Route Change Handling
+
+    private var routeChangeTask: Task<Void, Never>?
+
+    private func startMonitoringRouteChanges() {
+        routeChangeTask?.cancel()
+
+        routeChangeTask = Task { [weak self] in
+            let notificationCenter = NotificationCenter.default
+            let notifications = notificationCenter.notifications(named: AVAudioSession.routeChangeNotification)
+
+            for await notification in notifications {
+                await self?.handleRouteChange(notification)
+            }
+        }
+
+        AppLogger.audio.info("Started monitoring audio route changes")
+    }
+
+    private func stopMonitoringRouteChanges() {
+        routeChangeTask?.cancel()
+        routeChangeTask = nil
+        AppLogger.audio.info("Stopped monitoring audio route changes")
+    }
+
+    private func handleRouteChange(_ notification: Notification) async {
+        guard let userInfo = notification.userInfo,
+              let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else {
+            return
+        }
+
+        let audioSession = AVAudioSession.sharedInstance()
+        let currentRoute = audioSession.currentRoute
+
+        switch reason {
+        case .newDeviceAvailable:
+            AppLogger.audio.info("Audio route: New device available")
+            if let newDevice = currentRoute.inputs.first {
+                AppLogger.audio.info("New input device: \(newDevice.portName) (\(newDevice.portType.rawValue))")
+            }
+
+        case .oldDeviceUnavailable:
+            AppLogger.audio.warning("Audio route: Device disconnected")
+            if isCapturing || isPlaying {
+                AppLogger.audio.info("Audio session affected by route change")
+            }
+
+        case .categoryChange:
+            AppLogger.audio.info("Audio route: Category changed")
+
+        case .override:
+            AppLogger.audio.info("Audio route: Override")
+
+        case .wakeFromSleep:
+            AppLogger.audio.info("Audio route: Wake from sleep")
+
+        case .noSuitableRouteForCategory:
+            AppLogger.audio.warning("Audio route: No suitable route for category")
+
+        case .routeConfigurationChange:
+            AppLogger.audio.info("Audio route: Configuration change")
+
+        @unknown default:
+            AppLogger.audio.warning("Audio route: Unknown reason (\(reasonValue))")
+        }
     }
 
     private func handleInterruption(_ notification: Notification) async {
@@ -194,6 +271,12 @@ actor AudioService: AudioServiceProtocol {
                 let audioSession = AVAudioSession.sharedInstance()
                 try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
                 AppLogger.audio.info("Audio session reactivated after interruption")
+
+                // Restart audio engine if it was running before interruption
+                if (isCapturing || isPlaying) && !isEngineRunning {
+                    try startEngineIfNeeded()
+                    AppLogger.audio.info("Audio engine restarted after interruption")
+                }
             } catch {
                 AppLogger.logError(error, category: AppLogger.audio, context: "Failed to reactivate audio session after interruption")
             }

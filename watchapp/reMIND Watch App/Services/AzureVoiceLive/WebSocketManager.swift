@@ -55,10 +55,28 @@ actor WebSocketManager {
 
         AppLogger.network.info("Connecting to WebSocket: \(self.url.absoluteString)")
 
-        // Create URLSession configuration
+        // Create URLSession configuration optimized for watchOS
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = 30
-        configuration.timeoutIntervalForResource = 300
+        configuration.timeoutIntervalForResource = 600 // 10 minutes for long-lived connection
+
+        // watchOS-specific: Wait for connectivity instead of failing immediately
+        configuration.waitsForConnectivity = true
+
+        // Network service type for real-time voice communication
+        configuration.networkServiceType = .responsiveData // Low latency, high priority
+
+        // Allow connection over cellular (important for cellular Apple Watches)
+        configuration.allowsCellularAccess = true
+
+        // Constrained network handling for weak signals
+        if #available(watchOS 9.0, *) {
+            configuration.allowsConstrainedNetworkAccess = true
+            configuration.allowsExpensiveNetworkAccess = true
+        }
+
+        // Keep connections alive during brief backgrounds
+        configuration.shouldUseExtendedBackgroundIdleMode = true
 
         session = URLSession(configuration: configuration)
 
@@ -223,8 +241,8 @@ actor WebSocketManager {
         }
 
         reconnectAttempts += 1
-        let delay = min(pow(2.0, Double(reconnectAttempts)), 30.0) // Max 30 seconds
-        AppLogger.network.info("Reconnecting in \(delay) seconds (attempt \(self.reconnectAttempts)/\(self.maxReconnectAttempts))")
+        let delay = min(pow(2.0, Double(reconnectAttempts)), 30.0) // Exponential backoff, max 30 seconds
+        AppLogger.network.info("Reconnecting in \(delay)s (attempt \(self.reconnectAttempts)/\(self.maxReconnectAttempts))")
 
         try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
 

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import WatchKit
+import os
 
 struct ContentView: View {
     @StateObject private var viewModel = VoiceViewModel()
@@ -56,22 +57,40 @@ struct ContentView: View {
     private func handleScenePhaseChange(from old: ScenePhase, to new: ScenePhase) async {
         switch new {
         case .active:
-            // App returned to foreground - reconnect if we were connected before
+            // App returned to foreground
+            AppLogger.general.info("Scene phase: active")
+
+            // Reconnect if we were connected before background
             if wasConnectedBeforeBackground && viewModel.state == .disconnected {
+                AppLogger.general.info("Reconnecting after background")
                 await viewModel.connect()
                 await locationViewModel.startTracking()
             }
             wasConnectedBeforeBackground = false
 
         case .inactive:
-            // Transitional state (notification shade, Control Center)
-            // Keep connection alive - don't disconnect for brief interruptions
+            // Transitional state (notification shade, Control Center, raise wrist)
+            // Keep connection alive during brief inactive periods
+            AppLogger.general.info("Scene phase: inactive (keeping connection alive)")
+
+            // Note: Connection stays alive during inactive state
+            // This handles brief interruptions like notification pull-down
             break
 
         case .background:
-            // App went to background or sleep - disconnect to conserve resources
+            // App went to background or screen fully off
+            AppLogger.general.info("Scene phase: background")
+
             wasConnectedBeforeBackground = viewModel.state.isConnected
-            await viewModel.disconnect()
+
+            // Disconnect strategy: Immediate disconnect to conserve battery
+            // Next interaction will auto-reconnect (2-3 second delay)
+            if wasConnectedBeforeBackground {
+                AppLogger.general.info("Disconnecting to conserve battery")
+                await viewModel.disconnect()
+            }
+
+            // Stop location tracking to save battery
             await locationViewModel.stopTracking()
 
         @unknown default:
