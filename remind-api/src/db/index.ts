@@ -72,6 +72,34 @@ interface SafeZoneTable {
   updatedAt: Generated<Date>;
 }
 
+interface ReminderTable {
+  id: Generated<string>;
+  patientId: string;
+  type: string;
+  title: string;
+  notes: string | null;
+  scheduledTime: Date;
+  repeatSchedule: string;
+  customDays: string | null;
+  isEnabled: Generated<boolean>;
+  isCompleted: Generated<boolean>;
+  completedAt: Date | null;
+  sendToWatch: Generated<boolean>;
+  lastNotifiedAt: Date | null;
+  createdAt: Generated<Date>;
+  updatedAt: Generated<Date>;
+}
+
+interface DeviceTokenTable {
+  id: Generated<string>;
+  patientId: string;
+  token: string;
+  platform: string;
+  bundleId: string;
+  createdAt: Generated<Date>;
+  updatedAt: Generated<Date>;
+}
+
 // Database interface combining all tables
 export interface Database {
   user: UserTable;
@@ -80,6 +108,8 @@ export interface Database {
   verification: VerificationTable;
   location: LocationTable;
   safeZone: SafeZoneTable;
+  reminder: ReminderTable;
+  deviceToken: DeviceTokenTable;
 }
 
 // Export the Kysely database instance
