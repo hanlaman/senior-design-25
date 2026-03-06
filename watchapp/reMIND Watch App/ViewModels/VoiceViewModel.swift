@@ -23,6 +23,9 @@ class VoiceViewModel: ObservableObject {
         stateMachine.state
     }
 
+    /// Audio playback progress (0.0 = complete, 1.0 = just started, nil = not playing)
+    @Published var playbackProgress: Double?
+
     // MARK: - Services
 
     private var azureService: VoiceLiveConnection?
@@ -414,6 +417,10 @@ class VoiceViewModel: ObservableObject {
         // Clear audio buffer
         try? await azureService?.inputAudioBuffer.clear()
 
+        // Clear playback progress
+        playbackProgress = nil
+        audioCoordinator?.resetProgressTracking()
+
         // Only transition if not already idle (stopPlayback may have already triggered transition via observer)
         AppLogger.general.debug("cancelInteraction() - Current state before transition: \(self.stateMachine.state)")
         if !stateMachine.state.isIdle {
@@ -517,6 +524,10 @@ extension VoiceViewModel: AudioCoordinatorDelegate {
             if stateMachine.isPlaying {
                 stateMachine.transitionTo(.idle(sessionId: sessionId))
 
+                // Clear playback progress
+                playbackProgress = nil
+                audioCoordinator?.resetProgressTracking()
+
                 // Auto-start recording if continuous listening is enabled
                 handlePlaybackCompleted()
             }
@@ -562,6 +573,13 @@ extension VoiceViewModel: AudioCoordinatorDelegate {
     ) {
         // Overflow is already logged by coordinator
         // Could add additional handling here if needed (e.g., show user notification)
+    }
+
+    func audioCoordinator(
+        _ coordinator: AudioCoordinator,
+        didUpdateProgress progress: Double
+    ) {
+        playbackProgress = progress
     }
 }
 

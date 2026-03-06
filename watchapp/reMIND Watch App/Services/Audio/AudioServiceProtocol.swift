@@ -8,6 +8,12 @@
 import Foundation
 import AVFoundation
 
+/// Events for tracking audio buffer lifecycle (for progress tracking)
+enum BufferEvent {
+    case scheduled(UUID)
+    case completed(UUID)
+}
+
 /// Protocol for audio capture and playback service
 protocol AudioServiceProtocol: Actor {
     /// Audio chunk stream (captured audio ready for transmission)
@@ -18,6 +24,9 @@ protocol AudioServiceProtocol: Actor {
 
     /// Buffer overflow stream (emits when buffers overflow)
     var bufferOverflowStream: AsyncStream<BufferOverflowEvent> { get }
+
+    /// Buffer event stream (emits when buffers are scheduled/completed for progress tracking)
+    var bufferEventStream: AsyncStream<BufferEvent> { get }
 
     /// Start capturing audio from microphone
     func startCapture() async throws

@@ -37,6 +37,16 @@ struct VoicePageView: View {
                             )
                     }
 
+                    // Radial progress ring for playing state
+                    if viewModel.state.isPlaying, let progress = viewModel.playbackProgress, progress > 0 {
+                        RadialProgressView(
+                            progress: progress,
+                            lineWidth: 4,
+                            color: .green.opacity(0.8)
+                        )
+                        .frame(width: 100, height: 100)
+                    }
+
                     // Icon
                     Image(systemName: iconName(for: viewModel.state))
                         .font(.system(size: 64, weight: .medium))

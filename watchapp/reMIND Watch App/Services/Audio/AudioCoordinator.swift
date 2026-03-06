@@ -29,6 +29,13 @@ protocol AudioCoordinatorDelegate: AnyObject {
         didDetectOverflow event: BufferOverflowEvent
     )
 
+    /// Called when playback progress updates
+    /// - Parameter progress: Progress from 0.0 (complete) to 1.0 (just started)
+    func audioCoordinator(
+        _ coordinator: AudioCoordinator,
+        didUpdateProgress progress: Double
+    )
+
     /// Get current session ID for state transitions
     var sessionId: String? { get }
 }
@@ -47,9 +54,14 @@ class AudioCoordinator {
     private var audioStateTask: Task<Void, Never>?
     private var bufferOverflowTask: Task<Void, Never>?
     private var audioChunkTask: Task<Void, Never>?
+    private var bufferEventTask: Task<Void, Never>?
 
     // Audio processing flag (prevents concurrent chunk processing)
     private var isProcessingAudio = false
+
+    // Progress tracking
+    private var totalBuffersScheduled: Int = 0
+    private var buffersCompleted: Int = 0
 
     // MARK: - Initialization
 
@@ -64,6 +76,7 @@ class AudioCoordinator {
     func startMonitoring() {
         startAudioStateMonitoring()
         startBufferOverflowMonitoring()
+        startBufferEventMonitoring()
     }
 
     /// Stop all audio monitoring tasks
@@ -81,7 +94,20 @@ class AudioCoordinator {
         audioChunkTask = nil
         isProcessingAudio = false
 
+        // Cancel buffer event monitoring
+        bufferEventTask?.cancel()
+        bufferEventTask = nil
+
+        // Reset progress tracking
+        resetProgressTracking()
+
         AppLogger.general.debug("Audio monitoring stopped")
+    }
+
+    /// Reset progress tracking for new playback session
+    func resetProgressTracking() {
+        totalBuffersScheduled = 0
+        buffersCompleted = 0
     }
 
     // MARK: - Audio Chunk Processing
@@ -196,6 +222,38 @@ class AudioCoordinator {
             }
 
             AppLogger.general.debug("Buffer overflow monitoring ended")
+        }
+    }
+
+    /// Start monitoring buffer events for progress tracking
+    private func startBufferEventMonitoring() {
+        bufferEventTask?.cancel()
+
+        AppLogger.general.debug("Starting buffer event monitoring for progress tracking")
+
+        bufferEventTask = Task { @MainActor [weak self] in
+            guard let self = self else { return }
+
+            for await event in await self.audioService.bufferEventStream {
+                guard let delegate = self.delegate else { continue }
+
+                switch event {
+                case .scheduled:
+                    self.totalBuffersScheduled += 1
+                case .completed:
+                    self.buffersCompleted += 1
+                }
+
+                // Calculate and report progress
+                // Progress = remaining / total (1.0 = just started, 0.0 = complete)
+                if self.totalBuffersScheduled > 0 {
+                    let remaining = self.totalBuffersScheduled - self.buffersCompleted
+                    let progress = Double(remaining) / Double(self.totalBuffersScheduled)
+                    delegate.audioCoordinator(self, didUpdateProgress: max(0, progress))
+                }
+            }
+
+            AppLogger.general.debug("Buffer event monitoring ended")
         }
     }
 }

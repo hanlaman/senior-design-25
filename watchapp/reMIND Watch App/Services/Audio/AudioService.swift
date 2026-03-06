@@ -51,6 +51,10 @@ actor AudioService: AudioServiceProtocol {
         bufferManager.overflowStream
     }
 
+    // Buffer event stream (for progress tracking)
+    private var bufferEventContinuation: AsyncStream<BufferEvent>.Continuation?
+    let bufferEventStream: AsyncStream<BufferEvent>
+
     // MARK: - Initialization
 
     init() {
@@ -63,6 +67,11 @@ actor AudioService: AudioServiceProtocol {
         let (stateStream, stateCont) = AsyncStream<Bool>.makeStream()
         self.playbackStateStream = stateStream
         self.playbackStateContinuation = stateCont
+
+        // Create buffer event stream (for progress tracking)
+        let (bufferStream, bufferCont) = AsyncStream<BufferEvent>.makeStream()
+        self.bufferEventStream = bufferStream
+        self.bufferEventContinuation = bufferCont
     }
 
     // MARK: - Playback State Management
@@ -443,6 +452,9 @@ actor AudioService: AudioServiceProtocol {
         let bufferID = UUID()
         activeBuffers.insert(bufferID)
 
+        // Emit scheduled event for progress tracking
+        bufferEventContinuation?.yield(.scheduled(bufferID))
+
         playerNode.scheduleBuffer(buffer) { [weak self, bufferID] in
             Task {
                 await self?.handleBufferComplete(bufferID)
@@ -476,6 +488,10 @@ actor AudioService: AudioServiceProtocol {
 
     private func handleBufferComplete(_ bufferID: UUID) async {
         activeBuffers.remove(bufferID)
+
+        // Emit completed event for progress tracking
+        bufferEventContinuation?.yield(.completed(bufferID))
+
         AppLogger.audio.debug("Buffer \(bufferID) completed - \(self.activeBuffers.count) remaining")
 
         await handlePlaybackComplete()
