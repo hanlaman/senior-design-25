@@ -127,6 +127,36 @@ final class VoiceStateMachine: ObservableObject {
             // Retry after error
             return true
 
+        // MARK: To Reconnecting
+
+        case (.idle, .reconnecting):
+            // WebSocket disconnected while idle
+            return true
+        case (.recording, .reconnecting):
+            // WebSocket disconnected while recording
+            return true
+        case (.processing, .reconnecting):
+            // WebSocket disconnected while processing
+            return true
+        case (.playing, .reconnecting):
+            // WebSocket disconnected while playing
+            return true
+
+        // MARK: From Reconnecting
+
+        case (.reconnecting, .reconnecting):
+            // Update attempt count
+            return true
+        case (.reconnecting, .idle):
+            // Reconnection succeeded
+            return true
+        case (.reconnecting, .connectionFailed):
+            // Reconnection ultimately failed
+            return true
+        case (.reconnecting, .disconnected):
+            // User cancelled during reconnection
+            return true
+
         // MARK: Invalid Transitions
 
         default:

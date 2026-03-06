@@ -81,7 +81,7 @@ class VoiceViewModel: ObservableObject {
         switch stateMachine.state {
         case .recording, .processing, .playing:
             isActive = true
-        case .idle, .disconnected, .connecting, .connectionFailed, .error:
+        case .idle, .disconnected, .connecting, .reconnecting, .connectionFailed, .error:
             isActive = false
         }
 

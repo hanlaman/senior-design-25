@@ -145,7 +145,7 @@ struct VoicePageView: View {
             return .red
         case .disconnected:
             return .gray
-        case .connecting:
+        case .connecting, .reconnecting:
             return .blue.opacity(0.6)
         }
     }
@@ -162,7 +162,7 @@ struct VoicePageView: View {
             return "exclamationmark.triangle.fill"
         case .disconnected:
             return "mic.slash.fill"
-        case .connecting:
+        case .connecting, .reconnecting:
             return "mic.fill"
         }
     }

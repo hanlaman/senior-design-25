@@ -18,6 +18,9 @@ enum VoiceInteractionState: Equatable {
     /// Connecting to Azure WebSocket
     case connecting
 
+    /// WebSocket reconnecting after disconnect
+    case reconnecting(attempt: Int, maxAttempts: Int)
+
     /// Connection failed with error message
     case connectionFailed(String)
 
@@ -54,7 +57,7 @@ enum VoiceInteractionState: Equatable {
             return id
         case .error(let id, _):
             return id
-        case .disconnected, .connecting, .connectionFailed:
+        case .disconnected, .connecting, .reconnecting, .connectionFailed:
             return nil
         }
     }
@@ -101,7 +104,7 @@ enum VoiceInteractionState: Equatable {
         switch self {
         case .idle, .recording, .processing, .playing:
             return true
-        case .disconnected, .connecting, .connectionFailed, .error:
+        case .disconnected, .connecting, .reconnecting, .connectionFailed, .error:
             return false
         }
     }
@@ -128,6 +131,8 @@ enum VoiceInteractionState: Equatable {
             return "Disconnected"
         case .connecting:
             return "Connecting..."
+        case .reconnecting(let attempt, let maxAttempts):
+            return "Reconnecting (\(attempt)/\(maxAttempts))..."
         case .connectionFailed(let message):
             return "Failed: \(message)"
         case .idle:
@@ -191,6 +196,8 @@ extension VoiceInteractionState: CustomStringConvertible {
             return "disconnected"
         case .connecting:
             return "connecting"
+        case .reconnecting(let attempt, let maxAttempts):
+            return "reconnecting(\(attempt)/\(maxAttempts))"
         case .connectionFailed(let message):
             return "connectionFailed(\(message))"
         case .idle(let sessionId):

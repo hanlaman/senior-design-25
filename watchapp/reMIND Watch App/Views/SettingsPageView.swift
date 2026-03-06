@@ -146,7 +146,7 @@ struct SettingsPageView: View {
         switch state {
         case .disconnected:
             return "wifi.slash"
-        case .connecting:
+        case .connecting, .reconnecting:
             return "wifi.exclamationmark"
         case .connectionFailed:
             return "wifi.exclamationmark"
@@ -161,7 +161,7 @@ struct SettingsPageView: View {
         switch state {
         case .disconnected:
             return .gray
-        case .connecting:
+        case .connecting, .reconnecting:
             return .orange
         case .connectionFailed:
             return .red
@@ -178,6 +178,8 @@ struct SettingsPageView: View {
             return "Disconnected"
         case .connecting:
             return "Connecting..."
+        case .reconnecting(let attempt, let maxAttempts):
+            return "Reconnecting (\(attempt)/\(maxAttempts))..."
         case .connectionFailed(let message):
             return "Failed: \(message)"
         case .idle, .recording, .processing, .playing:

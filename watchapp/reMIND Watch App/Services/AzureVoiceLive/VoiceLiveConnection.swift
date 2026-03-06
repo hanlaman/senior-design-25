@@ -20,6 +20,9 @@ public actor VoiceLiveConnection {
 
     private var webSocketManager: WebSocketManager?
 
+    /// Observer for WebSocket connection state changes
+    private var connectionStateObserver: Task<Void, Never>?
+
     public private(set) var connectionState: ConnectionState = .disconnected
     public private(set) var sessionState: AzureSessionState = .uninitialized
 
@@ -103,7 +106,10 @@ public actor VoiceLiveConnection {
         let manager = WebSocketManager(url: websocketURL, apiKey: apiKey)
         webSocketManager = manager
 
-        // Connect
+        // Start observing connection state changes from WebSocketManager
+        startObservingConnectionState(manager)
+
+        // Connect (now awaits handshake completion via delegate)
         try await manager.connect()
 
         connectionState = .connected
@@ -134,6 +140,10 @@ public actor VoiceLiveConnection {
         AppLogger.azure.info("Disconnecting from Azure Voice Live API")
 
         sessionState = .terminating
+
+        // Stop observing connection state
+        connectionStateObserver?.cancel()
+        connectionStateObserver = nil
 
         await webSocketManager?.disconnect()
         webSocketManager = nil
@@ -191,6 +201,42 @@ public actor VoiceLiveConnection {
         } catch {
             AppLogger.logError(error, category: AppLogger.azure, context: "Failed to send event")
             throw AzureError.encodingFailed(error)
+        }
+    }
+
+    // MARK: - Connection State Observation
+
+    private func startObservingConnectionState(_ manager: WebSocketManager) {
+        connectionStateObserver?.cancel()
+
+        connectionStateObserver = Task {
+            for await state in await manager.connectionStateStream {
+                await handleWebSocketStateChange(state)
+            }
+        }
+    }
+
+    private func handleWebSocketStateChange(_ state: ConnectionState) {
+        switch state {
+        case .reconnecting(let attempt, let maxAttempts):
+            connectionState = .reconnecting(attempt: attempt, maxAttempts: maxAttempts)
+            AppLogger.azure.info("WebSocket reconnecting: attempt \(attempt)/\(maxAttempts)")
+
+        case .disconnected:
+            // Only update if we weren't already disconnected (avoid duplicate transitions)
+            if connectionState != .disconnected {
+                connectionState = .disconnected
+                sessionState = .uninitialized
+                AppLogger.azure.warning("WebSocket unexpectedly disconnected")
+            }
+
+        case .error(let message):
+            connectionState = .error(message)
+            AppLogger.azure.error("WebSocket error: \(message)")
+
+        case .connecting, .connected:
+            // These are handled by the connect() flow
+            break
         }
     }
 

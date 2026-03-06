@@ -21,9 +21,16 @@ actor WebSocketManager {
     private var reconnectAttempts = 0
     private let maxReconnectAttempts = 5
 
+    // Delegate for receiving WebSocket lifecycle callbacks (must be held strongly)
+    private var webSocketDelegate: WebSocketDelegate?
+
     // Event stream
     private var eventContinuation: AsyncStream<Result<Data, Error>>.Continuation?
     let eventStream: AsyncStream<Result<Data, Error>>
+
+    // Connection state stream (for propagating state to VoiceLiveConnection)
+    private var connectionStateContinuation: AsyncStream<ConnectionState>.Continuation?
+    let connectionStateStream: AsyncStream<ConnectionState>
 
     // Heartbeat tracking
     private var heartbeatTask: Task<Void, Never>?
@@ -37,16 +44,23 @@ actor WebSocketManager {
         self.apiKey = apiKey
 
         // Create event stream
-        var continuationHolder: AsyncStream<Result<Data, Error>>.Continuation?
+        var eventContinuationHolder: AsyncStream<Result<Data, Error>>.Continuation?
         self.eventStream = AsyncStream { continuation in
-            continuationHolder = continuation
+            eventContinuationHolder = continuation
         }
-        self.eventContinuation = continuationHolder
+        self.eventContinuation = eventContinuationHolder
+
+        // Create connection state stream
+        var stateContinuationHolder: AsyncStream<ConnectionState>.Continuation?
+        self.connectionStateStream = AsyncStream { continuation in
+            stateContinuationHolder = continuation
+        }
+        self.connectionStateContinuation = stateContinuationHolder
     }
 
     // MARK: - Connection Management
 
-    /// Connect to WebSocket
+    /// Connect to WebSocket and wait for handshake to complete
     func connect() async throws {
         guard !isConnected else {
             AppLogger.network.warning("Already connected to WebSocket")
@@ -54,6 +68,15 @@ actor WebSocketManager {
         }
 
         AppLogger.network.info("Connecting to WebSocket: \(self.url.absoluteString)")
+        connectionStateContinuation?.yield(.connecting)
+
+        // Create delegate with callback to handle state changes
+        let delegate = WebSocketDelegate { [weak self] event in
+            Task { [weak self] in
+                await self?.handleConnectionEvent(event)
+            }
+        }
+        self.webSocketDelegate = delegate
 
         // Create URLSession configuration optimized for watchOS
         let configuration = URLSessionConfiguration.default
@@ -78,7 +101,12 @@ actor WebSocketManager {
         // Keep connections alive during brief backgrounds
         configuration.shouldUseExtendedBackgroundIdleMode = true
 
-        session = URLSession(configuration: configuration)
+        // Create session with delegate
+        session = URLSession(
+            configuration: configuration,
+            delegate: delegate,
+            delegateQueue: nil  // Use concurrent queue
+        )
 
         // Create request with authentication
         var request = URLRequest(url: url)
@@ -93,11 +121,18 @@ actor WebSocketManager {
         webSocketTask = session.webSocketTask(with: request)
         webSocketTask?.resume()
 
+        // Wait for delegate callback (didOpenWithProtocol or error)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            delegate.setConnectionContinuation(continuation)
+        }
+
+        // Connection is now established (delegate callback received)
         isConnected = true
         reconnectAttempts = 0
         lastMessageTime = Date()
 
-        AppLogger.network.info("WebSocket connected")
+        connectionStateContinuation?.yield(.connected)
+        AppLogger.network.info("WebSocket connected (handshake complete)")
 
         // Start receiving messages and heartbeat
         startReceiving()
@@ -106,9 +141,10 @@ actor WebSocketManager {
 
     /// Disconnect from WebSocket
     func disconnect() async {
-        guard isConnected else { return }
-
         AppLogger.network.info("Disconnecting from WebSocket")
+
+        // Clear continuation to prevent callback after intentional disconnect
+        webSocketDelegate?.clearConnectionContinuation()
 
         // Cancel tasks
         heartbeatTask?.cancel()
@@ -122,6 +158,9 @@ actor WebSocketManager {
         session = nil
 
         isConnected = false
+        webSocketDelegate = nil
+
+        connectionStateContinuation?.yield(.disconnected)
         eventContinuation?.finish()
 
         AppLogger.network.info("WebSocket disconnected")
@@ -156,6 +195,35 @@ actor WebSocketManager {
         } catch {
             AppLogger.logError(error, category: AppLogger.network, context: "WebSocket send failed")
             throw WebSocketError.sendFailed(error)
+        }
+    }
+
+    // MARK: - Connection Event Handling
+
+    private func handleConnectionEvent(_ event: WebSocketConnectionEvent) {
+        switch event {
+        case .didOpen:
+            // Handled by continuation in connect()
+            break
+
+        case .didClose(let closeCode, let reason):
+            AppLogger.network.info("WebSocket closed via delegate: \(closeCode.rawValue)")
+            if isConnected {
+                isConnected = false
+                connectionStateContinuation?.yield(.disconnected)
+                eventContinuation?.yield(.failure(WebSocketError.connectionClosed(
+                    closeCode: closeCode,
+                    reason: reason
+                )))
+            }
+
+        case .didFail(let error):
+            AppLogger.network.error("WebSocket failed via delegate: \(error.localizedDescription)")
+            if isConnected {
+                isConnected = false
+                connectionStateContinuation?.yield(.error(error.localizedDescription))
+                eventContinuation?.yield(.failure(error))
+            }
         }
     }
 
@@ -235,12 +303,20 @@ actor WebSocketManager {
     private func attemptReconnection() async {
         guard reconnectAttempts < maxReconnectAttempts else {
             AppLogger.network.error("Max reconnection attempts reached")
+            connectionStateContinuation?.yield(.error("Max reconnection attempts reached"))
             eventContinuation?.yield(.failure(WebSocketError.maxReconnectAttemptsReached))
             await disconnect()
             return
         }
 
         reconnectAttempts += 1
+
+        // Emit reconnecting state
+        connectionStateContinuation?.yield(.reconnecting(
+            attempt: reconnectAttempts,
+            maxAttempts: maxReconnectAttempts
+        ))
+
         let delay = min(pow(2.0, Double(reconnectAttempts)), 30.0) // Exponential backoff, max 30 seconds
         AppLogger.network.info("Reconnecting in \(delay)s (attempt \(self.reconnectAttempts)/\(self.maxReconnectAttempts))")
 
@@ -260,35 +336,10 @@ actor WebSocketManager {
     var connectionState: ConnectionState {
         if isConnected {
             return .connected
-        } else if reconnectAttempts > 0 {
-            return .connecting
+        } else if reconnectAttempts > 0 && reconnectAttempts < maxReconnectAttempts {
+            return .reconnecting(attempt: reconnectAttempts, maxAttempts: maxReconnectAttempts)
         } else {
             return .disconnected
-        }
-    }
-}
-
-// MARK: - Errors
-
-enum WebSocketError: LocalizedError {
-    case notConnected
-    case sessionCreationFailed
-    case sendFailed(Error)
-    case receiveFailed(Error)
-    case maxReconnectAttemptsReached
-
-    var errorDescription: String? {
-        switch self {
-        case .notConnected:
-            return "WebSocket is not connected"
-        case .sessionCreationFailed:
-            return "Failed to create URLSession"
-        case .sendFailed(let error):
-            return "Failed to send message: \(error.localizedDescription)"
-        case .receiveFailed(let error):
-            return "Failed to receive message: \(error.localizedDescription)"
-        case .maxReconnectAttemptsReached:
-            return "Maximum reconnection attempts reached"
         }
     }
 }

@@ -153,6 +153,7 @@ public enum ConnectionState: Sendable, Equatable {
     case disconnected
     case connecting
     case connected
+    case reconnecting(attempt: Int, maxAttempts: Int)
     case error(String)
 
     public var displayText: String {
@@ -163,6 +164,8 @@ public enum ConnectionState: Sendable, Equatable {
             return "Connecting..."
         case .connected:
             return "Connected"
+        case .reconnecting(let attempt, let maxAttempts):
+            return "Reconnecting (\(attempt)/\(maxAttempts))..."
         case .error(let message):
             return "Error: \(message)"
         }
