@@ -12,6 +12,9 @@ public enum AzureSessionState: Sendable, Equatable {
     /// No session exists - WebSocket not connected
     case uninitialized
 
+    /// WebSocket reconnected, session being re-established
+    case reconnecting
+
     /// WebSocket connected, waiting for session.created event
     case establishing(sessionId: String?)
 
@@ -35,6 +38,12 @@ public enum AzureSessionState: Sendable, Equatable {
     /// Whether the session can accept conversation operations
     public var canAcceptConversation: Bool {
         if case .ready = self { return true }
+        return false
+    }
+
+    /// Whether the session is currently reconnecting
+    public var isReconnecting: Bool {
+        if case .reconnecting = self { return true }
         return false
     }
 
@@ -67,6 +76,8 @@ public enum AzureSessionState: Sendable, Equatable {
         switch self {
         case .uninitialized:
             return "Uninitialized"
+        case .reconnecting:
+            return "Reconnecting"
         case .establishing(let id):
             return "Establishing (id: \(id ?? "pending"))"
         case .ready(let id):

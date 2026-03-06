@@ -156,6 +156,33 @@ public actor VoiceLiveConnection {
         AppLogger.azure.info("Disconnected from Azure Voice Live API")
     }
 
+    /// Re-establish session after WebSocket reconnection
+    private func reestablishSession() async {
+        AppLogger.azure.info("Re-establishing session after WebSocket reconnection")
+
+        sessionState = .reconnecting
+
+        do {
+            // Give WebSocket a moment to be fully ready
+            // Note: Azure sends session.created immediately on connect, which will
+            // transition us from .reconnecting to .establishing(sessionId: newId)
+            try await Task.sleep(nanoseconds: 100_000_000) // 0.1s
+
+            // Send session.update to re-configure the session
+            // Don't overwrite sessionState here - the event handler sets it when session.created arrives
+            AppLogger.azure.info("Sending session.update to re-configure session (current state: \(self.sessionState.displayText))")
+            try await session.update(.fromSettings(self.settings))
+
+            // Wait for session.created and session.updated events
+            try await session.waitForReady()
+
+            AppLogger.azure.info("Session re-established successfully: \(self.sessionState.displayText)")
+        } catch {
+            AppLogger.logError(error, category: AppLogger.azure, context: "Failed to re-establish session")
+            sessionState = .error("Session re-establishment failed: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - MCP Tool Management
 
     public func sendMcpApproval(approve: Bool, approvalRequestId: String) async throws {
@@ -234,8 +261,18 @@ public actor VoiceLiveConnection {
             connectionState = .error(message)
             AppLogger.azure.error("WebSocket error: \(message)")
 
-        case .connecting, .connected:
-            // These are handled by the connect() flow
+        case .connected:
+            connectionState = .connected
+            // After reconnection, re-establish session if it was lost
+            if sessionState == .uninitialized {
+                AppLogger.azure.info("WebSocket reconnected, re-establishing session")
+                Task {
+                    await reestablishSession()
+                }
+            }
+
+        case .connecting:
+            // Initial connection is handled by connect() flow
             break
         }
     }
@@ -283,10 +320,14 @@ public actor VoiceLiveConnection {
             case .sessionCreated(let sessionCreated):
                 let newSessionId = sessionCreated.session.id
 
-                // Transition from establishing → establishing(with ID)
+                // Transition from establishing or reconnecting → establishing(with ID)
+                // Note: Azure sends session.created immediately on WebSocket connect, before we send session.update
                 if case .establishing = sessionState {
                     sessionState = .establishing(sessionId: newSessionId)
                     AppLogger.azure.info("Session created: \(newSessionId) - Waiting for session.updated")
+                } else if case .reconnecting = sessionState {
+                    sessionState = .establishing(sessionId: newSessionId)
+                    AppLogger.azure.info("Session created during reconnection: \(newSessionId) - Waiting for session.updated")
                 } else {
                     AppLogger.azure.warning("Received session.created in unexpected state: \(self.sessionState.displayText)")
                 }

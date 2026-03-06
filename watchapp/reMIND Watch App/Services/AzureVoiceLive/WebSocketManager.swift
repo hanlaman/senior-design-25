@@ -140,7 +140,8 @@ actor WebSocketManager {
     }
 
     /// Disconnect from WebSocket
-    func disconnect() async {
+    /// - Parameter preserveEventStream: If true, keeps the event stream alive for reconnection
+    func disconnect(preserveEventStream: Bool = false) async {
         AppLogger.network.info("Disconnecting from WebSocket")
 
         // Clear continuation to prevent callback after intentional disconnect
@@ -161,9 +162,13 @@ actor WebSocketManager {
         webSocketDelegate = nil
 
         connectionStateContinuation?.yield(.disconnected)
-        eventContinuation?.finish()
 
-        AppLogger.network.info("WebSocket disconnected")
+        // Only finish the event stream if not preserving for reconnection
+        if !preserveEventStream {
+            eventContinuation?.finish()
+        }
+
+        AppLogger.network.info("WebSocket disconnected (preserveEventStream: \(preserveEventStream))")
     }
 
     /// Send data over WebSocket
@@ -323,7 +328,8 @@ actor WebSocketManager {
         try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
 
         do {
-            await disconnect()
+            // Preserve event stream during reconnection so VoiceLiveConnection can keep listening
+            await disconnect(preserveEventStream: true)
             try await connect()
         } catch {
             AppLogger.logError(error, category: AppLogger.network, context: "Reconnection failed")
