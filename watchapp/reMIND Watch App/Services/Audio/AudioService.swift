@@ -420,6 +420,9 @@ actor AudioService: AudioServiceProtocol {
             throw AudioServiceError.invalidFormat
         }
 
+        // Log entry state for debugging intermittent playback issues
+        AppLogger.audio.debug("playAudio called: isPlaying=\(self.isPlaying), isEngineRunning=\(self.isEngineRunning), activeBuffers=\(self.activeBuffers.count)")
+
         // Cancel session timeout since playback is starting
         cancelSessionTimeout()
 
@@ -437,6 +440,7 @@ actor AudioService: AudioServiceProtocol {
         if !audioEngine.attachedNodes.contains(playerNode) {
             audioEngine.attach(playerNode)
             audioEngine.connect(playerNode, to: audioEngine.mainMixerNode, format: format)
+            AppLogger.audio.info("Player node attached and connected to mixer")
         }
 
         // Start audio engine if needed
@@ -446,6 +450,9 @@ actor AudioService: AudioServiceProtocol {
         if !isPlaying {
             playerNode.play()
             setPlayingState(true)
+            AppLogger.audio.info("Player node started")
+        } else {
+            AppLogger.audio.debug("Player node already playing (isPlaying=true)")
         }
 
         // Schedule buffer for playback with UUID token
