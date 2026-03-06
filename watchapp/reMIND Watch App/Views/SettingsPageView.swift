@@ -81,6 +81,21 @@ struct SettingsPageView: View {
             } header: {
                 Text("Voice Settings")
             }
+
+            // Tools Navigation
+            Section {
+                NavigationLink {
+                    ToolsPageView()
+                } label: {
+                    HStack {
+                        Image(systemName: "wrench.and.screwdriver")
+                            .font(.title3)
+                            .foregroundColor(.blue)
+                        Text("Tools")
+                            .font(.body)
+                    }
+                }
+            }
         }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {

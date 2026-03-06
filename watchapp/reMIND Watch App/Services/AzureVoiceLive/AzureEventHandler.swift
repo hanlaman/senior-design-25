@@ -26,6 +26,10 @@ protocol AzureEventHandlerDelegate: AnyObject {
 
     /// Called when response completes and pending settings should be applied
     func eventHandler(_ handler: AzureEventHandler, shouldApplyPendingSettings: Bool) async
+
+    /// Called when a function call is requested by Azure
+    /// - Parameter item: The function call conversation item
+    func eventHandler(_ handler: AzureEventHandler, didRequestFunctionCall item: RealtimeConversationFunctionCallItem) async
 }
 
 /// Handles all Azure Voice Live server events
@@ -92,6 +96,12 @@ class AzureEventHandler {
 
         case .conversationItemCreated(let itemEvent):
             AppLogger.azure.debug("Conversation item created: \(itemEvent.item.id) (type: \(itemEvent.item.type))")
+
+            // Check if this is a function call
+            if case .functionCall(let functionCallItem) = itemEvent.item {
+                AppLogger.azure.info("🔧 Function call requested: \(functionCallItem.name) (call_id: \(functionCallItem.callId))")
+                await delegate?.eventHandler(self, didRequestFunctionCall: functionCallItem)
+            }
 
             // Add to conversation history
             if let sessionId = stateMachine.sessionId {
@@ -209,8 +219,8 @@ class AzureEventHandler {
             // High-frequency event - logging removed to reduce spam
             break
 
-        case .responseFunctionCallArgumentsDone:
-            AppLogger.azure.debug("Function call arguments done")
+        case .responseFunctionCallArgumentsDone(let event):
+            AppLogger.azure.info("Function call arguments complete: call_id=\(event.callId), args=\(event.arguments)")
 
         case .responseMcpCallArgumentsDelta:
             // High-frequency event - logging removed to reduce spam

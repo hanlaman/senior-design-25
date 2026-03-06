@@ -28,11 +28,14 @@ class VoiceViewModel: ObservableObject {
     private var azureService: VoiceLiveConnection?
     private var audioService: AudioService?
     private let settingsManager = VoiceSettingsManager.shared
+    private let toolRegistry = ToolRegistry.shared
 
     // Coordinators
     private var eventHandler: AzureEventHandler?
     private var audioCoordinator: AudioCoordinator?
     private var settingsSyncCoordinator: SettingsSyncCoordinator?
+    private var functionCallCoordinator: FunctionCallCoordinator?
+    private var toolSyncCoordinator: ToolSyncCoordinator?
 
     // MARK: - State
 
@@ -43,9 +46,15 @@ class VoiceViewModel: ObservableObject {
     init() {
         // Services will be initialized on connect
 
-        // Observe state machine changes to trigger view updates
+        // Observe state machine changes to trigger view updates and update tool sync state
         stateMachineObserver = stateMachine.objectWillChange.sink { [weak self] _ in
-            self?.objectWillChange.send()
+            guard let self = self else { return }
+            self.objectWillChange.send()
+
+            // Update tool sync coordinator interaction state
+            Task { @MainActor in
+                self.updateToolSyncInteractionState()
+            }
         }
 
         // Create and start settings sync coordinator
@@ -55,6 +64,22 @@ class VoiceViewModel: ObservableObject {
         self.settingsSyncCoordinator = coordinator
 
         AppLogger.general.info("VoiceViewModel initialized with automatic settings sync")
+    }
+
+    // MARK: - Tool Sync State Updates
+
+    /// Update tool sync coordinator with current interaction state
+    private func updateToolSyncInteractionState() {
+        let isActive: Bool
+
+        switch stateMachine.state {
+        case .recording, .processing, .playing:
+            isActive = true
+        case .idle, .disconnected, .connecting, .connectionFailed, .error:
+            isActive = false
+        }
+
+        toolSyncCoordinator?.setInteractionState(isActive)
     }
 
     // MARK: - Connection Management
@@ -101,12 +126,35 @@ class VoiceViewModel: ObservableObject {
             coordinator.delegate = self
             self.audioCoordinator = coordinator
 
+            // Create function call coordinator
+            let functionCoordinator = FunctionCallCoordinator(
+                toolRegistry: toolRegistry,
+                azureService: azure
+            )
+            functionCoordinator.delegate = self
+            self.functionCallCoordinator = functionCoordinator
+
+            // Create tool sync coordinator
+            let toolSync = ToolSyncCoordinator(
+                toolRegistry: toolRegistry,
+                settingsManager: settingsManager
+            )
+            toolSync.delegate = self
+            self.toolSyncCoordinator = toolSync
+
             // Start processing events before connect (to receive session.created/updated events)
             await startProcessingEvents()
 
-            // Connect to Azure WebSocket and establish session
+            // Get enabled tools for session configuration
+            let enabledTools = toolRegistry.getEnabledTools()
+
+            // Connect to Azure WebSocket and establish session with tools
             // This now handles the entire flow: WebSocket connect → session.created → session.update → ready
             try await azure.connect()
+
+            // Update session with tools
+            let configWithTools = RealtimeRequestSession.fromSettings(settingsManager.settings, tools: enabledTools)
+            try await azure.session.update(configWithTools)
 
             // Get session ID from Azure
             let azureSessionState = await azure.sessionState
@@ -125,6 +173,10 @@ class VoiceViewModel: ObservableObject {
 
             // Notify settings coordinator that we're connected
             settingsSyncCoordinator?.setConnected(true)
+
+            // Start observing tool changes for auto-sync
+            toolSyncCoordinator?.setSessionActive(true)
+            toolSyncCoordinator?.startObserving()
 
             // Start conversation history session
             ConversationHistoryManager.shared.startSession(sessionId)
@@ -149,6 +201,15 @@ class VoiceViewModel: ObservableObject {
 
         // Stop audio monitoring and processing
         audioCoordinator?.stopMonitoring()
+
+        // Cancel any active function calls
+        functionCallCoordinator?.cancelAll()
+        functionCallCoordinator = nil
+
+        // Stop observing tool changes
+        toolSyncCoordinator?.stopObserving()
+        toolSyncCoordinator?.setSessionActive(false)
+        toolSyncCoordinator = nil
 
         // Stop any active recording or playback
         await stopRecording()
@@ -386,6 +447,11 @@ extension VoiceViewModel: AzureEventHandlerDelegate {
     func eventHandler(_ handler: AzureEventHandler, shouldApplyPendingSettings: Bool) async {
         await applyPendingSettingsUpdate()
     }
+
+    func eventHandler(_ handler: AzureEventHandler, didRequestFunctionCall item: RealtimeConversationFunctionCallItem) async {
+        // Delegate to function call coordinator
+        await functionCallCoordinator?.handleFunctionCall(item)
+    }
 }
 
 // MARK: - Audio Coordinator Delegate
@@ -425,6 +491,45 @@ extension VoiceViewModel: AudioCoordinatorDelegate {
     ) {
         // Overflow is already logged by coordinator
         // Could add additional handling here if needed (e.g., show user notification)
+    }
+}
+
+// MARK: - Settings Sync Coordinator Delegate
+
+// MARK: - Function Call Coordinator Delegate
+
+extension VoiceViewModel: FunctionCallCoordinatorDelegate {
+    func functionCallCoordinator(_ coordinator: FunctionCallCoordinator, didCompleteFunctionCall callId: String) {
+        AppLogger.azure.info("Function call completed: \(callId)")
+        // Optional: Could update UI or log completion
+    }
+}
+
+// MARK: - Tool Sync Coordinator Delegate
+
+extension VoiceViewModel: ToolSyncCoordinatorDelegate {
+    func toolSyncCoordinatorDidRequestSync(_ coordinator: ToolSyncCoordinator) async {
+        guard let azure = azureService else {
+            AppLogger.general.warning("Azure service not available for tool sync")
+            return
+        }
+
+        do {
+            // Get current enabled tools
+            let enabledTools = toolRegistry.getEnabledTools()
+
+            // Update session configuration with new tool set
+            let updatedConfig = RealtimeRequestSession.fromSettings(
+                settingsManager.settings,
+                tools: enabledTools
+            )
+
+            try await azure.session.update(updatedConfig)
+            AppLogger.general.info("Tools synchronized successfully (\(enabledTools.count) enabled)")
+
+        } catch {
+            AppLogger.logError(error, category: AppLogger.general, context: "Tool sync failed")
+        }
     }
 }
 

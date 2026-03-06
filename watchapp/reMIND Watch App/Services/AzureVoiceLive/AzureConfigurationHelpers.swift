@@ -12,9 +12,11 @@ import Foundation
 extension RealtimeRequestSession {
 
     /// Create session configuration from VoiceSettings
-    /// - Parameter settings: Voice settings with user preferences
+    /// - Parameters:
+    ///   - settings: Voice settings with user preferences
+    ///   - tools: Optional array of function tools to enable
     /// - Returns: Configured RealtimeRequestSession ready for Azure API
-    static func fromSettings(_ settings: VoiceSettings) -> RealtimeRequestSession {
+    static func fromSettings(_ settings: VoiceSettings, tools: [RealtimeTool]? = nil) -> RealtimeRequestSession {
         return RealtimeRequestSession(
             modalities: [.text, .audio],
             voice: .azureStandard(RealtimeAzureStandardVoice(
@@ -31,6 +33,8 @@ extension RealtimeRequestSession {
                 prefixPaddingMs: settings.vadPrefixPaddingMs,
                 silenceDurationMs: settings.vadSilenceDurationMs
             )),
+            tools: tools,
+            toolChoice: tools?.isEmpty == false ? .string("auto") : nil,
             temperature: settings.sessionTemperature
         )
     }
