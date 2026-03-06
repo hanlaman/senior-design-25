@@ -188,12 +188,12 @@ struct SettingsPageView: View {
             return "Connecting..."
         case .reconnecting(let attempt, let maxAttempts):
             return "Reconnecting (\(attempt)/\(maxAttempts))..."
-        case .connectionFailed(let message):
-            return "Failed: \(message)"
+        case .connectionFailed:
+            return "Connection Failed"
         case .idle, .recording, .processing, .playing:
             return "Connected"
-        case .error(_, let message):
-            return "Error: \(message)"
+        case .error:
+            return "Error"
         }
     }
 
