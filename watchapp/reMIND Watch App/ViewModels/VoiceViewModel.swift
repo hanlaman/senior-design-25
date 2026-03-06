@@ -31,14 +31,10 @@ class VoiceViewModel: ObservableObject {
 
     // Coordinators
     private var eventHandler: AzureEventHandler?
+    private var audioCoordinator: AudioCoordinator?
 
     // MARK: - State
 
-    private var isInitialized = false
-    private var isProcessingAudio = false
-    private var audioStateTask: Task<Void, Never>?
-    private var bufferOverflowTask: Task<Void, Never>?
-    private var audioChunkTask: Task<Void, Never>?
     private var stateMachineObserver: AnyCancellable?
 
     // Settings synchronization
@@ -106,6 +102,11 @@ class VoiceViewModel: ObservableObject {
             handler.delegate = self
             self.eventHandler = handler
 
+            // Create audio coordinator
+            let coordinator = AudioCoordinator(audioService: audio, azureService: azure)
+            coordinator.delegate = self
+            self.audioCoordinator = coordinator
+
             // Start processing events before connect (to receive session.created/updated events)
             await startProcessingEvents()
 
@@ -122,11 +123,8 @@ class VoiceViewModel: ObservableObject {
             // Session is now ready, update UI state
             stateMachine.transitionTo(.idle(sessionId: sessionId))
 
-            // Start observing audio state changes
-            startObservingAudioState()
-
-            // Start monitoring buffer overflow
-            startMonitoringBufferOverflow()
+            // Start audio monitoring (playback state and buffer overflow)
+            audioCoordinator?.startMonitoring()
 
             // Mark settings as synchronized with active session
             settingsManager.markAsSynchronized(settingsManager.settings)
@@ -152,18 +150,8 @@ class VoiceViewModel: ObservableObject {
 
         AppLogger.general.info("Disconnecting voice assistant")
 
-        // Cancel audio state observation
-        audioStateTask?.cancel()
-        audioStateTask = nil
-
-        // Cancel buffer overflow monitoring
-        bufferOverflowTask?.cancel()
-        bufferOverflowTask = nil
-
-        // Cancel audio chunk processing
-        audioChunkTask?.cancel()
-        audioChunkTask = nil
-        isProcessingAudio = false
+        // Stop audio monitoring and processing
+        audioCoordinator?.stopMonitoring()
 
         // Stop any active recording or playback
         await stopRecording()
@@ -241,14 +229,8 @@ class VoiceViewModel: ObservableObject {
     private func performGracefulReconnection(with settings: VoiceSettings) async {
         AppLogger.general.info("Reconnecting to apply settings changes")
 
-        // Cancel any ongoing tasks
-        audioStateTask?.cancel()
-        audioStateTask = nil
-        bufferOverflowTask?.cancel()
-        bufferOverflowTask = nil
-        audioChunkTask?.cancel()
-        audioChunkTask = nil
-        isProcessingAudio = false
+        // Stop audio monitoring and processing
+        audioCoordinator?.stopMonitoring()
 
         // Stop audio capture and clear buffer
         if stateMachine.isRecording {
@@ -328,10 +310,8 @@ class VoiceViewModel: ObservableObject {
             // Start audio capture
             try await audioService.startCapture()
 
-            // Process audio chunks (store task reference for cancellation)
-            audioChunkTask = Task {
-                await processAudioChunks(audioService: audioService, azureService: azureService)
-            }
+            // Start processing audio chunks
+            await audioCoordinator?.startProcessingAudioChunks()
 
         } catch {
             AppLogger.logError(error, category: AppLogger.general, context: "Failed to start recording")
@@ -402,91 +382,6 @@ class VoiceViewModel: ObservableObject {
 
     // MARK: - Private Methods
 
-    private func startObservingAudioState() {
-        audioStateTask?.cancel()
-
-        guard let audioService = audioService else {
-            AppLogger.general.warning("Cannot start observing audio state: no audio service")
-            return
-        }
-
-        AppLogger.general.debug("Starting audio state observation")
-
-        audioStateTask = Task { @MainActor [weak self] in
-            for await isPlaying in await audioService.playbackStateStream {
-                guard let self = self else { break }
-
-                // Get current session ID
-                guard let sessionId = self.stateMachine.sessionId else {
-                    AppLogger.general.warning("No session ID during audio state change")
-                    continue
-                }
-
-                // Audio stream is the single source of truth for playback state
-                if isPlaying {
-                    // Audio started - transition to playing if not already
-                    if !self.stateMachine.isPlaying {
-                        let bufferCount = await audioService.activeBufferCount
-                        self.stateMachine.transitionTo(.playing(sessionId: sessionId, activeBuffers: bufferCount))
-                        AppLogger.general.info("Voice state: playing")
-                    }
-                } else {
-                    // Audio stopped - transition to idle if we're playing
-                    if self.stateMachine.isPlaying {
-                        self.stateMachine.transitionTo(.idle(sessionId: sessionId))
-                        AppLogger.general.info("Voice state: idle")
-                    }
-                }
-            }
-        }
-    }
-
-    private func startMonitoringBufferOverflow() {
-        bufferOverflowTask?.cancel()
-
-        guard let audioService = audioService else {
-            AppLogger.general.warning("Cannot start monitoring buffer overflow: no audio service")
-            return
-        }
-
-        AppLogger.general.debug("Starting buffer overflow monitoring")
-
-        bufferOverflowTask = Task { @MainActor [weak self] in
-            for await event in await audioService.bufferOverflowStream {
-                guard let self = self else { break }
-
-                switch event {
-                case .captureOverflow(let droppedChunks, let bufferSize):
-                    AppLogger.audio.warning("Capture buffer overflow: dropped \(droppedChunks) chunks (max: \(bufferSize))")
-
-                case .playbackOverflow(let droppedChunks, let bufferSize):
-                    AppLogger.audio.warning("Playback buffer overflow: dropped \(droppedChunks) chunks (max: \(bufferSize))")
-                }
-            }
-        }
-    }
-
-    private func processAudioChunks(audioService: AudioService, azureService: VoiceLiveConnection) async {
-        guard !isProcessingAudio else { return }
-        isProcessingAudio = true
-
-        for await chunk in await audioService.audioChunkStream {
-            guard stateMachine.isRecording else {
-                break
-            }
-
-            do {
-                try await azureService.inputAudioBuffer.append(chunk)
-            } catch {
-                AppLogger.logError(error, category: AppLogger.audio, context: "Failed to send audio chunk")
-            }
-        }
-
-        isProcessingAudio = false
-
-        isProcessingAudio = false
-    }
-
     private func startProcessingEvents() async {
         guard let azureService = azureService else { return }
 
@@ -543,5 +438,45 @@ extension VoiceViewModel: AzureEventHandlerDelegate {
 
     func eventHandler(_ handler: AzureEventHandler, shouldApplyPendingSettings: Bool) async {
         await applyPendingSettingsUpdate()
+    }
+}
+
+// MARK: - Audio Coordinator Delegate
+
+extension VoiceViewModel: AudioCoordinatorDelegate {
+    var sessionId: String? {
+        stateMachine.sessionId
+    }
+
+    func audioCoordinator(
+        _ coordinator: AudioCoordinator,
+        didChangePlaybackState isPlaying: Bool,
+        bufferCount: Int
+    ) {
+        guard let sessionId = stateMachine.sessionId else {
+            AppLogger.general.warning("No session ID during audio state change")
+            return
+        }
+
+        // Audio stream is the single source of truth for playback state
+        if isPlaying {
+            // Audio started - transition to playing if not already
+            if !stateMachine.isPlaying {
+                stateMachine.transitionTo(.playing(sessionId: sessionId, activeBuffers: bufferCount))
+            }
+        } else {
+            // Audio stopped - transition to idle if we're playing
+            if stateMachine.isPlaying {
+                stateMachine.transitionTo(.idle(sessionId: sessionId))
+            }
+        }
+    }
+
+    func audioCoordinator(
+        _ coordinator: AudioCoordinator,
+        didDetectOverflow event: BufferOverflowEvent
+    ) {
+        // Overflow is already logged by coordinator
+        // Could add additional handling here if needed (e.g., show user notification)
     }
 }
