@@ -100,12 +100,12 @@ public struct RealtimeResponseSession: Codable, Sendable {
     let modalities: [RealtimeModality]
     let instructions: String?
     let voice: RealtimeVoice?
-    let inputAudioFormat: RealtimeAudioFormat
-    let outputAudioFormat: RealtimeOutputAudioFormat
-    let inputAudioSamplingRate: Int
+    let inputAudioFormat: RealtimeAudioFormat?  // Azure may return null
+    let outputAudioFormat: RealtimeOutputAudioFormat?  // Azure may return null
+    let inputAudioSamplingRate: Int?  // Azure may omit
     let turnDetection: RealtimeTurnDetection?
-    let temperature: Double
-    let maxResponseOutputTokens: MaxOutputTokens
+    let temperature: Double?  // Azure may omit
+    let maxResponseOutputTokens: MaxOutputTokens?  // Azure may omit
     let avatar: RealtimeAvatarConfig?
 
     enum CodingKeys: String, CodingKey {

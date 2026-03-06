@@ -6,13 +6,17 @@
 //
 
 import SwiftUI
+import WatchKit
 
 struct SettingsPageView: View {
-    let state: VoiceInteractionState
+    @ObservedObject var viewModel: VoiceViewModel
     @ObservedObject var locationViewModel: LocationViewModel
     @Binding var currentPage: ContentView.NavigationPage?
 
     @ObservedObject private var settingsManager = VoiceSettingsManager.shared
+
+    // Computed property for cleaner access to state
+    private var state: VoiceInteractionState { viewModel.state }
 
     // State for the picker binding
     @State private var selectedSpeed: SpeedPreset = .normal
@@ -20,25 +24,6 @@ struct SettingsPageView: View {
 
     var body: some View {
         List {
-            // Connection Status Section
-            Section {
-                HStack {
-                    Image(systemName: wifiSymbol(for: state))
-                        .foregroundColor(statusColor(for: state))
-                        .font(.title3)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Connection")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(connectionStatusText(for: state))
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(statusColor(for: state))
-                    }
-                }
-            }
-
             // Location Tracking Section
             Section {
                 HStack {
@@ -60,6 +45,29 @@ struct SettingsPageView: View {
 
             // Agent Settings Section
             Section {
+                // Connection Status Row (tappable - performs action directly)
+                Button {
+                    WKInterfaceDevice.current().play(.click)
+                    handleConnectionTap()
+                } label: {
+                    HStack {
+                        Image(systemName: wifiSymbol(for: state))
+                            .font(.title3)
+                            .foregroundColor(statusColor(for: state))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(connectionStatusText(for: state))
+                                .font(.body)
+                                .foregroundColor(.primary)
+                            Text(connectionActionHint(for: state))
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(!canPerformConnectionAction(for: state))
+
                 // Simple inline picker for speaking speed
                 Picker(selection: $selectedSpeed) {
                     ForEach(SpeedPreset.allCases) { preset in
@@ -188,12 +196,58 @@ struct SettingsPageView: View {
             return "Error: \(message)"
         }
     }
+
+    // MARK: - Connection Action Helpers
+
+    private func connectionActionHint(for state: VoiceInteractionState) -> String {
+        switch state {
+        case .idle, .recording, .processing, .playing:
+            return "Tap to disconnect"
+        case .disconnected:
+            return "Tap to connect"
+        case .connecting:
+            return "Tap to cancel"
+        case .reconnecting:
+            return "Tap to cancel"
+        case .connectionFailed, .error:
+            return "Tap to retry"
+        }
+    }
+
+    private func canPerformConnectionAction(for state: VoiceInteractionState) -> Bool {
+        switch state {
+        case .idle, .recording, .processing, .playing:
+            return true  // Can disconnect
+        case .disconnected:
+            return true  // Can connect
+        case .connecting, .reconnecting:
+            return true  // Can cancel
+        case .connectionFailed, .error:
+            return true  // Can retry
+        }
+    }
+
+    private func handleConnectionTap() {
+        Task {
+            switch state {
+            case .idle, .recording, .processing, .playing:
+                // Connected - disconnect
+                await viewModel.disconnect()
+            case .disconnected, .connectionFailed, .error:
+                // Disconnected/Failed/Error - connect/retry
+                await viewModel.connect()
+            case .connecting, .reconnecting:
+                // In progress - cancel
+                await viewModel.disconnect()
+            }
+        }
+    }
 }
 
 #Preview {
     NavigationStack {
         SettingsPageView(
-            state: .idle(sessionId: "preview-session"),
+            viewModel: VoiceViewModel(),
             locationViewModel: LocationViewModel(),
             currentPage: .constant(.settings)
         )

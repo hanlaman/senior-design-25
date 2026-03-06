@@ -41,7 +41,7 @@ struct ContentView: View {
             // Settings page (swipe right from voice page)
             // Wrapped in NavigationStack to enable drill-down navigation
             NavigationStack {
-                SettingsPageView(state: viewModel.state, locationViewModel: locationViewModel, currentPage: $currentPage)
+                SettingsPageView(viewModel: viewModel, locationViewModel: locationViewModel, currentPage: $currentPage)
             }
             .tag(NavigationPage.settings as NavigationPage?)
         }

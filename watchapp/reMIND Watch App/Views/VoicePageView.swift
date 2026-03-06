@@ -171,6 +171,9 @@ struct VoicePageView: View {
         switch state {
         case .idle, .recording, .processing, .playing:
             return true
+        case .connectionFailed:
+            // Allow tap to retry connection
+            return true
         default:
             return false
         }
@@ -202,6 +205,12 @@ struct VoicePageView: View {
                 WKInterfaceDevice.current().play(.directionUp)
                 print("DEBUG: Canceling from \(currentState)")
                 await viewModel.cancelInteraction()
+
+            case .connectionFailed:
+                // Retry connection on tap
+                WKInterfaceDevice.current().play(.click)
+                print("DEBUG: Retrying connection from connectionFailed state")
+                await viewModel.connect()
 
             default:
                 print("DEBUG: Tap ignored for state: \(currentState)")

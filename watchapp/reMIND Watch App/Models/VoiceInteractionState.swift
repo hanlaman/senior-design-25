@@ -159,6 +159,8 @@ enum VoiceInteractionState: Equatable {
             return "Tap to speak"
         case .recording, .processing, .playing:
             return "Tap to cancel"
+        case .connectionFailed:
+            return "Tap to retry"
         default:
             return nil
         }
