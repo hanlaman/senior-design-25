@@ -16,6 +16,7 @@ struct SettingsPageView: View {
 
     // State for the picker binding
     @State private var selectedSpeed: SpeedPreset = .normal
+    @State private var continuousListeningEnabled: Bool = false
 
     var body: some View {
         List {
@@ -57,7 +58,7 @@ struct SettingsPageView: View {
                 }
             }
 
-            // Voice Settings Section
+            // Agent Settings Section
             Section {
                 // Simple inline picker for speaking speed
                 Picker(selection: $selectedSpeed) {
@@ -78,8 +79,22 @@ struct SettingsPageView: View {
                 .onChange(of: selectedSpeed) { oldValue, newValue in
                     handleSpeedChange(newValue)
                 }
+
+                Toggle(isOn: $continuousListeningEnabled) {
+                    HStack {
+                        Image(systemName: "mic.badge.plus")
+                            .font(.title3)
+                            .foregroundColor(.blue)
+                        Text("Auto-Listen")
+                            .font(.body)
+                    }
+                }
+                .onChange(of: continuousListeningEnabled) { _, newValue in
+                    WKInterfaceDevice.current().play(.click)
+                    settingsManager.updateContinuousListening(newValue)
+                }
             } header: {
-                Text("Voice Settings")
+                Text("Agent")
             }
 
             // Tools Navigation
@@ -113,6 +128,7 @@ struct SettingsPageView: View {
         .onAppear {
             // Initialize picker selection from current settings
             selectedSpeed = SpeedPreset.from(rate: settingsManager.settings.speakingRate)
+            continuousListeningEnabled = settingsManager.settings.continuousListeningEnabled
         }
     }
 

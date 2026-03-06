@@ -481,7 +481,36 @@ extension VoiceViewModel: AudioCoordinatorDelegate {
             // Audio stopped - transition to idle if we're playing
             if stateMachine.isPlaying {
                 stateMachine.transitionTo(.idle(sessionId: sessionId))
+
+                // Auto-start recording if continuous listening is enabled
+                handlePlaybackCompleted()
             }
+        }
+    }
+
+    /// Handle playback completion - optionally auto-start recording for continuous listening
+    private func handlePlaybackCompleted() {
+        guard settingsManager.settings.continuousListeningEnabled else {
+            return
+        }
+
+        guard stateMachine.canStartRecording else {
+            AppLogger.general.debug("Cannot auto-start recording: not in valid state")
+            return
+        }
+
+        Task { @MainActor in
+            // Brief delay for natural conversation rhythm
+            try? await Task.sleep(nanoseconds: 300_000_000)  // 300ms
+
+            // Re-verify state after delay
+            guard self.stateMachine.canStartRecording,
+                  self.settingsManager.settings.continuousListeningEnabled else {
+                return
+            }
+
+            AppLogger.general.info("Continuous listening: auto-starting recording")
+            await self.startRecording()
         }
     }
 

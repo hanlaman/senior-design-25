@@ -67,6 +67,14 @@ class VoiceSettingsManager: ObservableObject {
         save(newSettings)
     }
 
+    /// Update continuous listening setting
+    func updateContinuousListening(_ enabled: Bool) {
+        var newSettings = settings
+        newSettings.continuousListeningEnabled = enabled
+        save(newSettings)
+        AppLogger.general.info("Continuous listening \(enabled ? "enabled" : "disabled")")
+    }
+
     // MARK: - Private Methods
 
     /// Save settings to persistent storage

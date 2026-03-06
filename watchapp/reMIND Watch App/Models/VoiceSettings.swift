@@ -59,6 +59,11 @@ public struct VoiceSettings: Codable, Sendable {
     /// Voice temperature for response variability (0-2)
     public let voiceTemperature: Double
 
+    // MARK: - Interaction Behavior
+
+    /// When enabled, automatically starts recording after playback completes
+    public var continuousListeningEnabled: Bool
+
     // MARK: - Instructions
 
     /// System instructions for the voice assistant
@@ -95,6 +100,7 @@ public struct VoiceSettings: Codable, Sendable {
         voiceName: "en-US-AvaMultilingualNeural",
         speakingRate: 1.0,
         voiceTemperature: 0.8,
+        continuousListeningEnabled: false,
         instructions: "You are a helpful voice assistant for elderly users. Speak clearly, warmly, and patiently. Keep responses concise and easy to understand.",
         vadThreshold: 0.5,
         vadPrefixPaddingMs: 300,
