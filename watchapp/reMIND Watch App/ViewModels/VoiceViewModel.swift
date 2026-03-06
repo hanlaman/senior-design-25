@@ -32,14 +32,11 @@ class VoiceViewModel: ObservableObject {
     // Coordinators
     private var eventHandler: AzureEventHandler?
     private var audioCoordinator: AudioCoordinator?
+    private var settingsSyncCoordinator: SettingsSyncCoordinator?
 
     // MARK: - State
 
     private var stateMachineObserver: AnyCancellable?
-
-    // Settings synchronization
-    private var settingsObserver: AnyCancellable?
-    private var pendingSettingsUpdate: VoiceSettings?
 
     // MARK: - Initialization
 
@@ -51,14 +48,11 @@ class VoiceViewModel: ObservableObject {
             self?.objectWillChange.send()
         }
 
-        // Observe settings changes for automatic synchronization
-        settingsObserver = settingsManager.$settings
-            .sink { [weak self] newSettings in
-                guard let self = self else { return }
-                Task { @MainActor in
-                    await self.handleSettingsChange(newSettings)
-                }
-            }
+        // Create and start settings sync coordinator
+        let coordinator = SettingsSyncCoordinator(settingsManager: settingsManager)
+        coordinator.delegate = self
+        coordinator.startObserving()
+        self.settingsSyncCoordinator = coordinator
 
         AppLogger.general.info("VoiceViewModel initialized with automatic settings sync")
     }
@@ -129,6 +123,9 @@ class VoiceViewModel: ObservableObject {
             // Mark settings as synchronized with active session
             settingsManager.markAsSynchronized(settingsManager.settings)
 
+            // Notify settings coordinator that we're connected
+            settingsSyncCoordinator?.setConnected(true)
+
             // Start conversation history session
             ConversationHistoryManager.shared.startSession(sessionId)
 
@@ -170,6 +167,9 @@ class VoiceViewModel: ObservableObject {
         // Clear active session from settings manager
         settingsManager.clearActiveSession()
 
+        // Notify settings coordinator that we're disconnected
+        settingsSyncCoordinator?.setConnected(false)
+
         azureService = nil
         audioService = nil
 
@@ -178,55 +178,8 @@ class VoiceViewModel: ObservableObject {
 
     // MARK: - Settings Synchronization
 
-    /// Handle settings changes and automatically synchronize with active session
-    private func handleSettingsChange(_ newSettings: VoiceSettings) async {
-        // Only sync if connected
-        guard stateMachine.isConnected else {
-            // Settings saved locally, will apply on next connection
-            return
-        }
-
-        // Compute what type of sync is needed
-        let syncState = settingsManager.computeSyncState()
-
-        // Check if we're in active interaction (recording, processing, or playing)
-        let isActiveInteraction = stateMachine.isActive
-
-        switch syncState {
-        case .pendingReconnection(let fields):
-            if isActiveInteraction {
-                // Defer reconnection until interaction completes
-                pendingSettingsUpdate = newSettings
-                AppLogger.general.info("Settings changed (\(fields.joined(separator: ", "))), will reconnect after current interaction")
-            } else {
-                // Safe to reconnect now
-                AppLogger.general.info("Settings changed (\(fields.joined(separator: ", "))), reconnecting...")
-                await performGracefulReconnection(with: newSettings)
-            }
-
-        case .pendingSessionUpdate(let fields):
-            if isActiveInteraction {
-                // Defer session update until interaction completes
-                pendingSettingsUpdate = newSettings
-                AppLogger.general.info("Settings changed (\(fields.joined(separator: ", "))), will update session after current interaction")
-            } else {
-                // Safe to update session now
-                AppLogger.general.info("Settings changed (\(fields.joined(separator: ", "))), updating session...")
-                await performSessionUpdate(with: newSettings)
-            }
-
-        case .synchronized:
-            // No changes needed
-            pendingSettingsUpdate = nil
-
-        case .notConnected:
-            // No active session to sync
-            break
-        }
-    }
-
     /// Perform graceful reconnection with new settings
-    private func performGracefulReconnection(with settings: VoiceSettings) async {
+    func performGracefulReconnection(with settings: VoiceSettings) async {
         AppLogger.general.info("Reconnecting to apply settings changes")
 
         // Stop audio monitoring and processing
@@ -250,7 +203,7 @@ class VoiceViewModel: ObservableObject {
     }
 
     /// Perform session update with new settings
-    private func performSessionUpdate(with settings: VoiceSettings) async {
+    func performSessionUpdate(with settings: VoiceSettings) async {
         guard let azure = azureService else {
             AppLogger.general.warning("Azure service not available for session update")
             return
@@ -274,13 +227,7 @@ class VoiceViewModel: ObservableObject {
 
     /// Check for and apply pending settings updates
     private func applyPendingSettingsUpdate() async {
-        guard let pending = pendingSettingsUpdate else {
-            return
-        }
-
-        pendingSettingsUpdate = nil
-        AppLogger.general.debug("Applying pending settings update")
-        await handleSettingsChange(pending)
+        await settingsSyncCoordinator?.applyPendingUpdates()
     }
 
     // MARK: - Voice Interaction
@@ -478,5 +425,25 @@ extension VoiceViewModel: AudioCoordinatorDelegate {
     ) {
         // Overflow is already logged by coordinator
         // Could add additional handling here if needed (e.g., show user notification)
+    }
+}
+
+// MARK: - Settings Sync Coordinator Delegate
+
+extension VoiceViewModel: SettingsSyncCoordinatorDelegate {
+    var isActiveInteraction: Bool {
+        get async {
+            return stateMachine.isActive
+        }
+    }
+
+    // Note: performReconnection and performSessionUpdate are implemented as:
+    // - performGracefulReconnection(with:)
+    // - performSessionUpdate(with:)
+    // These already exist in the class body above, so we just need to rename them
+    // or add wrapper methods here
+
+    func performReconnection(with settings: VoiceSettings) async {
+        await performGracefulReconnection(with: settings)
     }
 }
