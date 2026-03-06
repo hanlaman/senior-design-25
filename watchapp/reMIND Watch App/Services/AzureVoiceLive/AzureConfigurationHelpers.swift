@@ -28,10 +28,15 @@ extension RealtimeRequestSession {
             inputAudioFormat: .pcm16,
             outputAudioFormat: .pcm16,
             inputAudioTranscription: RealtimeAudioInputTranscriptionSettings(model: "whisper-1"),
-            turnDetection: .serverVAD(RealtimeServerVAD(
+            // Use Azure Semantic VAD for better speech detection in noisy environments
+            // speechDurationMs requires minimum speech before VAD triggers
+            turnDetection: .azureSemanticVAD(RealtimeAzureSemanticVAD(
                 threshold: settings.vadThreshold,
                 prefixPaddingMs: settings.vadPrefixPaddingMs,
-                silenceDurationMs: settings.vadSilenceDurationMs
+                silenceDurationMs: settings.vadSilenceDurationMs,
+                speechDurationMs: 500,  // Require minimum 500ms of speech before detection
+                removeFillerWords: false,
+                languages: ["en"]
             )),
             tools: tools,
             toolChoice: tools?.isEmpty == false ? .string("auto") : nil,

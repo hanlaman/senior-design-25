@@ -44,6 +44,11 @@ class AzureEventHandler {
     private let stateMachine: VoiceStateMachine
     private let historyManager: ConversationHistoryManager
 
+    /// Tracks the current recording's item ID to filter stale VAD events
+    /// When user cancels and starts a new recording, Azure may send speech_stopped
+    /// events for the old recording which should be ignored
+    private var currentRecordingItemId: String?
+
     // MARK: - Initialization
 
     init(
@@ -54,6 +59,14 @@ class AzureEventHandler {
         self.audioService = audioService
         self.stateMachine = stateMachine
         self.historyManager = historyManager
+    }
+
+    // MARK: - Recording State Management
+
+    /// Reset recording state (call when user cancels or recording ends)
+    func resetRecordingState() {
+        AppLogger.azure.debug("Resetting recording state, clearing itemId: \(self.currentRecordingItemId ?? "nil")")
+        currentRecordingItemId = nil
     }
 
     // MARK: - Event Handling
@@ -70,11 +83,20 @@ class AzureEventHandler {
             AppLogger.azure.debug("Session updated")
             // State transition handled by VoiceLiveConnection
 
-        case .inputAudioBufferSpeechStarted:
-            AppLogger.azure.debug("Speech started (VAD)")
+        case .inputAudioBufferSpeechStarted(let speechStartedEvent):
+            AppLogger.azure.debug("Speech started (VAD) - itemId: \(speechStartedEvent.itemId)")
+            // Track the current recording's item ID to filter stale events after cancel
+            currentRecordingItemId = speechStartedEvent.itemId
 
-        case .inputAudioBufferSpeechStopped:
-            AppLogger.azure.debug("Speech stopped (VAD)")
+        case .inputAudioBufferSpeechStopped(let speechStoppedEvent):
+            AppLogger.azure.debug("Speech stopped (VAD) - itemId: \(speechStoppedEvent.itemId)")
+
+            // Ignore stale speech_stopped events from a previous (canceled) recording
+            if let currentId = currentRecordingItemId, currentId != speechStoppedEvent.itemId {
+                AppLogger.azure.warning("Ignoring stale speech_stopped event (expected: \(currentId), got: \(speechStoppedEvent.itemId))")
+                return
+            }
+
             // Server VAD auto-commits the buffer, so just stop capturing
             // Do NOT call stopRecording() as that would try to commit again
             if stateMachine.isRecording {
@@ -82,6 +104,8 @@ class AzureEventHandler {
                 if let sessionId = stateMachine.sessionId {
                     delegate?.eventHandler(self, shouldTransitionTo: .processing(sessionId: sessionId))
                 }
+                // Clear the item ID since this recording is now complete
+                currentRecordingItemId = nil
                 AppLogger.general.debug("Stopped capture, waiting for server to commit buffer")
             }
 
@@ -260,6 +284,12 @@ class AzureEventHandler {
     /// Handle response audio delta event
     /// - Parameter event: Audio delta event with base64-encoded audio data
     private func handleAudioDelta(_ event: ResponseAudioDeltaEvent) async {
+        // Ignore audio if interaction was canceled (state is now idle)
+        guard stateMachine.isActive else {
+            AppLogger.azure.debug("Ignoring audio delta after cancellation")
+            return
+        }
+
         // Decode base64 audio
         guard let audioData = AudioConverter.decodeFromBase64(event.delta) else {
             AppLogger.audio.error("Failed to decode base64 audio")

@@ -59,12 +59,17 @@ enum VoiceInteractionState: Equatable {
         }
     }
 
-    /// Can start recording in current state
-    var canStartRecording: Bool {
+    /// Currently in idle state (ready to record)
+    var isIdle: Bool {
         if case .idle = self {
             return true
         }
         return false
+    }
+
+    /// Can start recording in current state
+    var canStartRecording: Bool {
+        isIdle
     }
 
     /// Currently recording audio
@@ -134,11 +139,23 @@ enum VoiceInteractionState: Equatable {
                 return "Listening..."
             }
         case .processing:
-            return "Processing..."
+            return "Thinking..."
         case .playing:
-            return "Playing..."
+            return "Speaking..."
         case .error(_, let message):
             return "Error: \(message)"
+        }
+    }
+
+    /// Hint text for tap action in current state
+    var actionHint: String? {
+        switch self {
+        case .idle:
+            return "Tap to speak"
+        case .recording, .processing, .playing:
+            return "Tap to cancel"
+        default:
+            return nil
         }
     }
 

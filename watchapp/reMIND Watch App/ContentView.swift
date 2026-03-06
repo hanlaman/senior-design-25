@@ -46,8 +46,6 @@ struct ContentView: View {
             .tag(NavigationPage.settings as NavigationPage?)
         }
         .tabViewStyle(.page)
-        // Disable page swiping during recording to prevent accidental navigation
-        .allowsHitTesting(!viewModel.state.isRecording)
         .ignoresSafeArea()
         .task {
             // Auto-connect on appear

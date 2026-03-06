@@ -38,9 +38,9 @@ actor AudioService: AudioServiceProtocol {
     private let sessionTimeoutSeconds: TimeInterval = 10.0
     private var sessionTimeoutTask: Task<Void, Never>?
 
-    // Audio chunk stream
+    // Audio chunk stream (recreated each capture session)
     private var chunkContinuation: AsyncStream<Data>.Continuation?
-    let audioChunkStream: AsyncStream<Data>
+    private(set) var audioChunkStream: AsyncStream<Data>
 
     // Playback state stream
     private var playbackStateContinuation: AsyncStream<Bool>.Continuation?
@@ -54,19 +54,15 @@ actor AudioService: AudioServiceProtocol {
     // MARK: - Initialization
 
     init() {
-        // Create audio chunk stream
-        var continuationHolder: AsyncStream<Data>.Continuation?
-        self.audioChunkStream = AsyncStream { continuation in
-            continuationHolder = continuation
-        }
-        self.chunkContinuation = continuationHolder
+        // Create audio chunk stream using makeStream for guaranteed synchronous delivery
+        let (chunkStream, chunkCont) = AsyncStream<Data>.makeStream()
+        self.audioChunkStream = chunkStream
+        self.chunkContinuation = chunkCont
 
         // Create playback state stream
-        var stateContinuation: AsyncStream<Bool>.Continuation?
-        self.playbackStateStream = AsyncStream { continuation in
-            stateContinuation = continuation
-        }
-        self.playbackStateContinuation = stateContinuation
+        let (stateStream, stateCont) = AsyncStream<Bool>.makeStream()
+        self.playbackStateStream = stateStream
+        self.playbackStateContinuation = stateCont
     }
 
     // MARK: - Playback State Management
@@ -74,6 +70,24 @@ actor AudioService: AudioServiceProtocol {
     private func setPlayingState(_ playing: Bool) {
         isPlaying = playing
         playbackStateContinuation?.yield(playing)
+    }
+
+    // MARK: - Audio Chunk Stream Management
+
+    /// Reset the audio chunk stream for a new capture session
+    /// AsyncStream can only be iterated once, so we create a fresh one each time
+    private func resetAudioChunkStream() {
+        // Finish the old continuation if it exists (safe to call multiple times)
+        chunkContinuation?.finish()
+        chunkContinuation = nil
+
+        // Create new stream using makeStream for guaranteed synchronous continuation delivery
+        // This is safer than the closure-based pattern which can have timing issues
+        let (stream, continuation) = AsyncStream<Data>.makeStream()
+        self.audioChunkStream = stream
+        self.chunkContinuation = continuation
+
+        AppLogger.audio.debug("Audio chunk stream reset for new capture session")
     }
 
     // MARK: - Audio Session Configuration
@@ -293,6 +307,10 @@ actor AudioService: AudioServiceProtocol {
 
         AppLogger.audio.info("Starting audio capture")
 
+        // Create fresh audio chunk stream for this capture session
+        // AsyncStream can only be iterated once, so we need a new one each time
+        resetAudioChunkStream()
+
         // Configure audio session
         try configureAudioSession()
 
@@ -342,6 +360,9 @@ actor AudioService: AudioServiceProtocol {
         audioEngine.inputNode.removeTap(onBus: 0)
 
         isCapturing = false
+
+        // Note: Don't finish the continuation here - let resetAudioChunkStream() handle it
+        // when a new capture session starts. This avoids race conditions with the for-await loop.
 
         // Clear capture buffer
         await bufferManager.clearCaptureBuffer()
@@ -461,8 +482,9 @@ actor AudioService: AudioServiceProtocol {
     }
 
     private func handlePlaybackComplete() async {
-        // Check if all buffers have completed
-        if activeBuffers.isEmpty {
+        // Check if all buffers have completed AND we're still in playing state
+        // (stopPlayback may have already set isPlaying=false and cleared buffers)
+        if activeBuffers.isEmpty && isPlaying {
             AppLogger.audio.info("Audio playback complete - all buffers finished")
             setPlayingState(false)
 

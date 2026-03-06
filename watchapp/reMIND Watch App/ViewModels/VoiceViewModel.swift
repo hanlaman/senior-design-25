@@ -41,6 +41,9 @@ class VoiceViewModel: ObservableObject {
 
     private var stateMachineObserver: AnyCancellable?
 
+    /// Flag to track user-initiated cancellation (prevents auto-listen after cancel)
+    private var userCanceledInteraction = false
+
     // MARK: - Initialization
 
     init() {
@@ -313,6 +316,10 @@ class VoiceViewModel: ObservableObject {
         do {
             AppLogger.general.info("Starting voice recording")
 
+            // Reset cancel flag - user starting a new recording means they want to continue
+            // This ensures auto-listen works after this interaction completes
+            userCanceledInteraction = false
+
             stateMachine.transitionTo(.recording(sessionId: sessionId, bufferBytes: 0))
 
             // Start audio capture
@@ -368,24 +375,52 @@ class VoiceViewModel: ObservableObject {
     }
 
     func cancelInteraction() async {
-        AppLogger.general.info("Canceling interaction")
+        AppLogger.general.info("cancelInteraction() called from state: \(self.stateMachine.state)")
+
+        // Mark as user-initiated cancellation to prevent auto-listen
+        userCanceledInteraction = true
 
         // Get session ID
-        guard let sessionId = stateMachine.sessionId else { return }
+        guard let sessionId = stateMachine.sessionId else {
+            AppLogger.general.warning("cancelInteraction() - No session ID, returning early")
+            return
+        }
 
+        AppLogger.general.debug("cancelInteraction() - Canceling function calls")
+        // Cancel pending function calls
+        functionCallCoordinator?.cancelAll()
+
+        AppLogger.general.debug("cancelInteraction() - Resetting event handler recording state")
+        // Reset event handler's recording item tracking to prevent stale VAD events
+        eventHandler?.resetRecordingState()
+
+        AppLogger.general.debug("cancelInteraction() - Stopping capture")
         // Stop recording if active
         await audioService?.stopCapture()
 
+        AppLogger.general.debug("cancelInteraction() - Stopping chunk processing")
+        // Stop audio chunk processing
+        await audioCoordinator?.stopProcessingAudioChunks()
+
+        AppLogger.general.debug("cancelInteraction() - Stopping playback")
         // Stop playback if active
         await audioService?.stopPlayback()
 
+        AppLogger.general.debug("cancelInteraction() - Canceling Azure response")
         // Cancel Azure response
         try? await azureService?.response.cancel()
 
+        AppLogger.general.debug("cancelInteraction() - Clearing audio buffer")
         // Clear audio buffer
         try? await azureService?.inputAudioBuffer.clear()
 
-        stateMachine.transitionTo(.idle(sessionId: sessionId))
+        // Only transition if not already idle (stopPlayback may have already triggered transition via observer)
+        AppLogger.general.debug("cancelInteraction() - Current state before transition: \(self.stateMachine.state)")
+        if !stateMachine.state.isIdle {
+            stateMachine.transitionTo(.idle(sessionId: sessionId))
+        }
+
+        AppLogger.general.info("cancelInteraction() completed, state is now: \(self.stateMachine.state)")
     }
 
     // MARK: - Private Methods
@@ -490,6 +525,13 @@ extension VoiceViewModel: AudioCoordinatorDelegate {
 
     /// Handle playback completion - optionally auto-start recording for continuous listening
     private func handlePlaybackCompleted() {
+        // Skip auto-listen if user explicitly canceled the interaction
+        if userCanceledInteraction {
+            userCanceledInteraction = false
+            AppLogger.general.debug("Skipping auto-listen: user canceled interaction")
+            return
+        }
+
         guard settingsManager.settings.continuousListeningEnabled else {
             return
         }

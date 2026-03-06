@@ -58,6 +58,13 @@ struct VoicePageView: View {
                     .foregroundColor(.white.opacity(0.7))
                     .multilineTextAlignment(.center)
 
+                // Action hint below status
+                if let hint = viewModel.state.actionHint {
+                    Text(hint)
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.5))
+                }
+
                 Spacer()
 
                 // Error message at bottom (only visible if error exists)
@@ -73,9 +80,12 @@ struct VoicePageView: View {
             }
         }
         .contentShape(Rectangle()) // Make entire area tappable
-        .onTapGesture {
-            handleTap()
-        }
+        .highPriorityGesture(
+            TapGesture()
+                .onEnded { _ in
+                    handleTap()
+                }
+        )
         .allowsHitTesting(canInteract(viewModel.state))
         .animation(.easeInOut(duration: 0.3), value: viewModel.state)
         .toolbar {
@@ -149,7 +159,7 @@ struct VoicePageView: View {
 
     private func canInteract(_ state: VoiceInteractionState) -> Bool {
         switch state {
-        case .idle, .recording:
+        case .idle, .recording, .processing, .playing:
             return true
         default:
             return false
@@ -157,21 +167,34 @@ struct VoicePageView: View {
     }
 
     private func handleTap() {
-        // Play haptic feedback
-        WKInterfaceDevice.current().play(.click)
+        // Debug: Log that tap was received
+        print("DEBUG: handleTap called, current state: \(viewModel.state)")
+
+        // Play haptic immediately to confirm tap was detected
+        let currentState = viewModel.state
 
         Task {
-            switch viewModel.state {
+            switch currentState {
             case .idle:
                 // Start recording
+                WKInterfaceDevice.current().play(.click)
+                print("DEBUG: Starting recording from idle")
                 await viewModel.startRecording()
 
             case .recording:
-                // Stop recording (user manual override)
-                await viewModel.stopRecording()
+                // Cancel recording
+                WKInterfaceDevice.current().play(.directionUp)
+                print("DEBUG: Canceling from recording state")
+                await viewModel.cancelInteraction()
+
+            case .processing, .playing:
+                // Cancel interaction
+                WKInterfaceDevice.current().play(.directionUp)
+                print("DEBUG: Canceling from \(currentState)")
+                await viewModel.cancelInteraction()
 
             default:
-                // Do nothing in other states
+                print("DEBUG: Tap ignored for state: \(currentState)")
                 break
             }
         }
