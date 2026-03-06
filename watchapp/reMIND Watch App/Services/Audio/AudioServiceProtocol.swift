@@ -36,4 +36,7 @@ protocol AudioServiceProtocol: Actor {
 
     /// Check if currently playing
     var isPlaying: Bool { get }
+
+    /// Number of active audio buffers currently queued for playback
+    var activeBufferCount: Int { get async }
 }

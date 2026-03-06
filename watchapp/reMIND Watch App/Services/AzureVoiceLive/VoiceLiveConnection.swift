@@ -532,6 +532,17 @@ public enum AzureError: LocalizedError {
     }
 }
 
+// MARK: - Protocol Conformance
+
+extension VoiceLiveConnection: VoiceConnectionProtocol {
+    /// Current session ID (derived from session state)
+    public var sessionId: String? {
+        get async {
+            return await sessionState.sessionId
+        }
+    }
+}
+
 // MARK: - Task.select Extension
 
 extension Task where Success == Never, Failure == Never {

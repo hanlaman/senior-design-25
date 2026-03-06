@@ -174,3 +174,9 @@ class VoiceSettingsManager: ObservableObject {
         // }
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension VoiceSettingsManager: SettingsManagerProtocol {
+    // All protocol requirements already implemented in the class
+}

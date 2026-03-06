@@ -150,3 +150,9 @@ class ConversationHistoryManager: ObservableObject {
         }
     }
 }
+
+// MARK: - Protocol Conformance
+
+extension ConversationHistoryManager: HistoryManagerProtocol {
+    // All protocol requirements already implemented in the class
+}

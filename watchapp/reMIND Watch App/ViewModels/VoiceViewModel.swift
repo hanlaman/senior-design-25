@@ -29,6 +29,9 @@ class VoiceViewModel: ObservableObject {
     private var audioService: AudioService?
     private let settingsManager = VoiceSettingsManager.shared
 
+    // Coordinators
+    private var eventHandler: AzureEventHandler?
+
     // MARK: - State
 
     private var isInitialized = false
@@ -93,6 +96,15 @@ class VoiceViewModel: ObservableObject {
 
             self.azureService = azure
             self.audioService = audio
+
+            // Create event handler
+            let handler = AzureEventHandler(
+                audioService: audio,
+                stateMachine: stateMachine,
+                historyManager: ConversationHistoryManager.shared
+            )
+            handler.delegate = self
+            self.eventHandler = handler
 
             // Start processing events before connect (to receive session.created/updated events)
             await startProcessingEvents()
@@ -486,208 +498,28 @@ class VoiceViewModel: ObservableObject {
     }
 
     private func handleAzureEvent(_ event: AzureServerEvent) async {
-        switch event {
-        case .sessionCreated(let sessionEvent):
-            AppLogger.azure.info("Session created: \(sessionEvent.session.id)")
-            // State transition handled by VoiceLiveConnection
-
-        case .sessionUpdated:
-            AppLogger.azure.debug("Session updated")
-            // State transition handled by VoiceLiveConnection
-
-        case .inputAudioBufferSpeechStarted:
-            AppLogger.azure.debug("Speech started (VAD)")
-
-        case .inputAudioBufferSpeechStopped:
-            AppLogger.azure.debug("Speech stopped (VAD)")
-            // Server VAD auto-commits the buffer, so just stop capturing
-            // Do NOT call stopRecording() as that would try to commit again
-            if stateMachine.isRecording {
-                await audioService?.stopCapture()
-                if let sessionId = stateMachine.sessionId {
-                    stateMachine.transitionTo(.processing(sessionId: sessionId))
-                }
-                AppLogger.general.debug("Stopped capture, waiting for server to commit buffer")
-            }
-
-        case .inputAudioBufferCommitted:
-            AppLogger.azure.debug("Audio buffer committed")
-            // Server has committed the buffer, transition to processing if not already
-            if stateMachine.isRecording {
-                if let sessionId = stateMachine.sessionId {
-                    stateMachine.transitionTo(.processing(sessionId: sessionId))
-                }
-            }
-
-        case .conversationItemCreated(let itemEvent):
-            AppLogger.azure.debug("Conversation item created: \(itemEvent.item.id) (type: \(itemEvent.item.type))")
-
-            // Add to conversation history
-            if let sessionId = stateMachine.sessionId {
-                if let (role, content) = extractMessageData(from: itemEvent.item) {
-                    ConversationHistoryManager.shared.addMessage(
-                        itemId: itemEvent.item.id,
-                        role: role,
-                        content: content,
-                        sessionId: sessionId
-                    )
-                }
-            }
-
-        case .responseCreated:
-            AppLogger.azure.debug("Response created")
-            // Note: State will transition to processing when audio chunks arrive
-
-        case .responseOutputItemAdded(let itemEvent):
-            AppLogger.azure.debug("Response output item added: \(itemEvent.item.id) (type: \(itemEvent.item.type))")
-
-        case .responseContentPartAdded(let partEvent):
-            AppLogger.azure.debug("Response content part added: \(partEvent.part.type)")
-
-        case .responseAudioTranscriptDelta(let transcriptEvent):
-            // High-frequency event - logging removed to reduce spam (fires 100s of times per interaction)
-            // Uncomment for debugging: AppLogger.debug("Transcript delta: \(transcriptEvent.delta)", category: .azure, every: 20)
-            break
-
-        case .responseAudioTranscriptDone(let transcriptEvent):
-            AppLogger.azure.info("✓ Transcript complete: \(transcriptEvent.transcript)")
-
-        case .responseAudioDelta(let deltaEvent):
-            // Decode and play audio
-            await handleResponseAudioDelta(deltaEvent)
-
-        case .responseAudioDone:
-            AppLogger.azure.info("✓ Audio streaming complete")
-
-        case .responseDone:
-            AppLogger.azure.info("Response done")
-            // Audio state observation will automatically transition to .idle when playback completes
-
-            // Check for pending settings updates to apply after interaction completes
-            await applyPendingSettingsUpdate()
-
-        case .error(let errorEvent):
-            AppLogger.azure.error("Azure error: \(errorEvent.error.message)")
-            if let sessionId = stateMachine.sessionId {
-                stateMachine.transitionTo(.error(sessionId: sessionId, message: errorEvent.error.message))
-            } else {
-                stateMachine.transitionTo(.connectionFailed(errorEvent.error.message))
-            }
-
-        // Events with default handling (logged but no action needed)
-        case .sessionAvatarConnecting:
-            AppLogger.azure.debug("Avatar connecting")
-
-        case .inputAudioBufferCleared:
-            AppLogger.azure.debug("Audio buffer cleared")
-
-        case .conversationItemRetrieved:
-            AppLogger.azure.debug("Conversation item retrieved")
-
-        case .conversationItemTruncated:
-            AppLogger.azure.debug("Conversation item truncated")
-
-        case .conversationItemDeleted:
-            AppLogger.azure.debug("Conversation item deleted")
-
-        case .conversationItemTranscriptionCompleted:
-            AppLogger.azure.debug("Transcription completed")
-
-        case .conversationItemTranscriptionDelta:
-            // High-frequency event - logging removed to reduce spam
-            break
-
-        case .conversationItemTranscriptionFailed:
-            AppLogger.azure.warning("Transcription failed")
-
-        case .responseOutputItemDone:
-            AppLogger.azure.debug("Response output item done")
-
-        case .responseContentPartDone:
-            AppLogger.azure.debug("Response content part done")
-
-        case .responseTextDelta:
-            // High-frequency event - logging removed to reduce spam
-            break
-
-        case .responseTextDone:
-            AppLogger.azure.debug("Text done")
-
-        case .responseAudioTimestampDelta:
-            // High-frequency event - logging removed to reduce spam
-            break
-
-        case .responseAudioTimestampDone:
-            AppLogger.azure.debug("Audio timestamp done")
-
-        case .responseAnimationBlendshapesDelta:
-            // High-frequency event - logging removed to reduce spam
-            break
-
-        case .responseAnimationBlendshapesDone:
-            AppLogger.azure.debug("Animation blendshapes done")
-
-        case .responseAnimationVisemeDelta:
-            // High-frequency event - logging removed to reduce spam
-            break
-
-        case .responseAnimationVisemeDone:
-            AppLogger.azure.debug("Animation viseme done")
-
-        case .responseFunctionCallArgumentsDelta:
-            // High-frequency event - logging removed to reduce spam
-            break
-
-        case .responseFunctionCallArgumentsDone:
-            AppLogger.azure.debug("Function call arguments done")
-
-        case .responseMcpCallArgumentsDelta:
-            // High-frequency event - logging removed to reduce spam
-            break
-
-        case .responseMcpCallArgumentsDone:
-            AppLogger.azure.debug("MCP call arguments done")
-
-        case .responseMcpCallInProgress:
-            AppLogger.azure.debug("MCP call in progress")
-
-        case .responseMcpCallCompleted:
-            AppLogger.azure.debug("MCP call completed")
-
-        case .responseMcpCallFailed:
-            AppLogger.azure.warning("MCP call failed")
-
-        case .mcpListToolsInProgress:
-            AppLogger.azure.debug("MCP list tools in progress")
-
-        case .mcpListToolsCompleted:
-            AppLogger.azure.debug("MCP list tools completed")
-
-        case .mcpListToolsFailed:
-            AppLogger.azure.warning("MCP list tools failed")
-
-        case .rateLimitsUpdated:
-            AppLogger.azure.debug("Rate limits updated")
-
-        case .unknown(let type):
-            AppLogger.azure.warning("Unknown event type: \(type)")
-        }
+        // Delegate all event handling to AzureEventHandler
+        await eventHandler?.handle(event)
     }
 
-    private func handleResponseAudioDelta(_ event: ResponseAudioDeltaEvent) async {
-        guard let audioService = audioService else { return }
+    // MARK: - Configuration
 
-        // Decode base64 audio
-        guard let audioData = AudioConverter.decodeFromBase64(event.delta) else {
-            AppLogger.audio.error("Failed to decode base64 audio")
-            return
-        }
+    var isConfigured: Bool {
+        AzureVoiceLiveConfig.fromBuildSettings.isValid
+    }
+}
+
+// MARK: - Azure Event Handler Delegate
+
+extension VoiceViewModel: AzureEventHandlerDelegate {
+    func eventHandler(_ handler: AzureEventHandler, didReceiveAudioDelta data: Data) async {
+        guard let audioService = audioService else { return }
 
         // Play audio - state transition handled by audio stream observer
         // AudioService will emit playback state changes via playbackStateStream
         // The observer will transition from .processing → .playing when audio starts
         do {
-            try await audioService.playAudio(audioData)
+            try await audioService.playAudio(data)
         } catch {
             AppLogger.logError(error, category: AppLogger.audio, context: "Failed to play audio")
 
@@ -701,45 +533,15 @@ class VoiceViewModel: ObservableObject {
         }
     }
 
-    /// Extract role and transcript content from conversation item
-    private func extractMessageData(
-        from item: RealtimeConversationResponseItem
-    ) -> (role: ConversationMessage.MessageRole, content: String)? {
-        switch item {
-        case .userMessage(let msg):
-            let transcript = msg.content.compactMap { part -> String? in
-                if case .inputAudio(let audio) = part {
-                    return audio.transcript
-                } else if case .inputText(let text) = part {
-                    return text.text
-                }
-                return nil
-            }.joined(separator: " ")
-
-            return transcript.isEmpty ? nil : (.user, transcript)
-
-        case .assistantMessage(let msg):
-            let transcript = msg.content.compactMap { part -> String? in
-                if case .outputAudio(let audio) = part {
-                    return audio.transcript
-                } else if case .outputText(let text) = part {
-                    return text.text
-                } else if case .responseAudio(let audio) = part {
-                    return audio.transcript
-                }
-                return nil
-            }.joined(separator: " ")
-
-            return transcript.isEmpty ? nil : (.assistant, transcript)
-
-        default:
-            return nil  // Skip system messages, function calls, etc.
-        }
+    func eventHandler(_ handler: AzureEventHandler, shouldTransitionTo state: VoiceInteractionState) {
+        stateMachine.transitionTo(state)
     }
 
-    // MARK: - Configuration
+    func eventHandler(_ handler: AzureEventHandler, didStopCaptureForVAD: Bool) async {
+        await audioService?.stopCapture()
+    }
 
-    var isConfigured: Bool {
-        AzureVoiceLiveConfig.fromBuildSettings.isValid
+    func eventHandler(_ handler: AzureEventHandler, shouldApplyPendingSettings: Bool) async {
+        await applyPendingSettingsUpdate()
     }
 }
