@@ -19,9 +19,16 @@ struct VoicePageView: View {
             Color.black
                 .ignoresSafeArea()
 
-            // Content layer: Center icon, status text, and error message
+            // Content layer: Center icon and error message
             VStack(spacing: 16) {
                 Spacer()
+
+                // Action hint above icon
+                if let hint = viewModel.state.actionHint {
+                    Text(hint)
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.5))
+                }
 
                 // Large center icon with colored background circle
                 ZStack {
@@ -62,19 +69,6 @@ struct VoicePageView: View {
                     isPulsing = newState.isRecording
                 }
 
-                // Status text below icon
-                Text(viewModel.state.displayText)
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.7))
-                    .multilineTextAlignment(.center)
-
-                // Action hint below status
-                if let hint = viewModel.state.actionHint {
-                    Text(hint)
-                        .font(.caption2)
-                        .foregroundColor(.white.opacity(0.5))
-                }
-
                 Spacer()
 
                 // Error message at bottom (only visible if error exists)
@@ -98,33 +92,32 @@ struct VoicePageView: View {
         )
         .allowsHitTesting(canInteract(viewModel.state))
         .animation(.easeInOut(duration: 0.3), value: viewModel.state)
+        .navigationTitle(viewModel.state.displayText)
         .toolbar {
             // History button (top-left)
             ToolbarItem(placement: .topBarLeading) {
-                if !viewModel.state.isRecording {
-                    Button {
-                        WKInterfaceDevice.current().play(.click)
-                        currentPage = .history
-                    } label: {
-                        Image(systemName: "bubble.left.and.bubble.right.fill")
-                            .font(.title3)
-                            .foregroundColor(.blue)
-                    }
+                Button {
+                    WKInterfaceDevice.current().play(.click)
+                    currentPage = .history
+                } label: {
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                        .font(.title3)
+                        .foregroundColor(viewModel.state.isActive ? .blue.opacity(0.3) : .blue)
                 }
+                .disabled(viewModel.state.isActive)
             }
 
             // Settings button (top-right)
             ToolbarItem(placement: .topBarTrailing) {
-                if !viewModel.state.isRecording {
-                    Button {
-                        WKInterfaceDevice.current().play(.click)
-                        currentPage = .settings
-                    } label: {
-                        Image(systemName: "gearshape.fill")
-                            .font(.title3)
-                            .foregroundColor(.blue)
-                    }
+                Button {
+                    WKInterfaceDevice.current().play(.click)
+                    currentPage = .settings
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.title3)
+                        .foregroundColor(viewModel.state.isActive ? .blue.opacity(0.3) : .blue)
                 }
+                .disabled(viewModel.state.isActive)
             }
         }
     }

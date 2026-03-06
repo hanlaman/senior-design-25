@@ -128,25 +128,21 @@ enum VoiceInteractionState: Equatable {
     var displayText: String {
         switch self {
         case .disconnected:
-            return "Disconnected"
+            return "Offline"
         case .connecting:
-            return "Connecting..."
-        case .reconnecting(let attempt, let maxAttempts):
-            return "Reconnecting (\(attempt)/\(maxAttempts))..."
+            return "Connect"
+        case .reconnecting:
+            return "Retry"
         case .connectionFailed:
-            return "Connection Failed"
+            return "Failed"
         case .idle:
             return "Ready"
-        case .recording(_, let bytes):
-            if bytes > 0 {
-                return "Listening... (\(formatBytes(bytes)))"
-            } else {
-                return "Listening..."
-            }
+        case .recording:
+            return "Listen"
         case .processing:
-            return "Thinking..."
+            return "Thinking"
         case .playing:
-            return "Speaking..."
+            return "Speaking"
         case .error:
             return "Error"
         }
