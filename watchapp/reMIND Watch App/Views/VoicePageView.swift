@@ -19,80 +19,50 @@ struct VoicePageView: View {
             Color.black
                 .ignoresSafeArea()
 
-            // Content layer: Center icon and error message
-            VStack(spacing: 16) {
-                Spacer()
+            // Captions view layer (scrollable)
+            if viewModel.captionsEnabled {
+                CaptionsView(transcriptionManager: viewModel.transcriptionManager)
+            }
 
-                // Action hint above icon
-                if let hint = viewModel.state.actionHint {
-                    Text(hint)
-                        .font(.caption2)
-                        .foregroundColor(.white.opacity(0.5))
-                }
-
-                // Large center icon with colored background circle
-                ZStack {
-                    // Subtle circular background for recording state
-                    if viewModel.state.isRecording {
-                        Circle()
-                            .fill(iconColor(for: viewModel.state).opacity(0.15))
-                            .frame(width: 120, height: 120)
-                            .scaleEffect(isPulsing ? 1.1 : 1.0)
-                            .animation(
-                                .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
-                                value: isPulsing
-                            )
+            // Content layer (only when captions OFF)
+            if !viewModel.captionsEnabled {
+                VStack(spacing: 0) {
+                    // Action hint
+                    if let hint = viewModel.state.actionHint {
+                        Text(hint)
+                            .font(.caption2)
+                            .foregroundColor(.white.opacity(0.5))
+                            .padding(.top, 8)
                     }
 
-                    // Radial progress ring for playing state
-                    if viewModel.state.isPlaying, let progress = viewModel.playbackProgress, progress > 0 {
-                        RadialProgressView(
-                            progress: progress,
-                            lineWidth: 4,
-                            color: .green.opacity(0.8)
-                        )
-                        .frame(width: 100, height: 100)
+                    Spacer()
+
+                    // Large center icon with colored background circle
+                    centerIconView
+
+                    Spacer()
+
+                    // Error message (if any)
+                    if let errorMessage = viewModel.state.errorMessage {
+                        Text(errorMessage)
+                            .font(.caption2)
+                            .foregroundColor(.red.opacity(0.9))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .padding(.horizontal)
                     }
-
-                    // Icon
-                    Image(systemName: iconName(for: viewModel.state))
-                        .font(.system(size: 64, weight: .medium))
-                        .foregroundColor(iconColor(for: viewModel.state))
-                        .scaleEffect(isPulsing && viewModel.state.isRecording ? 1.15 : 1.0)
-                        .animation(
-                            viewModel.state.isRecording ?
-                                .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default,
-                            value: isPulsing
-                        )
-                }
-                .onChange(of: viewModel.state) { _, newState in
-                    isPulsing = newState.isRecording
-                }
-
-                Spacer()
-
-                // Error message at bottom (only visible if error exists)
-                if let errorMessage = viewModel.state.errorMessage {
-                    Text(errorMessage)
-                        .font(.caption2)
-                        .foregroundColor(.red.opacity(0.9))
-                        .multilineTextAlignment(.center)
-                        .lineLimit(3)
-                        .padding(.horizontal)
-                        .padding(.bottom, 8)
                 }
             }
         }
-        .contentShape(Rectangle()) // Make entire area tappable
+        // Full-screen tap gesture only when captions OFF
+        .contentShape(Rectangle())
         .highPriorityGesture(
-            TapGesture()
-                .onEnded { _ in
-                    handleTap()
-                }
+            viewModel.captionsEnabled ? nil : TapGesture().onEnded { _ in handleTap() }
         )
         .allowsHitTesting(canInteract(viewModel.state))
         .animation(.easeInOut(duration: 0.3), value: viewModel.state)
-        .navigationTitle(viewModel.state.displayText)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.captionsEnabled)
+        .navigationTitle("")  // State display moved to bottom toolbar
         .toolbar {
             // History button (top-left)
             ToolbarItem(placement: .topBarLeading) {
@@ -119,6 +89,85 @@ struct VoicePageView: View {
                 }
                 .disabled(viewModel.state.isActive)
             }
+
+            // Bottom toolbar
+            ToolbarItem(placement: .bottomBar) {
+                HStack {
+                    // Voice controls button (visible when captions enabled, invisible otherwise for centering)
+                    Button {
+                        WKInterfaceDevice.current().play(.click)
+                        handleTap()
+                    } label: {
+                        Image(systemName: iconName(for: viewModel.state))
+                            .font(.title3)
+                            .foregroundColor(iconColor(for: viewModel.state))
+                    }
+                    .opacity(viewModel.captionsEnabled ? 1 : 0)
+                    .disabled(!viewModel.captionsEnabled)
+
+                    Spacer()
+
+                    // Voice state display (always shown in center)
+                    Text(viewModel.state.displayText)
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.8))
+
+                    Spacer()
+
+                    // Captions toggle button
+                    Button {
+                        WKInterfaceDevice.current().play(.click)
+                        viewModel.captionsEnabled.toggle()
+                    } label: {
+                        Image(systemName: viewModel.captionsEnabled ? "captions.bubble.fill" : "captions.bubble")
+                            .font(.title3)
+                            .foregroundColor(viewModel.captionsEnabled ? .green : .blue)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Center Icon View
+
+    /// The large center icon with animations (extracted for conditional display)
+    private var centerIconView: some View {
+        ZStack {
+            // Subtle circular background for recording state
+            if viewModel.state.isRecording {
+                Circle()
+                    .fill(iconColor(for: viewModel.state).opacity(0.15))
+                    .frame(width: 120, height: 120)
+                    .scaleEffect(isPulsing ? 1.1 : 1.0)
+                    .animation(
+                        .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
+                        value: isPulsing
+                    )
+            }
+
+            // Radial progress ring for playing state
+            if viewModel.state.isPlaying, let progress = viewModel.playbackProgress, progress > 0 {
+                RadialProgressView(
+                    progress: progress,
+                    lineWidth: 4,
+                    color: .green.opacity(0.8)
+                )
+                .frame(width: 100, height: 100)
+            }
+
+            // Icon
+            Image(systemName: iconName(for: viewModel.state))
+                .font(.system(size: 64, weight: .medium))
+                .foregroundColor(iconColor(for: viewModel.state))
+                .scaleEffect(isPulsing && viewModel.state.isRecording ? 1.15 : 1.0)
+                .animation(
+                    viewModel.state.isRecording ?
+                        .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default,
+                    value: isPulsing
+                )
+        }
+        .onChange(of: viewModel.state) { _, newState in
+            isPulsing = newState.isRecording
         }
     }
 

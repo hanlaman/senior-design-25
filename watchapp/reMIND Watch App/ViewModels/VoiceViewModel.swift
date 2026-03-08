@@ -26,6 +26,16 @@ class VoiceViewModel: ObservableObject {
     /// Audio playback progress (0.0 = complete, 1.0 = just started, nil = not playing)
     @Published var playbackProgress: Double?
 
+    /// Whether live captions are enabled
+    @Published var captionsEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(captionsEnabled, forKey: "captionsEnabled")
+        }
+    }
+
+    /// Transcription manager for live captioning
+    let transcriptionManager = TranscriptionManager()
+
     // MARK: - Services
 
     private var azureService: VoiceLiveConnection?
@@ -50,6 +60,9 @@ class VoiceViewModel: ObservableObject {
     // MARK: - Initialization
 
     init() {
+        // Load captions preference from UserDefaults
+        self.captionsEnabled = UserDefaults.standard.bool(forKey: "captionsEnabled")
+
         // Services will be initialized on connect
 
         // Observe state machine changes to trigger view updates and update tool sync state
@@ -186,6 +199,9 @@ class VoiceViewModel: ObservableObject {
 
             // Start conversation history session
             ConversationHistoryManager.shared.startSession(sessionId)
+
+            // Clear any previous transcription messages
+            transcriptionManager.clearMessages()
 
             AppLogger.general.info("Voice assistant connected and ready")
 
@@ -409,6 +425,9 @@ class VoiceViewModel: ObservableObject {
         // Stop playback if active
         await audioService?.stopPlayback()
 
+        // Mark agent message as cancelled (keeps progressive text, doesn't swap to completeText)
+        transcriptionManager.markAgentMessageCancelled()
+
         AppLogger.general.debug("cancelInteraction() - Canceling Azure response")
         // Cancel Azure response
         try? await azureService?.response.cancel()
@@ -494,6 +513,29 @@ extension VoiceViewModel: AzureEventHandlerDelegate {
         // Delegate to function call coordinator
         await functionCallCoordinator?.handleFunctionCall(item)
     }
+
+    // MARK: - Transcription Delegate Methods
+
+    func eventHandler(_ handler: AzureEventHandler, didCreateConversationItem itemId: String, role: TranscriptionRole) {
+        // Pre-create message to reserve sequence number in correct chronological order
+        transcriptionManager.handleConversationItemCreated(itemId: itemId, role: role)
+    }
+
+    func eventHandler(_ handler: AzureEventHandler, didReceiveInputTranscriptionDelta delta: String, itemId: String) {
+        transcriptionManager.handleInputTranscriptionDelta(delta: delta, itemId: itemId)
+    }
+
+    func eventHandler(_ handler: AzureEventHandler, didReceiveInputTranscriptionCompleted transcript: String, itemId: String) {
+        transcriptionManager.handleInputTranscriptionCompleted(transcript: transcript, itemId: itemId)
+    }
+
+    func eventHandler(_ handler: AzureEventHandler, didReceiveOutputTranscriptionDelta delta: String, itemId: String) {
+        transcriptionManager.handleOutputTranscriptionDelta(delta: delta, itemId: itemId)
+    }
+
+    func eventHandler(_ handler: AzureEventHandler, didReceiveOutputTranscriptionDone transcript: String, itemId: String) {
+        transcriptionManager.handleOutputTranscriptionDone(transcript: transcript, itemId: itemId)
+    }
 }
 
 // MARK: - Audio Coordinator Delegate
@@ -527,6 +569,9 @@ extension VoiceViewModel: AudioCoordinatorDelegate {
                 // Clear playback progress
                 playbackProgress = nil
                 audioCoordinator?.resetProgressTracking()
+
+                // Mark agent transcription as complete (swaps to clean completeText)
+                transcriptionManager.markAgentMessageComplete()
 
                 // Auto-start recording if continuous listening is enabled
                 handlePlaybackCompleted()
@@ -580,6 +625,8 @@ extension VoiceViewModel: AudioCoordinatorDelegate {
         didUpdateProgress progress: Double
     ) {
         playbackProgress = progress
+        // Update transcription reveal progress (progress goes 1.0 → 0.0, reveal goes 0.0 → 1.0)
+        transcriptionManager.updateRevealProgress(1.0 - progress)
     }
 }
 

@@ -130,15 +130,15 @@ enum VoiceInteractionState: Equatable {
         case .disconnected:
             return "Offline"
         case .connecting:
-            return "Connect"
+            return "Connecting"
         case .reconnecting:
-            return "Retry"
+            return "Retrying"
         case .connectionFailed:
             return "Failed"
         case .idle:
             return "Ready"
         case .recording:
-            return "Listen"
+            return "Listening"
         case .processing:
             return "Thinking"
         case .playing:

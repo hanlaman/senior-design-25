@@ -30,6 +30,26 @@ protocol AzureEventHandlerDelegate: AnyObject {
     /// Called when a function call is requested by Azure
     /// - Parameter item: The function call conversation item
     func eventHandler(_ handler: AzureEventHandler, didRequestFunctionCall item: RealtimeConversationFunctionCallItem) async
+
+    // MARK: - Transcription Events
+
+    /// Called when a conversation item is created (use to pre-reserve sequence number)
+    /// - Parameters:
+    ///   - itemId: Azure conversation item ID
+    ///   - role: Whether this is a user or agent message
+    func eventHandler(_ handler: AzureEventHandler, didCreateConversationItem itemId: String, role: TranscriptionRole)
+
+    /// Called when a delta for user input transcription is received
+    func eventHandler(_ handler: AzureEventHandler, didReceiveInputTranscriptionDelta delta: String, itemId: String)
+
+    /// Called when user input transcription is completed
+    func eventHandler(_ handler: AzureEventHandler, didReceiveInputTranscriptionCompleted transcript: String, itemId: String)
+
+    /// Called when a delta for agent output transcription is received
+    func eventHandler(_ handler: AzureEventHandler, didReceiveOutputTranscriptionDelta delta: String, itemId: String)
+
+    /// Called when agent output transcription is done (full text received)
+    func eventHandler(_ handler: AzureEventHandler, didReceiveOutputTranscriptionDone transcript: String, itemId: String)
 }
 
 /// Handles all Azure Voice Live server events
@@ -127,6 +147,17 @@ class AzureEventHandler {
                 await delegate?.eventHandler(self, didRequestFunctionCall: functionCallItem)
             }
 
+            // Pre-create transcription message for user/assistant messages (reserves sequence number)
+            let itemId = String(itemEvent.item.id)
+            switch itemEvent.item {
+            case .userMessage:
+                delegate?.eventHandler(self, didCreateConversationItem: itemId, role: .user)
+            case .assistantMessage:
+                delegate?.eventHandler(self, didCreateConversationItem: itemId, role: .agent)
+            default:
+                break  // Skip function calls, etc.
+            }
+
             // Add to conversation history
             if let sessionId = stateMachine.sessionId {
                 if let (role, content) = extractMessageData(from: itemEvent.item) {
@@ -150,12 +181,17 @@ class AzureEventHandler {
             AppLogger.azure.debug("Response content part added: \(partEvent.part.type)")
 
         case .responseAudioTranscriptDelta(let transcriptEvent):
-            // High-frequency event - logging removed to reduce spam (fires 100s of times per interaction)
-            // Uncomment for debugging: AppLogger.debug("Transcript delta: \(transcriptEvent.delta)", category: .azure, every: 20)
-            break
+            // Forward to delegate for live captioning (copy strings to avoid memory issues)
+            let delta = String(transcriptEvent.delta)
+            let itemId = String(transcriptEvent.itemId)
+            delegate?.eventHandler(self, didReceiveOutputTranscriptionDelta: delta, itemId: itemId)
 
         case .responseAudioTranscriptDone(let transcriptEvent):
             AppLogger.azure.info("✓ Transcript complete: \(transcriptEvent.transcript)")
+            // Forward to delegate for live captioning (copy strings to avoid memory issues)
+            let transcript = String(transcriptEvent.transcript)
+            let itemId = String(transcriptEvent.itemId)
+            delegate?.eventHandler(self, didReceiveOutputTranscriptionDone: transcript, itemId: itemId)
 
         case .responseAudioDelta(let deltaEvent):
             // Decode and play audio
@@ -195,12 +231,18 @@ class AzureEventHandler {
         case .conversationItemDeleted:
             AppLogger.azure.debug("Conversation item deleted")
 
-        case .conversationItemTranscriptionCompleted:
-            AppLogger.azure.debug("Transcription completed")
+        case .conversationItemTranscriptionCompleted(let transcriptEvent):
+            AppLogger.azure.debug("Transcription completed: \(transcriptEvent.itemId)")
+            // Forward to delegate for live captioning (copy strings to avoid memory issues)
+            let transcript = String(transcriptEvent.transcript)
+            let itemId = String(transcriptEvent.itemId)
+            delegate?.eventHandler(self, didReceiveInputTranscriptionCompleted: transcript, itemId: itemId)
 
-        case .conversationItemTranscriptionDelta:
-            // High-frequency event - logging removed to reduce spam
-            break
+        case .conversationItemTranscriptionDelta(let transcriptEvent):
+            // Forward to delegate for live captioning (copy strings to avoid memory issues)
+            let delta = String(transcriptEvent.delta)
+            let itemId = String(transcriptEvent.itemId)
+            delegate?.eventHandler(self, didReceiveInputTranscriptionDelta: delta, itemId: itemId)
 
         case .conversationItemTranscriptionFailed:
             AppLogger.azure.warning("Transcription failed")
