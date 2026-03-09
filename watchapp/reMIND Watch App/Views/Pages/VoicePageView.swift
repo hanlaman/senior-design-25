@@ -11,7 +11,6 @@ import WatchKit
 struct VoicePageView: View {
     @ObservedObject var viewModel: VoiceViewModel
     @Binding var currentPage: ContentView.NavigationPage?
-    @State private var isPulsing = false
 
     var body: some View {
         ZStack {
@@ -133,18 +132,6 @@ struct VoicePageView: View {
     /// The large center icon with animations (extracted for conditional display)
     private var centerIconView: some View {
         ZStack {
-            // Subtle circular background for recording state
-            if viewModel.state.isRecording {
-                Circle()
-                    .fill(iconColor(for: viewModel.state).opacity(0.15))
-                    .frame(width: 120, height: 120)
-                    .scaleEffect(isPulsing ? 1.1 : 1.0)
-                    .animation(
-                        .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
-                        value: isPulsing
-                    )
-            }
-
             // Radial progress ring for playing state
             if viewModel.state.isPlaying, let progress = viewModel.playbackProgress, progress > 0 {
                 RadialProgressView(
@@ -159,15 +146,6 @@ struct VoicePageView: View {
             Image(systemName: iconName(for: viewModel.state))
                 .font(.system(size: 64, weight: .medium))
                 .foregroundColor(iconColor(for: viewModel.state))
-                .scaleEffect(isPulsing && viewModel.state.isRecording ? 1.15 : 1.0)
-                .animation(
-                    viewModel.state.isRecording ?
-                        .easeInOut(duration: 0.8).repeatForever(autoreverses: true) : .default,
-                    value: isPulsing
-                )
-        }
-        .onChange(of: viewModel.state) { _, newState in
-            isPulsing = newState.isRecording
         }
     }
 
@@ -194,8 +172,10 @@ struct VoicePageView: View {
 
     private func iconName(for state: VoiceInteractionState) -> String {
         switch state {
-        case .idle, .recording:
+        case .idle:
             return "mic.fill"
+        case .recording:
+            return "ear.fill"
         case .processing:
             return "waveform"
         case .playing:
