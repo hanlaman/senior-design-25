@@ -34,12 +34,12 @@ class SettingsSyncCoordinator {
 
     private let settingsManager: VoiceSettingsManager
     private var settingsObserver: AnyCancellable?
-    private var pendingSettings: VoiceSettings?
-    private var isConnected = false
+    private(set) var pendingSettings: VoiceSettings?
+    private(set) var isConnected = false
 
     // MARK: - Initialization
 
-    init(settingsManager: VoiceSettingsManager) {
+    init(settingsManager: VoiceSettingsManager = .shared) {
         self.settingsManager = settingsManager
     }
 

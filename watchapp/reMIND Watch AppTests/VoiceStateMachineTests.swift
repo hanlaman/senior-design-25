@@ -199,7 +199,7 @@ final class VoiceStateMachineTests: XCTestCase {
         XCTAssertFalse(stateMachine.canCancel)
         XCTAssertNil(stateMachine.sessionId)
         XCTAssertNil(stateMachine.errorMessage)
-        XCTAssertEqual(stateMachine.displayText, "Disconnected")
+        XCTAssertEqual(stateMachine.displayText, "Offline")
     }
 
     func testStateProperties_Idle() {
@@ -249,7 +249,7 @@ final class VoiceStateMachineTests: XCTestCase {
         XCTAssertTrue(stateMachine.isActive)
         XCTAssertTrue(stateMachine.canCancel)
         XCTAssertEqual(stateMachine.sessionId, testSessionId)
-        XCTAssertEqual(stateMachine.displayText, "Processing...")
+        XCTAssertEqual(stateMachine.displayText, "Thinking")
     }
 
     func testStateProperties_Playing() {
@@ -267,7 +267,7 @@ final class VoiceStateMachineTests: XCTestCase {
         XCTAssertTrue(stateMachine.isActive)
         XCTAssertTrue(stateMachine.canCancel)
         XCTAssertEqual(stateMachine.sessionId, testSessionId)
-        XCTAssertTrue(stateMachine.displayText.contains("Playing"))
+        XCTAssertEqual(stateMachine.displayText, "Speaking")
     }
 
     func testStateProperties_Error() {
@@ -300,24 +300,28 @@ final class VoiceStateMachineTests: XCTestCase {
 
     // MARK: - Display Text Tests
 
-    func testDisplayText_WithBufferInfo() {
+    func testDisplayText_simpleLabels() {
+        // Display text uses simple user-friendly labels without buffer details
         stateMachine.transitionTo(.connecting)
+        XCTAssertEqual(stateMachine.displayText, "Connecting")
+
         stateMachine.transitionTo(.idle(sessionId: testSessionId))
+        XCTAssertEqual(stateMachine.displayText, "Ready")
 
-        // Recording with small buffer
+        // Recording shows "Listening" regardless of buffer size
         stateMachine.transitionTo(.recording(sessionId: testSessionId, bufferBytes: 512))
-        XCTAssertTrue(stateMachine.displayText.contains("512B"))
+        XCTAssertEqual(stateMachine.displayText, "Listening")
 
-        // Recording with KB buffer
         stateMachine.transitionTo(.recording(sessionId: testSessionId, bufferBytes: 2048))
-        XCTAssertTrue(stateMachine.displayText.contains("2KB"))
+        XCTAssertEqual(stateMachine.displayText, "Listening")
 
-        // Processing
+        // Processing shows "Thinking"
         stateMachine.transitionTo(.processing(sessionId: testSessionId))
+        XCTAssertEqual(stateMachine.displayText, "Thinking")
 
-        // Playing with multiple buffers
+        // Playing shows "Speaking" regardless of buffer count
         stateMachine.transitionTo(.playing(sessionId: testSessionId, activeBuffers: 3))
-        XCTAssertTrue(stateMachine.displayText.contains("3 chunks"))
+        XCTAssertEqual(stateMachine.displayText, "Speaking")
     }
 
     // MARK: - Equatable Tests
