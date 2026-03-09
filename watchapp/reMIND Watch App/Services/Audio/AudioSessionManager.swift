@@ -11,7 +11,8 @@ import AVFoundation
 import os
 
 /// Delegate protocol for audio session events
-protocol AudioSessionManagerDelegate: AnyObject {
+/// Note: Using @Sendable closures instead of actor delegate for simpler integration
+protocol AudioSessionManagerDelegate: AnyObject, Sendable {
     /// Called when audio interruption begins
     func audioSessionManagerDidBeginInterruption(_ manager: AudioSessionManager) async
 
@@ -25,14 +26,39 @@ protocol AudioSessionManagerDelegate: AnyObject {
 }
 
 /// Manages AVAudioSession configuration, interruptions, and route changes
-actor AudioSessionManager {
+final class AudioSessionManager: Sendable {
     // MARK: - Properties
 
-    weak var delegate: AudioSessionManagerDelegate?
+    /// Callback for interruption began event (set by AudioService)
+    nonisolated(unsafe) var onInterruptionBegan: (@Sendable () async -> Void)?
 
-    private var interruptionTask: Task<Void, Never>?
-    private var routeChangeTask: Task<Void, Never>?
-    private var isActive = false
+    /// Callback for interruption ended event
+    nonisolated(unsafe) var onInterruptionEnded: (@Sendable (_ shouldResume: Bool) async -> Void)?
+
+    /// Callback for route change event
+    nonisolated(unsafe) var onRouteChange: (@Sendable (_ reason: AVAudioSession.RouteChangeReason) async -> Void)?
+
+    private let lock = NSLock()
+    private var _interruptionTask: Task<Void, Never>?
+    private var _routeChangeTask: Task<Void, Never>?
+    private var _isActive = false
+
+    private var interruptionTask: Task<Void, Never>? {
+        get { lock.withLock { _interruptionTask } }
+        set { lock.withLock { _interruptionTask = newValue } }
+    }
+
+    private var routeChangeTask: Task<Void, Never>? {
+        get { lock.withLock { _routeChangeTask } }
+        set { lock.withLock { _routeChangeTask = newValue } }
+    }
+
+    var isActive: Bool {
+        get { lock.withLock { _isActive } }
+        set { lock.withLock { _isActive = newValue } }
+    }
+
+    init() {}
 
     // MARK: - Session Configuration
 
@@ -77,6 +103,13 @@ actor AudioSessionManager {
         isActive = false
     }
 
+    /// Reactivate after interruption
+    func reactivate() throws {
+        let audioSession = AVAudioSession.sharedInstance()
+        try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
+        AppLogger.audio.debug("Audio session reactivated after interruption")
+    }
+
     /// Check if the session is currently active
     var isSessionActive: Bool {
         isActive
@@ -115,14 +148,14 @@ actor AudioSessionManager {
         switch type {
         case .began:
             AppLogger.audio.warning("Audio session interrupted")
-            await delegate?.audioSessionManagerDidBeginInterruption(self)
+            await onInterruptionBegan?()
 
         case .ended:
             if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
                 let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
                 let shouldResume = options.contains(.shouldResume)
                 AppLogger.audio.debug("Audio session interruption ended - shouldResume: \(shouldResume)")
-                await delegate?.audioSessionManager(self, didEndInterruptionWithShouldResume: shouldResume)
+                await onInterruptionEnded?(shouldResume)
             }
 
         @unknown default:
@@ -192,6 +225,6 @@ actor AudioSessionManager {
             AppLogger.audio.warning("Audio route: Unknown reason (\(reasonValue))")
         }
 
-        await delegate?.audioSessionManager(self, didChangeRouteWithReason: reason)
+        await onRouteChange?(reason)
     }
 }

@@ -34,6 +34,9 @@ class ToolSyncCoordinator {
     private var isSessionActive: Bool = false
     private var isInActiveInteraction: Bool = false
 
+    /// Whether a sync is pending (queued during active interaction)
+    private var hasPendingSync: Bool = false
+
     /// Initialize coordinator
     /// - Parameters:
     ///   - toolRegistry: Registry of available tools
@@ -77,13 +80,34 @@ class ToolSyncCoordinator {
     /// Update interaction state
     /// - Parameter isActive: Whether user is in active interaction (recording/processing/playing)
     func setInteractionState(_ isActive: Bool) {
+        let wasActive = isInActiveInteraction
         isInActiveInteraction = isActive
 
         if isActive {
             AppLogger.general.debug("ToolSyncCoordinator: Interaction is now active")
         } else {
             AppLogger.general.debug("ToolSyncCoordinator: Interaction is now idle")
+
+            // Apply pending sync if interaction just ended
+            if wasActive && hasPendingSync {
+                Task { @MainActor in
+                    await applyPendingSync()
+                }
+            }
         }
+    }
+
+    /// Apply any pending tool sync
+    private func applyPendingSync() async {
+        guard hasPendingSync else { return }
+        guard isSessionActive else {
+            hasPendingSync = false
+            return
+        }
+
+        hasPendingSync = false
+        AppLogger.general.info("Applying pending tool sync after interaction ended")
+        await delegate?.toolSyncCoordinatorDidRequestSync(self)
     }
 
     // MARK: - Private Helpers
@@ -96,10 +120,10 @@ class ToolSyncCoordinator {
             return
         }
 
-        // Defer sync if in active interaction (recording, processing, playing)
-        guard !isInActiveInteraction else {
-            AppLogger.general.info("Tools changed during interaction, deferring sync until idle")
-            // TODO: Could queue the sync and apply when interaction ends
+        // Queue sync if in active interaction (recording, processing, playing)
+        if isInActiveInteraction {
+            hasPendingSync = true
+            AppLogger.general.info("Tools changed during interaction, queued for sync when idle")
             return
         }
 

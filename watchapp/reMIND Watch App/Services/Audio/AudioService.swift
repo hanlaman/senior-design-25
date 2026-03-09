@@ -16,6 +16,7 @@ actor AudioService: AudioServiceProtocol {
     private let audioEngine = AVAudioEngine()
     private let playerNode = AVAudioPlayerNode()
     private let bufferManager = AudioBufferManager()
+    private let sessionManager = AudioSessionManager()
 
     private(set) var isCapturing = false
     private(set) var isPlaying = false
@@ -30,9 +31,6 @@ actor AudioService: AudioServiceProtocol {
     var activeBufferCount: Int {
         activeBuffers.count
     }
-
-    // Interruption handling
-    private var interruptionTask: Task<Void, Never>?
 
     // Session timeout configuration
     private let sessionTimeoutSeconds: TimeInterval = AudioConfiguration.sessionTimeout
@@ -72,6 +70,19 @@ actor AudioService: AudioServiceProtocol {
         let (bufferStream, bufferCont) = AsyncStream<BufferEvent>.makeStream()
         self.bufferEventStream = bufferStream
         self.bufferEventContinuation = bufferCont
+
+        // Set up session manager callbacks
+        sessionManager.onInterruptionBegan = { [weak self] in
+            await self?.handleInterruptionBegan()
+        }
+
+        sessionManager.onInterruptionEnded = { [weak self] shouldResume in
+            await self?.handleInterruptionEnded(shouldResume: shouldResume)
+        }
+
+        sessionManager.onRouteChange = { [weak self] reason in
+            await self?.handleRouteChange(reason)
+        }
     }
 
     // MARK: - Playback State Management
@@ -99,108 +110,19 @@ actor AudioService: AudioServiceProtocol {
         AppLogger.audio.debug("Audio chunk stream reset for new capture session")
     }
 
-    // MARK: - Audio Session Configuration
+    // MARK: - Audio Session Configuration (delegated to AudioSessionManager)
 
     private func configureAudioSession() throws {
-        let audioSession = AVAudioSession.sharedInstance()
-
-        // Build options with availability-safe flags
-        let options: AVAudioSession.CategoryOptions
-        if #available(watchOS 11.0, *) {
-            // watchOS 11+: Use new Bluetooth flags (both allowBluetooth and HFP/A2DP available)
-            options = [.allowBluetooth, .allowBluetoothHFP, .allowBluetoothA2DP]
-        } else {
-            // watchOS < 11: Only A2DP is available
-            // Note: .allowBluetooth is not available before watchOS 11
-            options = [.allowBluetoothA2DP]
-        }
-
-        try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: options)
-
-        // Note: setPreferredInput is not available on watchOS
-        // watchOS automatically routes to Bluetooth when available based on category options
-
-        try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
-
-        AppLogger.audio.info("Audio session configured: category=playAndRecord, mode=voiceChat")
-        AppLogger.audio.debug("Current route: \(audioSession.currentRoute)")
-
-        // Start monitoring for interruptions and route changes
-        startMonitoringInterruptions()
-        startMonitoringRouteChanges()
+        try sessionManager.activate()
     }
 
     private func deactivateAudioSession() {
-        let audioSession = AVAudioSession.sharedInstance()
-
-        // Stop monitoring interruptions and route changes
-        stopMonitoringInterruptions()
-        stopMonitoringRouteChanges()
-
-        do {
-            try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
-            AppLogger.audio.debug("Audio session deactivated")
-        } catch {
-            AppLogger.logError(error, category: AppLogger.audio, context: "Failed to deactivate audio session")
-        }
+        sessionManager.deactivate()
     }
 
-    // MARK: - Interruption Handling
+    // MARK: - Session Event Handlers (called by AudioSessionManager callbacks)
 
-    private func startMonitoringInterruptions() {
-        // Cancel any existing monitoring task
-        interruptionTask?.cancel()
-
-        interruptionTask = Task { [weak self] in
-            let notificationCenter = NotificationCenter.default
-            let notifications = notificationCenter.notifications(named: AVAudioSession.interruptionNotification)
-
-            for await notification in notifications {
-                await self?.handleInterruption(notification)
-            }
-        }
-
-        AppLogger.audio.info("Started monitoring audio interruptions")
-    }
-
-    private func stopMonitoringInterruptions() {
-        interruptionTask?.cancel()
-        interruptionTask = nil
-        AppLogger.audio.info("Stopped monitoring audio interruptions")
-    }
-
-    // MARK: - Route Change Handling
-
-    private var routeChangeTask: Task<Void, Never>?
-
-    private func startMonitoringRouteChanges() {
-        routeChangeTask?.cancel()
-
-        routeChangeTask = Task { [weak self] in
-            let notificationCenter = NotificationCenter.default
-            let notifications = notificationCenter.notifications(named: AVAudioSession.routeChangeNotification)
-
-            for await notification in notifications {
-                await self?.handleRouteChange(notification)
-            }
-        }
-
-        AppLogger.audio.debug("Started monitoring audio route changes")
-    }
-
-    private func stopMonitoringRouteChanges() {
-        routeChangeTask?.cancel()
-        routeChangeTask = nil
-        AppLogger.audio.debug("Stopped monitoring audio route changes")
-    }
-
-    private func handleRouteChange(_ notification: Notification) async {
-        guard let userInfo = notification.userInfo,
-              let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
-              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else {
-            return
-        }
-
+    private func handleRouteChange(_ reason: AVAudioSession.RouteChangeReason) async {
         let audioSession = AVAudioSession.sharedInstance()
         let currentRoute = audioSession.currentRoute
 
@@ -233,34 +155,7 @@ actor AudioService: AudioServiceProtocol {
             AppLogger.audio.debug("Audio route: Configuration change")
 
         @unknown default:
-            AppLogger.audio.warning("Audio route: Unknown reason (\(reasonValue))")
-        }
-    }
-
-    private func handleInterruption(_ notification: Notification) async {
-        guard let userInfo = notification.userInfo,
-              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
-            return
-        }
-
-        switch type {
-        case .began:
-            // Interruption started (e.g., phone call, notification)
-            AppLogger.audio.warning("Audio session interrupted - stopping playback/capture")
-            await handleInterruptionBegan()
-
-        case .ended:
-            // Interruption ended
-            if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
-                let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
-                let shouldResume = options.contains(.shouldResume)
-                AppLogger.audio.debug("Audio session interruption ended - shouldResume: \(shouldResume)")
-                await handleInterruptionEnded(shouldResume: shouldResume)
-            }
-
-        @unknown default:
-            AppLogger.audio.warning("Unknown interruption type received")
+            AppLogger.audio.warning("Audio route: Unknown reason")
         }
     }
 
@@ -289,11 +184,9 @@ actor AudioService: AudioServiceProtocol {
 
     private func handleInterruptionEnded(shouldResume: Bool) async {
         if shouldResume {
-            // Try to reactivate audio session
+            // Try to reactivate audio session via session manager
             do {
-                let audioSession = AVAudioSession.sharedInstance()
-                try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
-                AppLogger.audio.debug("Audio session reactivated after interruption")
+                try sessionManager.reactivate()
 
                 // Restart audio engine if it was running before interruption
                 if (isCapturing || isPlaying) && !isEngineRunning {
