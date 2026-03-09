@@ -1,13 +1,11 @@
 //
-//  NetworkConfiguration.swift
+//  WebSocketConfiguration.swift
 //  reMIND Watch App
 //
-//  Centralized configuration constants for network and timing parameters
+//  Configuration constants for WebSocket connection management
 //
 
 import Foundation
-
-// MARK: - WebSocket Configuration
 
 /// Configuration constants for WebSocket connection management
 enum WebSocketConfiguration {
@@ -30,23 +28,4 @@ enum WebSocketConfiguration {
     /// Maximum delay between reconnection attempts (seconds)
     /// Used with exponential backoff: min(2^attempt, maxReconnectDelay)
     static let maxReconnectDelay: TimeInterval = 30
-}
-
-// MARK: - Session Configuration
-
-/// Configuration constants for Azure session management
-enum SessionConfiguration {
-    /// Timeout waiting for session to be established (seconds)
-    static let establishmentTimeout: TimeInterval = 10.0
-
-    /// Small delay for session state polling (seconds)
-    static let statePollingDelay: TimeInterval = 0.1
-}
-
-// MARK: - Location Configuration
-
-/// Configuration constants for location service
-enum LocationConfiguration {
-    /// Timeout for location update API requests (seconds)
-    static let requestTimeout: TimeInterval = 10
 }
