@@ -175,17 +175,6 @@ enum VoiceInteractionState: Equatable {
         }
     }
 
-    // MARK: - Helper Methods
-
-    private func formatBytes(_ bytes: Int) -> String {
-        if bytes < 1024 {
-            return "\(bytes)B"
-        } else if bytes < 1024 * 1024 {
-            return "\(bytes / 1024)KB"
-        } else {
-            return "\(bytes / (1024 * 1024))MB"
-        }
-    }
 }
 
 // MARK: - CustomStringConvertible

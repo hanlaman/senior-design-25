@@ -158,29 +158,6 @@ class VoiceSettingsManager: ObservableObject {
         return settings.changedFields(comparedTo: active)
     }
 
-    // MARK: - Remote Sync (Stub for Future Implementation)
-
-    /// Sync settings with remote API
-    /// - Note: Stub implementation. To be implemented when remote API is ready.
-    func syncWithRemote() async throws {
-        AppLogger.general.info("Remote sync requested (not yet implemented)")
-
-        // TODO: Implement remote sync when API is ready
-        // Steps to implement:
-        // 1. Fetch remote settings from API
-        // 2. Compare remoteVersion with local version
-        // 3. Merge or overwrite based on strategy (e.g., remote wins if newer)
-        // 4. Update lastSyncDate
-        // 5. Save updated settings locally
-        //
-        // Example:
-        // let remoteSettings = try await fetchRemoteSettings()
-        // if shouldUpdateFromRemote(remoteSettings) {
-        //     var updated = remoteSettings
-        //     updated.lastSyncDate = Date()
-        //     save(updated)
-        // }
-    }
 }
 
 // MARK: - Protocol Conformance

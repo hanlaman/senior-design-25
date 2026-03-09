@@ -40,8 +40,9 @@ class VoiceViewModel: ObservableObject {
 
     private var azureService: VoiceLiveConnection?
     private var audioService: AudioService?
-    private let settingsManager = VoiceSettingsManager.shared
-    private let toolRegistry = ToolRegistry.shared
+    private let settingsManager: VoiceSettingsManager
+    private let toolRegistry: ToolRegistry
+    private let historyManager: ConversationHistoryManager
 
     // Coordinators
     private var eventHandler: AzureEventHandler?
@@ -77,9 +78,15 @@ class VoiceViewModel: ObservableObject {
 
     /// Initialize VoiceViewModel with optional dependency injection for testability
     /// - Parameters:
+    ///   - settingsManager: Voice settings manager (defaults to shared instance)
+    ///   - toolRegistry: Tool registry (defaults to shared instance)
+    ///   - historyManager: Conversation history manager (defaults to shared instance)
     ///   - azureServiceFactory: Factory closure for creating Azure connection (defaults to VoiceLiveConnection)
     ///   - audioServiceFactory: Factory closure for creating audio service (defaults to AudioService)
     init(
+        settingsManager: VoiceSettingsManager = .shared,
+        toolRegistry: ToolRegistry = .shared,
+        historyManager: ConversationHistoryManager = .shared,
         azureServiceFactory: @escaping (String, String, String, String, VoiceSettings) -> VoiceLiveConnection = {
             endpoint, apiKey, model, apiVersion, settings in
             VoiceLiveConnection(
@@ -92,6 +99,9 @@ class VoiceViewModel: ObservableObject {
         },
         audioServiceFactory: @escaping () -> AudioService = { AudioService() }
     ) {
+        self.settingsManager = settingsManager
+        self.toolRegistry = toolRegistry
+        self.historyManager = historyManager
         self.azureServiceFactory = azureServiceFactory
         self.audioServiceFactory = audioServiceFactory
         // Load captions preference from UserDefaults
@@ -150,104 +160,130 @@ class VoiceViewModel: ObservableObject {
         stateMachine.transitionTo(.connecting)
 
         do {
-            // Create services with current settings using injected factories
-            // Build endpoint from resource name
-            let endpoint = "\(config.resourceName).services.ai.azure.com"
-            let azure = azureServiceFactory(
-                endpoint,
-                config.apiKey,
-                config.model,
-                config.apiVersion,
-                settingsManager.settings
-            )
-            let audio = audioServiceFactory()
+            // Create services and coordinators
+            let (azure, audio) = createServices(with: config)
+            createCoordinators(azure: azure, audio: audio)
 
-            self.azureService = azure
-            self.audioService = audio
-
-            // Create event handler
-            let handler = AzureEventHandler(
-                audioService: audio,
-                stateMachine: stateMachine,
-                historyManager: ConversationHistoryManager.shared
-            )
-            handler.delegate = self
-            self.eventHandler = handler
-
-            // Create audio coordinator
-            let coordinator = AudioCoordinator(audioService: audio, azureService: azure)
-            coordinator.delegate = self
-            self.audioCoordinator = coordinator
-
-            // Create function call coordinator
-            let functionCoordinator = FunctionCallCoordinator(
-                toolRegistry: toolRegistry,
-                azureService: azure
-            )
-            functionCoordinator.delegate = self
-            self.functionCallCoordinator = functionCoordinator
-
-            // Create tool sync coordinator
-            let toolSync = ToolSyncCoordinator(
-                toolRegistry: toolRegistry,
-                settingsManager: settingsManager
-            )
-            toolSync.delegate = self
-            self.toolSyncCoordinator = toolSync
-
-            // Start processing events before connect (to receive session.created/updated events)
+            // Start event processing before connect
             await startProcessingEvents()
 
-            // Get enabled tools for session configuration
-            let enabledTools = toolRegistry.getEnabledTools()
+            // Establish connection and configure session
+            let sessionId = try await establishSession(azure: azure)
 
-            // Connect to Azure WebSocket and establish session with tools
-            // This now handles the entire flow: WebSocket connect → session.created → session.update → ready
-            try await azure.connect()
-
-            // Update session with tools
-            let configWithTools = RealtimeRequestSession.fromSettings(settingsManager.settings, tools: enabledTools)
-            try await azure.session.update(configWithTools)
-
-            // Get session ID from Azure
-            let azureSessionState = await azure.sessionState
-            guard let sessionId = azureSessionState.sessionId else {
-                throw NSError(domain: "VoiceViewModel", code: 1, userInfo: [NSLocalizedDescriptionKey: "Session ID not available"])
-            }
-
-            // Session is now ready, update UI state
-            stateMachine.transitionTo(.idle(sessionId: sessionId))
-
-            // Start audio monitoring (playback state and buffer overflow)
-            audioCoordinator?.startMonitoring()
-
-            // Mark settings as synchronized with active session
-            settingsManager.markAsSynchronized(settingsManager.settings)
-
-            // Notify settings coordinator that we're connected
-            settingsSyncCoordinator?.setConnected(true)
-
-            // Start observing tool changes for auto-sync
-            toolSyncCoordinator?.setSessionActive(true)
-            toolSyncCoordinator?.startObserving()
-
-            // Start conversation history session
-            ConversationHistoryManager.shared.startSession(sessionId)
-
-            // Clear any previous transcription messages
-            transcriptionManager.clearMessages()
+            // Post-connection setup
+            onConnectionEstablished(sessionId: sessionId)
 
             AppLogger.general.info("Voice assistant connected and ready")
 
         } catch {
             AppLogger.logError(error, category: AppLogger.general, context: "Connection failed")
             stateMachine.transitionTo(.connectionFailed(error.localizedDescription))
-
-            // Clean up on failure
-            await azureService?.disconnect()
-            azureService = nil
-            audioService = nil
+            await cleanupOnConnectionFailure()
         }
+    }
+
+    // MARK: - Connection Helpers
+
+    /// Create Azure and Audio services
+    private func createServices(with config: AzureVoiceLiveConfig) -> (VoiceLiveConnection, AudioService) {
+        let endpoint = "\(config.resourceName).services.ai.azure.com"
+        let azure = azureServiceFactory(
+            endpoint,
+            config.apiKey,
+            config.model,
+            config.apiVersion,
+            settingsManager.settings
+        )
+        let audio = audioServiceFactory()
+
+        self.azureService = azure
+        self.audioService = audio
+
+        return (azure, audio)
+    }
+
+    /// Create all coordinators for the connection
+    private func createCoordinators(azure: VoiceLiveConnection, audio: AudioService) {
+        // Event handler
+        let handler = AzureEventHandler(
+            audioService: audio,
+            stateMachine: stateMachine,
+            historyManager: historyManager
+        )
+        handler.delegate = self
+        self.eventHandler = handler
+
+        // Audio coordinator
+        let audioCoord = AudioCoordinator(audioService: audio, azureService: azure)
+        audioCoord.delegate = self
+        self.audioCoordinator = audioCoord
+
+        // Function call coordinator
+        let functionCoord = FunctionCallCoordinator(
+            toolRegistry: toolRegistry,
+            azureService: azure
+        )
+        functionCoord.delegate = self
+        self.functionCallCoordinator = functionCoord
+
+        // Tool sync coordinator
+        let toolSync = ToolSyncCoordinator(
+            toolRegistry: toolRegistry,
+            settingsManager: settingsManager
+        )
+        toolSync.delegate = self
+        self.toolSyncCoordinator = toolSync
+    }
+
+    /// Establish Azure session and return session ID
+    private func establishSession(azure: VoiceLiveConnection) async throws -> String {
+        // Get enabled tools
+        let enabledTools = toolRegistry.getEnabledTools()
+
+        // Connect to Azure WebSocket
+        try await azure.connect()
+
+        // Update session with tools
+        let configWithTools = RealtimeRequestSession.fromSettings(settingsManager.settings, tools: enabledTools)
+        try await azure.session.update(configWithTools)
+
+        // Get session ID
+        let azureSessionState = await azure.sessionState
+        guard let sessionId = azureSessionState.sessionId else {
+            throw NSError(domain: "VoiceViewModel", code: 1, userInfo: [NSLocalizedDescriptionKey: "Session ID not available"])
+        }
+
+        return sessionId
+    }
+
+    /// Handle post-connection setup
+    private func onConnectionEstablished(sessionId: String) {
+        // Update state
+        stateMachine.transitionTo(.idle(sessionId: sessionId))
+
+        // Start monitoring
+        audioCoordinator?.startMonitoring()
+
+        // Sync settings
+        settingsManager.markAsSynchronized(settingsManager.settings)
+        settingsSyncCoordinator?.setConnected(true)
+
+        // Start tool sync
+        toolSyncCoordinator?.setSessionActive(true)
+        toolSyncCoordinator?.startObserving()
+
+        // Start history session
+        historyManager.startSession(sessionId)
+
+        // Clear transcriptions
+        transcriptionManager.clearMessages()
+    }
+
+    /// Clean up resources on connection failure
+    private func cleanupOnConnectionFailure() async {
+        await azureService?.disconnect()
+        azureService = nil
+        audioService = nil
     }
 
     func disconnect() async {
@@ -276,7 +312,7 @@ class VoiceViewModel: ObservableObject {
 
         // End conversation history session
         if let sessionId = stateMachine.sessionId {
-            ConversationHistoryManager.shared.endSession(sessionId)
+            historyManager.endSession(sessionId)
         }
 
         stateMachine.transitionTo(.disconnected)

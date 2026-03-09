@@ -9,13 +9,19 @@
 import Foundation
 import os
 
-/// Delegate protocol for Azure event handler callbacks
+// MARK: - Focused Delegate Protocols (ISP)
+
+/// Delegate for audio playback events
 @MainActor
-protocol AzureEventHandlerDelegate: AnyObject {
+protocol AzureAudioEventDelegate: AnyObject {
     /// Called when audio delta data is received and should be played
     /// - Parameter data: Decoded PCM audio data ready for playback
     func eventHandler(_ handler: AzureEventHandler, didReceiveAudioDelta data: Data) async
+}
 
+/// Delegate for state machine transitions and control events
+@MainActor
+protocol AzureStateEventDelegate: AnyObject {
     /// Called when event handling triggers a state machine transition
     /// - Parameter state: New state to transition to
     func eventHandler(_ handler: AzureEventHandler, shouldTransitionTo state: VoiceInteractionState)
@@ -26,13 +32,19 @@ protocol AzureEventHandlerDelegate: AnyObject {
 
     /// Called when response completes and pending settings should be applied
     func eventHandler(_ handler: AzureEventHandler, shouldApplyPendingSettings: Bool) async
+}
 
+/// Delegate for function call events
+@MainActor
+protocol AzureFunctionCallDelegate: AnyObject {
     /// Called when a function call is requested by Azure
     /// - Parameter item: The function call conversation item
     func eventHandler(_ handler: AzureEventHandler, didRequestFunctionCall item: RealtimeConversationFunctionCallItem) async
+}
 
-    // MARK: - Transcription Events
-
+/// Delegate for transcription events
+@MainActor
+protocol AzureTranscriptionDelegate: AnyObject {
     /// Called when a conversation item is created (use to pre-reserve sequence number)
     /// - Parameters:
     ///   - itemId: Azure conversation item ID
@@ -51,6 +63,11 @@ protocol AzureEventHandlerDelegate: AnyObject {
     /// Called when agent output transcription is done (full text received)
     func eventHandler(_ handler: AzureEventHandler, didReceiveOutputTranscriptionDone transcript: String, itemId: String)
 }
+
+/// Combined delegate protocol for backward compatibility
+/// Prefer using the focused protocols for new implementations
+@MainActor
+protocol AzureEventHandlerDelegate: AzureAudioEventDelegate, AzureStateEventDelegate, AzureFunctionCallDelegate, AzureTranscriptionDelegate {}
 
 /// Handles all Azure Voice Live server events
 /// Coordinates with audio service, state machine, and conversation history

@@ -18,8 +18,17 @@ class LocationViewModel: ObservableObject {
     private var locationService: LocationService?
     private var observeTask: Task<Void, Never>?
 
+    /// Factory for creating location service (enables testability)
+    private let locationServiceFactory: () -> LocationService
+
+    /// Initialize with optional dependency injection for testability
+    /// - Parameter locationServiceFactory: Factory closure for creating location service
+    init(locationServiceFactory: @escaping () -> LocationService = { LocationService() }) {
+        self.locationServiceFactory = locationServiceFactory
+    }
+
     func startTracking() async {
-        let service = LocationService()
+        let service = locationServiceFactory()
         self.locationService = service
 
         observeTask = Task {

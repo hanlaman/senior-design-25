@@ -50,11 +50,14 @@ class AudioCoordinator {
     private let audioService: AudioService
     private let azureService: VoiceLiveConnection
 
-    // Background tasks
-    private var audioStateTask: Task<Void, Never>?
-    private var bufferOverflowTask: Task<Void, Never>?
-    private var audioChunkTask: Task<Void, Never>?
-    private var bufferEventTask: Task<Void, Never>?
+    // Background tasks (using enum keys for type-safe access)
+    private enum TaskKey: CaseIterable {
+        case audioState
+        case bufferOverflow
+        case audioChunk
+        case bufferEvent
+    }
+    private var tasks: [TaskKey: Task<Void, Never>] = [:]
 
     // Audio processing flag (prevents concurrent chunk processing)
     private var isProcessingAudio = false
@@ -81,27 +84,24 @@ class AudioCoordinator {
 
     /// Stop all audio monitoring tasks
     func stopMonitoring() {
-        // Cancel audio state observation
-        audioStateTask?.cancel()
-        audioStateTask = nil
-
-        // Cancel buffer overflow monitoring
-        bufferOverflowTask?.cancel()
-        bufferOverflowTask = nil
-
-        // Cancel audio chunk processing
-        audioChunkTask?.cancel()
-        audioChunkTask = nil
+        cancelAllTasks()
         isProcessingAudio = false
-
-        // Cancel buffer event monitoring
-        bufferEventTask?.cancel()
-        bufferEventTask = nil
-
-        // Reset progress tracking
         resetProgressTracking()
-
         AppLogger.general.debug("Audio monitoring stopped")
+    }
+
+    /// Cancel all running tasks
+    private func cancelAllTasks() {
+        for (_, task) in tasks {
+            task.cancel()
+        }
+        tasks.removeAll()
+    }
+
+    /// Cancel a specific task
+    private func cancelTask(_ key: TaskKey) {
+        tasks[key]?.cancel()
+        tasks[key] = nil
     }
 
     /// Reset progress tracking for new playback session
@@ -119,9 +119,9 @@ class AudioCoordinator {
             return
         }
 
-        audioChunkTask?.cancel()
+        cancelTask(.audioChunk)
 
-        audioChunkTask = Task { @MainActor [weak self] in
+        tasks[.audioChunk] = Task { @MainActor [weak self] in
             guard let self = self else { return }
 
             self.isProcessingAudio = true
@@ -149,8 +149,7 @@ class AudioCoordinator {
 
     /// Stop processing audio chunks
     func stopProcessingAudioChunks() async {
-        audioChunkTask?.cancel()
-        audioChunkTask = nil
+        cancelTask(.audioChunk)
         isProcessingAudio = false
         AppLogger.audio.debug("Stopped audio chunk processing")
     }
@@ -159,11 +158,11 @@ class AudioCoordinator {
 
     /// Start monitoring audio playback state changes
     private func startAudioStateMonitoring() {
-        audioStateTask?.cancel()
+        cancelTask(.audioState)
 
         AppLogger.general.debug("Starting audio state observation")
 
-        audioStateTask = Task { @MainActor [weak self] in
+        tasks[.audioState] = Task { @MainActor [weak self] in
             guard let self = self else { return }
 
             for await isPlaying in await self.audioService.playbackStateStream {
@@ -198,11 +197,11 @@ class AudioCoordinator {
 
     /// Start monitoring buffer overflow events
     private func startBufferOverflowMonitoring() {
-        bufferOverflowTask?.cancel()
+        cancelTask(.bufferOverflow)
 
         AppLogger.general.debug("Starting buffer overflow monitoring")
 
-        bufferOverflowTask = Task { @MainActor [weak self] in
+        tasks[.bufferOverflow] = Task { @MainActor [weak self] in
             guard let self = self else { return }
 
             for await event in await self.audioService.bufferOverflowStream {
@@ -227,11 +226,11 @@ class AudioCoordinator {
 
     /// Start monitoring buffer events for progress tracking
     private func startBufferEventMonitoring() {
-        bufferEventTask?.cancel()
+        cancelTask(.bufferEvent)
 
         AppLogger.general.debug("Starting buffer event monitoring for progress tracking")
 
-        bufferEventTask = Task { @MainActor [weak self] in
+        tasks[.bufferEvent] = Task { @MainActor [weak self] in
             guard let self = self else { return }
 
             for await event in await self.audioService.bufferEventStream {
