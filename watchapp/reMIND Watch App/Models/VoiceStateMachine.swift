@@ -4,6 +4,67 @@
 //
 //  State machine coordinator that validates and manages state transitions
 //
+//  ## State Diagram
+//
+//  ```
+//                              ┌─────────────┐
+//                              │ disconnected│
+//                              └──────┬──────┘
+//                                     │ connect()
+//                                     ▼
+//                              ┌─────────────┐
+//                   ┌──────────│  connecting │──────────┐
+//                   │          └──────┬──────┘          │
+//                   │ fail            │ success         │ error
+//                   ▼                 ▼                 ▼
+//          ┌────────────────┐  ┌─────────────┐   ┌───────────┐
+//          │connectionFailed│  │    idle     │◄──│   error   │
+//          └────────┬───────┘  └──────┬──────┘   └───────────┘
+//                   │ retry           │ tap (start recording)
+//                   └─────────────────┤
+//                                     ▼
+//                              ┌─────────────┐
+//                              │  recording  │◄───┐ (buffer updates)
+//                              └──────┬──────┘────┘
+//                                     │ release (commit)
+//                                     ▼
+//                              ┌─────────────┐
+//                              │ processing  │
+//                              └──────┬──────┘
+//                                     │ audio received
+//                                     ▼
+//                              ┌─────────────┐
+//                              │   playing   │◄───┐ (buffer updates)
+//                              └──────┬──────┘────┘
+//                                     │ playback complete
+//                                     └──────► back to idle
+//
+//  ### Reconnecting (can occur from idle, recording, processing, playing)
+//
+//                    ┌──────────────┐
+//          ──────────│ reconnecting │◄───┐ (attempt updates)
+//          WebSocket └──────┬───────┘────┘
+//          disconnect       │
+//                           │ success → idle
+//                           │ fail → connectionFailed
+//  ```
+//
+//  ## State Descriptions
+//
+//  - **disconnected**: Initial state, no connection to Azure
+//  - **connecting**: Establishing WebSocket connection and session
+//  - **connectionFailed**: Connection attempt failed, can retry
+//  - **idle**: Connected and ready to record
+//  - **recording**: Capturing audio from microphone
+//  - **processing**: Audio committed, waiting for response
+//  - **playing**: Playing back response audio
+//  - **reconnecting**: WebSocket lost, attempting to reconnect
+//  - **error**: Recoverable error occurred
+//
+//  ## Cancellation
+//
+//  User can cancel from: recording, processing, playing → returns to idle
+//
 
 import Foundation
 import SwiftUI
@@ -11,6 +72,13 @@ import Combine
 import os
 
 /// State machine that validates and coordinates voice interaction state transitions
+///
+/// This class serves as the single source of truth for voice interaction state.
+/// All state transitions must go through this class, which validates them
+/// against the allowed transitions defined in `isValidTransition()`.
+///
+/// - Note: Use `transitionTo()` for normal transitions with validation.
+///         Use `forceTransition()` only when you need to bypass validation.
 @MainActor
 final class VoiceStateMachine: ObservableObject {
     // MARK: - Published State
@@ -38,6 +106,19 @@ final class VoiceStateMachine: ObservableObject {
 
     // MARK: - Transition Validation
 
+    /// Validates whether a state transition is allowed.
+    ///
+    /// Valid transitions follow these rules:
+    /// - From disconnected: can only connect
+    /// - From connecting: can succeed (idle), fail, or be cancelled
+    /// - From idle: can start recording or disconnect
+    /// - From recording: can commit (processing), cancel (idle), or handle errors
+    /// - From processing: can receive audio (playing), cancel, or handle errors
+    /// - From playing: can complete (idle), cancel, or handle errors
+    /// - From any active state: can transition to reconnecting on WebSocket loss
+    /// - From error: can recover to idle, disconnect, or retry connection
+    ///
+    /// See the state diagram in the file header for visual representation.
     private func isValidTransition(
         from current: VoiceInteractionState,
         to next: VoiceInteractionState

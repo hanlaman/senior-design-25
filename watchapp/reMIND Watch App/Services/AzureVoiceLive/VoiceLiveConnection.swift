@@ -124,7 +124,7 @@ public actor VoiceLiveConnection {
         }
 
         // Give WebSocket a moment to be fully ready
-        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        try await Task.sleep(nanoseconds: UInt64(AudioConfiguration.audioChunkProcessingDelay * 1_000_000_000))
 
         // Send session.update to configure the session with user settings
         AppLogger.azure.info("Sending session.update to configure session with settings (rate: \(self.settings.speakingRate)x)")

@@ -36,8 +36,11 @@ struct CaptionsView: View {
                     }
                 }
             }
-            .onChange(of: transcriptionManager.revealProgress) { _, _ in
-                // Also scroll when reveal progress updates (keeps current message visible)
+            .onChange(of: transcriptionManager.revealProgress) { oldValue, newValue in
+                // Only scroll on significant progress changes (reduces animation frequency)
+                // This helps reduce Simulator graphics warnings
+                guard abs(newValue - oldValue) > 0.05 else { return }
+
                 if let lastMessage = transcriptionManager.sortedMessages.last {
                     withAnimation(.easeOut(duration: 0.1)) {
                         proxy.scrollTo(lastMessage.id, anchor: .bottom)

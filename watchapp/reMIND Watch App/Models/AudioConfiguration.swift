@@ -44,6 +44,22 @@ struct AudioConfiguration {
     /// Bytes per chunk (2400 frames * 2 bytes = 4800 bytes)
     static let bytesPerChunk: Int = Int(framesPerChunk) * Int(bytesPerFrame)
 
+    // MARK: - Timing Configuration
+
+    /// Timeout after capture before cleaning up session (seconds)
+    /// Allows time for response to arrive after user stops speaking
+    static let sessionTimeout: TimeInterval = 10.0
+
+    /// Small delay to allow in-flight audio chunks to be processed (seconds)
+    static let audioChunkProcessingDelay: TimeInterval = 0.1
+
+    /// Maximum number of capture buffer chunks to store
+    /// At 100ms per chunk, 100 chunks = ~10 seconds of audio
+    static let maxCaptureBufferChunks = 100
+
+    /// Maximum number of playback buffer chunks to store
+    static let maxPlaybackBufferChunks = 50
+
     // MARK: - Audio Format Creation
 
     /// Create AVAudioFormat for capture/playback

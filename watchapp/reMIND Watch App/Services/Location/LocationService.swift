@@ -122,7 +122,7 @@ actor LocationService: NSObject {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 10 // Short timeout for location posts
+        request.timeoutInterval = LocationConfiguration.requestTimeout
 
         let body: [String: Any] = [
             "patientId": patientId,

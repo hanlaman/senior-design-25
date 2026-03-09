@@ -50,6 +50,22 @@ class VoiceViewModel: ObservableObject {
     private var functionCallCoordinator: FunctionCallCoordinator?
     private var toolSyncCoordinator: ToolSyncCoordinator?
 
+    // MARK: - Dependency Injection
+
+    /// Factory for creating Azure voice connection service
+    /// Enables testability by allowing mock implementations to be injected
+    private let azureServiceFactory: (
+        _ endpoint: String,
+        _ apiKey: String,
+        _ model: String,
+        _ apiVersion: String,
+        _ settings: VoiceSettings
+    ) -> VoiceLiveConnection
+
+    /// Factory for creating audio service
+    /// Enables testability by allowing mock implementations to be injected
+    private let audioServiceFactory: () -> AudioService
+
     // MARK: - State
 
     private var stateMachineObserver: AnyCancellable?
@@ -59,7 +75,25 @@ class VoiceViewModel: ObservableObject {
 
     // MARK: - Initialization
 
-    init() {
+    /// Initialize VoiceViewModel with optional dependency injection for testability
+    /// - Parameters:
+    ///   - azureServiceFactory: Factory closure for creating Azure connection (defaults to VoiceLiveConnection)
+    ///   - audioServiceFactory: Factory closure for creating audio service (defaults to AudioService)
+    init(
+        azureServiceFactory: @escaping (String, String, String, String, VoiceSettings) -> VoiceLiveConnection = {
+            endpoint, apiKey, model, apiVersion, settings in
+            VoiceLiveConnection(
+                endpoint: endpoint,
+                apiKey: apiKey,
+                model: model,
+                apiVersion: apiVersion,
+                settings: settings
+            )
+        },
+        audioServiceFactory: @escaping () -> AudioService = { AudioService() }
+    ) {
+        self.azureServiceFactory = azureServiceFactory
+        self.audioServiceFactory = audioServiceFactory
         // Load captions preference from UserDefaults
         self.captionsEnabled = UserDefaults.standard.bool(forKey: "captionsEnabled")
 
@@ -116,17 +150,17 @@ class VoiceViewModel: ObservableObject {
         stateMachine.transitionTo(.connecting)
 
         do {
-            // Create services with current settings
+            // Create services with current settings using injected factories
             // Build endpoint from resource name
             let endpoint = "\(config.resourceName).services.ai.azure.com"
-            let azure = VoiceLiveConnection(
-                endpoint: endpoint,
-                apiKey: config.apiKey,
-                model: config.model,
-                apiVersion: config.apiVersion,
-                settings: settingsManager.settings
+            let azure = azureServiceFactory(
+                endpoint,
+                config.apiKey,
+                config.model,
+                config.apiVersion,
+                settingsManager.settings
             )
-            let audio = AudioService()
+            let audio = audioServiceFactory()
 
             self.azureService = azure
             self.audioService = audio
@@ -365,7 +399,7 @@ class VoiceViewModel: ObservableObject {
         await audioService?.stopCapture()
 
         // Small delay to allow in-flight audio chunks to be processed
-        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        try? await Task.sleep(nanoseconds: UInt64(AudioConfiguration.audioChunkProcessingDelay * 1_000_000_000))
 
         // Get buffer statistics before committing
         guard let azureService = azureService else { return }

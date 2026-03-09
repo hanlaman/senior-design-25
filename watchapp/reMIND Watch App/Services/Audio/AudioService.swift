@@ -35,7 +35,7 @@ actor AudioService: AudioServiceProtocol {
     private var interruptionTask: Task<Void, Never>?
 
     // Session timeout configuration
-    private let sessionTimeoutSeconds: TimeInterval = 10.0
+    private let sessionTimeoutSeconds: TimeInterval = AudioConfiguration.sessionTimeout
     private var sessionTimeoutTask: Task<Void, Never>?
 
     // Audio chunk stream (recreated each capture session)

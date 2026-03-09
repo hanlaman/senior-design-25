@@ -19,7 +19,7 @@ actor WebSocketManager {
 
     private var isConnected = false
     private var reconnectAttempts = 0
-    private let maxReconnectAttempts = 5
+    private let maxReconnectAttempts = WebSocketConfiguration.maxReconnectAttempts
 
     // Delegate for receiving WebSocket lifecycle callbacks (must be held strongly)
     private var webSocketDelegate: WebSocketDelegate?
@@ -80,8 +80,8 @@ actor WebSocketManager {
 
         // Create URLSession configuration optimized for watchOS
         let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = 30
-        configuration.timeoutIntervalForResource = 600 // 10 minutes for long-lived connection
+        configuration.timeoutIntervalForRequest = WebSocketConfiguration.connectionTimeout
+        configuration.timeoutIntervalForResource = WebSocketConfiguration.resourceTimeout
 
         // watchOS-specific: Wait for connectivity instead of failing immediately
         configuration.waitsForConnectivity = true
@@ -284,13 +284,13 @@ actor WebSocketManager {
 
         heartbeatTask = Task {
             while !Task.isCancelled && isConnected {
-                try? await Task.sleep(nanoseconds: 30_000_000_000) // 30s
+                try? await Task.sleep(nanoseconds: UInt64(WebSocketConfiguration.heartbeatInterval * 1_000_000_000))
 
                 guard isConnected && !Task.isCancelled else { break }
 
                 let timeSinceLastMessage = Date().timeIntervalSince(lastMessageTime)
-                if timeSinceLastMessage > 60 {
-                    AppLogger.network.warning("No messages received in 60s, connection may be dead")
+                if timeSinceLastMessage > WebSocketConfiguration.silenceThreshold {
+                    AppLogger.network.warning("No messages received in \(WebSocketConfiguration.silenceThreshold)s, connection may be dead")
                     await attemptReconnection()
                     break
                 }
@@ -322,7 +322,7 @@ actor WebSocketManager {
             maxAttempts: maxReconnectAttempts
         ))
 
-        let delay = min(pow(2.0, Double(reconnectAttempts)), 30.0) // Exponential backoff, max 30 seconds
+        let delay = min(pow(2.0, Double(reconnectAttempts)), WebSocketConfiguration.maxReconnectDelay)
         AppLogger.network.info("Reconnecting in \(delay)s (attempt \(self.reconnectAttempts)/\(self.maxReconnectAttempts))")
 
         try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))

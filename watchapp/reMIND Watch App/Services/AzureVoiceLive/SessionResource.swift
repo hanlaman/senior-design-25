@@ -65,7 +65,7 @@ public final class SessionResource {
 
         // Poll the session state with timeout
         let startTime = Date()
-        let timeout: TimeInterval = 10.0 // 10 seconds
+        let timeout = SessionConfiguration.establishmentTimeout
 
         while !(await connection.sessionState.canAcceptAudio) {
             // Check if timed out
@@ -76,7 +76,7 @@ public final class SessionResource {
             }
 
             // Sleep briefly before checking again
-            try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            try await Task.sleep(nanoseconds: UInt64(SessionConfiguration.statePollingDelay * 1_000_000_000))
         }
 
         let currentState = await connection.sessionState.displayText

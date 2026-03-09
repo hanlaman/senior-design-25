@@ -121,7 +121,7 @@ struct VoicePageView: View {
                     } label: {
                         Image(systemName: viewModel.captionsEnabled ? "captions.bubble.fill" : "captions.bubble")
                             .font(.title3)
-                            .foregroundColor(viewModel.captionsEnabled ? .green : .blue)
+                            .foregroundColor(.blue)
                     }
                 }
             }

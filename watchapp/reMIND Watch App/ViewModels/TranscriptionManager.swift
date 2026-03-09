@@ -69,6 +69,40 @@ class TranscriptionManager: ObservableObject {
         AppLogger.general.debug("Pre-created \(role) message from conversation item: \(itemId) seq: \(message.sequenceNumber)")
     }
 
+    // MARK: - Transcription Delta Handling
+
+    /// Generic handler for transcription deltas (both user and agent)
+    /// - Parameters:
+    ///   - delta: The partial transcription text to append
+    ///   - itemId: Azure conversation item ID
+    ///   - role: Whether this is a user or agent message
+    private func handleTranscriptionDelta(delta: String, itemId: String, role: TranscriptionRole) {
+        // Find existing message or create new one
+        if let index = messages.firstIndex(where: { $0.itemId == itemId }) {
+            // Append delta to existing message
+            messages[index].text += delta
+        } else {
+            // Create new message with next sequence number (fallback if speech_started was missed)
+            let message = TranscriptionMessage(
+                role: role,
+                itemId: itemId,
+                sequenceNumber: nextSequenceNumber,
+                text: delta
+            )
+            nextSequenceNumber += 1
+            messages.append(message)
+
+            // Track current in-progress message
+            if role == .user {
+                currentUserItemId = itemId
+            } else {
+                currentAgentItemId = itemId
+            }
+
+            AppLogger.general.debug("Created new \(role) transcription message: \(itemId) seq: \(message.sequenceNumber)")
+        }
+    }
+
     // MARK: - Input Transcription (User Speech)
 
     /// Handle incoming delta for user input transcription
@@ -76,23 +110,7 @@ class TranscriptionManager: ObservableObject {
     ///   - delta: The partial transcription text
     ///   - itemId: Azure conversation item ID
     func handleInputTranscriptionDelta(delta: String, itemId: String) {
-        // Find existing message or create new one
-        if let index = messages.firstIndex(where: { $0.itemId == itemId }) {
-            // Append delta to existing message
-            messages[index].text += delta
-        } else {
-            // Create new user message with next sequence number (fallback if speech_started was missed)
-            let message = TranscriptionMessage(
-                role: .user,
-                itemId: itemId,
-                sequenceNumber: nextSequenceNumber,
-                text: delta
-            )
-            nextSequenceNumber += 1
-            messages.append(message)
-            currentUserItemId = itemId
-            AppLogger.general.debug("Created new user transcription message: \(itemId) seq: \(message.sequenceNumber)")
-        }
+        handleTranscriptionDelta(delta: delta, itemId: itemId, role: .user)
     }
 
     /// Handle completion of user input transcription
@@ -132,23 +150,7 @@ class TranscriptionManager: ObservableObject {
     ///   - delta: The partial transcription text
     ///   - itemId: Azure conversation item ID
     func handleOutputTranscriptionDelta(delta: String, itemId: String) {
-        // Find existing message or create new one
-        if let index = messages.firstIndex(where: { $0.itemId == itemId }) {
-            // Append delta to existing message
-            messages[index].text += delta
-        } else {
-            // Create new agent message with next sequence number
-            let message = TranscriptionMessage(
-                role: .agent,
-                itemId: itemId,
-                sequenceNumber: nextSequenceNumber,
-                text: delta
-            )
-            nextSequenceNumber += 1
-            messages.append(message)
-            currentAgentItemId = itemId
-            AppLogger.general.debug("Created new agent transcription message: \(itemId) seq: \(message.sequenceNumber)")
-        }
+        handleTranscriptionDelta(delta: delta, itemId: itemId, role: .agent)
     }
 
     /// Handle completion of agent output transcription (full text received)

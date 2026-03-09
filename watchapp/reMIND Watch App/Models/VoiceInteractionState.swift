@@ -10,7 +10,7 @@ import Foundation
 
 /// Unified state machine representing the entire voice interaction system
 enum VoiceInteractionState: Equatable {
-    // MARK: - Connection Lifecycle
+    // MARK: - Connection Lifecycle (no sessionId - session not yet established)
 
     /// Disconnected from Azure - no session active
     case disconnected
@@ -18,31 +18,34 @@ enum VoiceInteractionState: Equatable {
     /// Connecting to Azure WebSocket
     case connecting
 
-    /// WebSocket reconnecting after disconnect
+    /// WebSocket reconnecting after disconnect (preserves attempt count for UI)
     case reconnecting(attempt: Int, maxAttempts: Int)
 
-    /// Connection failed with error message
+    /// Connection failed before session was established
+    /// - Note: No sessionId because the failure occurred before session creation
     case connectionFailed(String)
 
-    // MARK: - Ready State
+    // MARK: - Ready State (sessionId required - session is active)
 
     /// Connected and ready to start recording
     case idle(sessionId: String)
 
-    // MARK: - Interaction States
+    // MARK: - Interaction States (sessionId required - session is active)
 
-    /// Recording audio from microphone
+    /// Recording audio from microphone (bufferBytes for UI progress display)
     case recording(sessionId: String, bufferBytes: Int)
 
     /// Processing recorded audio (committed to Azure, waiting for response)
     case processing(sessionId: String)
 
-    /// Playing response audio from Azure
+    /// Playing response audio from Azure (activeBuffers for progress tracking)
     case playing(sessionId: String, activeBuffers: Int)
 
-    // MARK: - Error State
+    // MARK: - Error State (sessionId optional - error may occur before or during session)
 
-    /// Error occurred with message
+    /// Error occurred during interaction
+    /// - Note: sessionId is optional because errors can occur both before session
+    ///         establishment (during connection) and during an active session
     case error(sessionId: String?, message: String)
 
     // MARK: - Computed Properties

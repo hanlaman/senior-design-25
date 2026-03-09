@@ -21,8 +21,8 @@ actor AudioBufferManager {
     private var captureBuffer: [Data] = []
     private var playbackBuffers: [Data] = []
 
-    private let maxCaptureBufferSize = 100 // ~10 seconds at 100ms chunks
-    private let maxPlaybackBufferSize = 50 // ~5 seconds at 100ms chunks
+    private let maxCaptureBufferSize = AudioConfiguration.maxCaptureBufferChunks
+    private let maxPlaybackBufferSize = AudioConfiguration.maxPlaybackBufferChunks
 
     private var overflowContinuation: AsyncStream<BufferOverflowEvent>.Continuation?
     let overflowStream: AsyncStream<BufferOverflowEvent>
