@@ -53,6 +53,12 @@ export class ReminderService {
       sendToWatch: boolean;
     }>,
   ) {
+    const reminder = await db
+      .selectFrom('reminder')
+      .select(['patientId'])
+      .where('id', '=', id)
+      .executeTakeFirst();
+
     const updateData: Record<string, any> = { updatedAt: new Date() };
 
     if (data.type !== undefined) updateData.type = data.type;
@@ -73,12 +79,18 @@ export class ReminderService {
       .where('id', '=', id)
       .execute();
 
-    return { success: true };
+    return { success: true, patientId: reminder?.patientId };
   }
 
   async remove(id: string) {
+    const reminder = await db
+      .selectFrom('reminder')
+      .select(['patientId'])
+      .where('id', '=', id)
+      .executeTakeFirst();
+
     await db.deleteFrom('reminder').where('id', '=', id).execute();
-    return { success: true };
+    return { success: true, patientId: reminder?.patientId };
   }
 
   async markComplete(id: string) {
@@ -124,7 +136,7 @@ export class ReminderService {
         .execute();
     }
 
-    return { success: true };
+    return { success: true, patientId: reminder.patientId };
   }
 
   private calculateNextScheduledTime(

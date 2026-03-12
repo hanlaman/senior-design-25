@@ -9,6 +9,10 @@ import SwiftUI
 import WatchKit
 import UserNotifications
 
+extension Notification.Name {
+    static let remindersDidChange = Notification.Name("remindersDidChange")
+}
+
 @main
 struct reMIND_Watch_AppApp: App {
     @WKApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
@@ -72,6 +76,13 @@ class AppDelegate: NSObject, WKApplicationDelegate, UNUserNotificationCenterDele
 
     func didFailToRegisterForRemoteNotificationsWithError(_ error: Error) {
         AppLogger.logError(error, category: AppLogger.general, context: "Failed to register for remote notifications")
+    }
+
+    // Handle silent push notifications (content-available: 1) for two-way sync
+    func didReceiveRemoteNotification(_ userInfo: [AnyHashable: Any]) async -> WKBackgroundFetchResult {
+        AppLogger.general.debug("Received sync push: \(userInfo)")
+        NotificationCenter.default.post(name: .remindersDidChange, object: nil, userInfo: userInfo)
+        return .newData
     }
 
     // Handle notification actions

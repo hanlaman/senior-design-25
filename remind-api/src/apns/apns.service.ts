@@ -24,9 +24,12 @@ export class ApnsService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    // Support PEM keys stored with literal \n in env vars
+    const keyPem = keyContents.replace(/\\n/g, '\n');
+
     this.provider = new apn.Provider({
       token: {
-        key: Buffer.from(keyContents, 'utf-8'),
+        key: Buffer.from(keyPem, 'utf-8'),
         keyId,
         teamId,
       },
@@ -78,6 +81,55 @@ export class ApnsService implements OnModuleInit, OnModuleDestroy {
     }
 
     this.logger.debug(`APNs push sent for reminder ${reminder.id}`);
+  }
+
+  async sendSyncNotification(
+    deviceToken: string,
+    bundleId: string,
+    action: string,
+    reminderId: string,
+  ) {
+    if (!this.provider) {
+      this.logger.warn('APNs provider not initialized, skipping sync push');
+      return;
+    }
+
+    const notification = new apn.Notification();
+    notification.topic = bundleId;
+    notification.expiry = Math.floor(Date.now() / 1000) + 3600;
+    notification.contentAvailable = true;
+    notification.payload = { action, reminderId };
+
+    const result = await this.provider.send(notification, deviceToken);
+
+    if (result.failed.length > 0) {
+      const failure = result.failed[0];
+      this.logger.error(
+        `APNs sync push failed: ${JSON.stringify(failure.response)}`,
+      );
+    } else {
+      this.logger.debug(
+        `APNs sync push sent (${action}) for reminder ${reminderId}`,
+      );
+    }
+  }
+
+  async notifyPatientDevices(patientId: string, action: string, reminderId: string) {
+    const devices = await db
+      .selectFrom('deviceToken')
+      .selectAll()
+      .where('patientId', '=', patientId)
+      .execute();
+
+    for (const device of devices) {
+      try {
+        await this.sendSyncNotification(device.token, device.bundleId, action, reminderId);
+      } catch (error) {
+        this.logger.error(
+          `Failed to send sync push to ${device.platform} device: ${error}`,
+        );
+      }
+    }
   }
 
   async registerDeviceToken(

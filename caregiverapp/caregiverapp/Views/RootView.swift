@@ -12,27 +12,9 @@ struct RootView: View {
     let dataProvider: PatientDataProvider
 
     var body: some View {
-        Group {
-            if authViewModel.isCheckingSession {
-                // Show loading screen while checking for existing session
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                    Text("Loading...")
-                        .foregroundStyle(.secondary)
-                }
-            } else if authViewModel.isAuthenticated {
-                // Show main app content
-                ContentView(dataProvider: dataProvider)
-                    .environment(authViewModel)
-            } else {
-                // Show auth screens
-                AuthContainerView(viewModel: authViewModel)
-            }
-        }
-        .task {
-            await authViewModel.checkSession()
-        }
+        // Auth screens bypassed for now — go straight to main content
+        ContentView(dataProvider: dataProvider)
+            .environment(authViewModel)
     }
 }
 

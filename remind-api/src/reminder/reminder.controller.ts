@@ -3,16 +3,23 @@ import {
   Controller,
   Delete,
   Get,
+  Logger,
   Param,
   Post,
   Put,
 } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { ReminderService } from './reminder.service';
+import { ApnsService } from '../apns/apns.service';
 
 @Controller('reminders')
 export class ReminderController {
-  constructor(private readonly reminderService: ReminderService) {}
+  private readonly logger = new Logger(ReminderController.name);
+
+  constructor(
+    private readonly reminderService: ReminderService,
+    private readonly apnsService: ApnsService,
+  ) {}
 
   @Post()
   @AllowAnonymous()
@@ -30,7 +37,9 @@ export class ReminderController {
       sendToWatch?: boolean;
     },
   ) {
-    return this.reminderService.create(body);
+    const result = await this.reminderService.create(body);
+    this.sendSyncPush(body.patientId, 'reminder_created', body.title);
+    return result;
   }
 
   @Get(':patientId')
@@ -56,18 +65,37 @@ export class ReminderController {
       sendToWatch: boolean;
     }>,
   ) {
-    return this.reminderService.update(id, body);
+    const result = await this.reminderService.update(id, body);
+    if (result.patientId) {
+      this.sendSyncPush(result.patientId, 'reminder_updated', id);
+    }
+    return result;
   }
 
   @Delete(':id')
   @AllowAnonymous()
   async remove(@Param('id') id: string) {
-    return this.reminderService.remove(id);
+    const result = await this.reminderService.remove(id);
+    if (result.patientId) {
+      this.sendSyncPush(result.patientId, 'reminder_deleted', id);
+    }
+    return result;
   }
 
   @Post(':id/complete')
   @AllowAnonymous()
   async markComplete(@Param('id') id: string) {
-    return this.reminderService.markComplete(id);
+    const result = await this.reminderService.markComplete(id);
+    if (result.patientId) {
+      this.sendSyncPush(result.patientId, 'reminder_completed', id);
+    }
+    return result;
+  }
+
+  private sendSyncPush(patientId: string, action: string, reminderId: string) {
+    // Fire-and-forget: don't block the HTTP response
+    this.apnsService.notifyPatientDevices(patientId, action, reminderId).catch((err) => {
+      this.logger.error(`Failed to send sync push: ${err}`);
+    });
   }
 }
