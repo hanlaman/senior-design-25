@@ -33,8 +33,15 @@ export class ReminderScheduler implements OnModuleInit, OnModuleDestroy {
   private async checkDueReminders() {
     try {
       const dueReminders = await this.reminderService.findDueReminders();
+      this.logger.log(
+        `Scheduler tick: ${dueReminders.length} due reminder(s) found`,
+      );
 
       for (const reminder of dueReminders) {
+        this.logger.log(
+          `Processing reminder "${reminder.title}" (id=${reminder.id}, patientId=${reminder.patientId}, scheduledTime=${reminder.scheduledTime})`,
+        );
+
         // Find watchOS device token for this patient
         const deviceToken = await db
           .selectFrom('deviceToken')
@@ -44,11 +51,15 @@ export class ReminderScheduler implements OnModuleInit, OnModuleDestroy {
           .executeTakeFirst();
 
         if (!deviceToken) {
-          this.logger.debug(
+          this.logger.warn(
             `No watchOS device token for patient ${reminder.patientId}`,
           );
           continue;
         }
+
+        this.logger.log(
+          `Found device token for patient ${reminder.patientId} (bundleId=${deviceToken.bundleId})`,
+        );
 
         try {
           await this.apnsService.sendReminderNotification(

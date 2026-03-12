@@ -58,6 +58,7 @@ export class ApnsService implements OnModuleInit, OnModuleDestroy {
 
     const notification = new apn.Notification();
     notification.topic = bundleId;
+    notification.pushType = 'alert';
     notification.expiry = Math.floor(Date.now() / 1000) + 3600; // 1 hour
     notification.sound = 'default';
     notification.alert = {
@@ -96,6 +97,7 @@ export class ApnsService implements OnModuleInit, OnModuleDestroy {
 
     const notification = new apn.Notification();
     notification.topic = bundleId;
+    notification.pushType = 'background';
     notification.expiry = Math.floor(Date.now() / 1000) + 3600;
     notification.contentAvailable = true;
     notification.payload = { action, reminderId };
@@ -139,8 +141,8 @@ export class ApnsService implements OnModuleInit, OnModuleDestroy {
   ) {
     const bundleId =
       platform === 'watchos'
-        ? (process.env.WATCHOS_BUNDLE_ID ?? 'com.remind.watchapp')
-        : (process.env.IOS_BUNDLE_ID ?? 'com.remind.app');
+        ? (process.env.APNS_BUNDLE_ID_WATCH ?? 'com.remind.patientwatch')
+        : (process.env.APNS_BUNDLE_ID_IOS ?? 'com.remind.caregiver');
 
     // Upsert by (patientId, platform)
     const existing = await db

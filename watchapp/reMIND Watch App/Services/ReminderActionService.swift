@@ -11,7 +11,7 @@ import os
 actor ReminderActionService {
     private let baseURL: String
 
-    init(baseURL: String = "http://localhost:3000") {
+    init(baseURL: String = "https://3965-129-137-96-11.ngrok-free.app") {
         self.baseURL = baseURL
     }
 

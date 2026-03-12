@@ -8,6 +8,7 @@
 import SwiftUI
 import WatchKit
 import UserNotifications
+import os
 
 extension Notification.Name {
     static let remindersDidChange = Notification.Name("remindersDidChange")
