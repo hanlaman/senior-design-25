@@ -10,5 +10,28 @@
   "azureFunctions.projectRuntime": "~4",
   "debug.internalConsoleOptions": "neverOpen",
   "azureFunctions.projectLanguageModel": 4,
-  "azureFunctions.preDeployTask": "npm prune (functions)"
+  "azureFunctions.preDeployTask": "npm prune (functions)",
+  "dbcode.connections": [
+    {
+      "connectionId": "kJu4cI_MtawIsXPqRJ3Eg",
+      "name": "DB",
+      "driver": "mssql",
+      "color": "#1AAFFF",
+      "connectionType": "host",
+      "host": "localhost",
+      "port": 1433,
+      "ssl": false,
+      "authMethod": "sql",
+      "username": "sa",
+      "password": "",
+      "savePassword": "secretStorage",
+      "readOnly": false,
+      "postConnectionSqlType": "inline",
+      "connectionTimeout": 30,
+      "pinnedConnectionTimeout": "0",
+      "introspection": {
+        "progressive": false
+      }
+    }
+  ]
 }

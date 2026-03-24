@@ -178,6 +178,13 @@ class VoiceConnectionCoordinator: ObservableObject {
 
         if let sessionId = stateMachine.sessionId {
             historyManager.endSession(sessionId)
+
+            // Sync completed session to backend (fire-and-forget)
+            if let session = historyManager.history.sessions.first(where: { $0.id == sessionId }) {
+                Task {
+                    await ConversationSyncService.shared.syncSession(session)
+                }
+            }
         }
 
         stateMachine.transitionTo(.disconnected)

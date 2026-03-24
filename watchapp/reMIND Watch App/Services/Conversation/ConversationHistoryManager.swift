@@ -55,10 +55,27 @@ class ConversationHistoryManager: ObservableObject {
 
     // MARK: - Message Management
 
-    /// Add a message to the conversation history
+    /// Add a message to the conversation history (upsert - updates if itemId exists)
     func addMessage(itemId: String, role: ConversationMessage.MessageRole, content: String, sessionId: String) {
         guard let sessionIndex = history.sessions.firstIndex(where: { $0.id == sessionId }) else {
             AppLogger.history.warning("Cannot add message: session \(sessionId) not found")
+            return
+        }
+
+        // Check for existing message with same itemId (upsert behavior)
+        if let existingIndex = history.sessions[sessionIndex].messages.firstIndex(where: { $0.id == itemId }) {
+            // Update existing message if new content is non-empty
+            if !content.isEmpty {
+                history.sessions[sessionIndex].messages[existingIndex] = ConversationMessage(
+                    id: itemId,
+                    role: role,
+                    content: content,
+                    timestamp: history.sessions[sessionIndex].messages[existingIndex].timestamp,
+                    sessionId: sessionId
+                )
+                save()
+                AppLogger.history.debug("Updated \(role.rawValue) message in session \(sessionId): \(content.prefix(50))...")
+            }
             return
         }
 

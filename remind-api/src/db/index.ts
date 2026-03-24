@@ -109,6 +109,27 @@ interface GeofenceBreachTable {
   gracePeriodMs: number;
 }
 
+interface ConversationSessionTable {
+  id: Generated<string>;
+  patientId: string;
+  azureSessionId: string;
+  startTime: Date;
+  endTime: Date | null;
+  messageCount: number;
+  createdAt: Generated<Date>;
+}
+
+interface ConversationMessageTable {
+  id: Generated<string>;
+  sessionId: string;
+  azureItemId: string;
+  role: string;
+  content: string;
+  messageTimestamp: Date;
+  sequenceNumber: number;
+  createdAt: Generated<Date>;
+}
+
 // Database interface combining all tables
 export interface Database {
   user: UserTable;
@@ -120,6 +141,8 @@ export interface Database {
   reminder: ReminderTable;
   deviceToken: DeviceTokenTable;
   geofenceBreach: GeofenceBreachTable;
+  conversationSession: ConversationSessionTable;
+  conversationMessage: ConversationMessageTable;
 }
 
 // Export the Kysely database instance

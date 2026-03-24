@@ -175,17 +175,9 @@ class AzureEventHandler {
                 break  // Skip function calls, etc.
             }
 
-            // Add to conversation history
-            if let sessionId = stateMachine.sessionId {
-                if let (role, content) = extractMessageData(from: itemEvent.item) {
-                    historyManager.addMessage(
-                        itemId: itemEvent.item.id,
-                        role: role,
-                        content: content,
-                        sessionId: sessionId
-                    )
-                }
-            }
+            // Note: Messages are added to history when transcription completes
+            // (see conversationItemTranscriptionCompleted and responseAudioTranscriptDone)
+            // because transcript content is not available at item creation time
 
         case .responseCreated:
             AppLogger.azure.debug("Response created")
@@ -209,6 +201,16 @@ class AzureEventHandler {
             let transcript = String(transcriptEvent.transcript)
             let itemId = String(transcriptEvent.itemId)
             delegate?.eventHandler(self, didReceiveOutputTranscriptionDone: transcript, itemId: itemId)
+
+            // Store completed assistant message to history
+            if let sessionId = stateMachine.sessionId, !transcript.isEmpty {
+                historyManager.addMessage(
+                    itemId: itemId,
+                    role: .assistant,
+                    content: transcript,
+                    sessionId: sessionId
+                )
+            }
 
         case .responseAudioDelta(let deltaEvent):
             // Decode and play audio
@@ -254,6 +256,16 @@ class AzureEventHandler {
             let transcript = String(transcriptEvent.transcript)
             let itemId = String(transcriptEvent.itemId)
             delegate?.eventHandler(self, didReceiveInputTranscriptionCompleted: transcript, itemId: itemId)
+
+            // Store completed user message to history
+            if let sessionId = stateMachine.sessionId, !transcript.isEmpty {
+                historyManager.addMessage(
+                    itemId: itemId,
+                    role: .user,
+                    content: transcript,
+                    sessionId: sessionId
+                )
+            }
 
         case .conversationItemTranscriptionDelta(let transcriptEvent):
             // Forward to delegate for live captioning (copy strings to avoid memory issues)
