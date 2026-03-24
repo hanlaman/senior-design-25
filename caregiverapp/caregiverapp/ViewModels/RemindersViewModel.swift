@@ -50,15 +50,35 @@ final class RemindersViewModel {
     var medicationReminders: [Reminder] { reminders.filter { $0.type == .medication } }
 
     private let dataProvider: PatientDataProvider
+    private let reminderAPIService = ReminderAPIService()
     private var cancellables = Set<AnyCancellable>()
 
     init(dataProvider: PatientDataProvider) {
         self.dataProvider = dataProvider
         setupBindings()
+        listenForSyncNotifications()
     }
 
     private func setupBindings() {
         dataProvider.remindersPublisher.receive(on: DispatchQueue.main).sink { [weak self] in self?.reminders = $0 }.store(in: &cancellables)
+    }
+
+    private func listenForSyncNotifications() {
+        NotificationCenter.default.publisher(for: .remindersDidChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                Task { [weak self] in
+                    await self?.refreshFromAPI()
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    func refreshFromAPI() async {
+        let fetched = await reminderAPIService.fetchReminders()
+        if !fetched.isEmpty {
+            reminders = fetched
+        }
     }
 
     func onAppear() { reminders = dataProvider.reminders }

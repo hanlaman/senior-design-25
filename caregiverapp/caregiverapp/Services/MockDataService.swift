@@ -100,6 +100,7 @@ final class MockDataService: PatientDataProvider, ObservableObject {
     // │ private means only this class can access it.                            │
     // └─────────────────────────────────────────────────────────────────────────┘
     private var healthTimer: Timer?
+    private let reminderAPI = ReminderAPIService()
 
     // ┌─────────────────────────────────────────────────────────────────────────┐
     // │ INIT (INITIALIZER/CONSTRUCTOR)                                          │
@@ -162,24 +163,10 @@ final class MockDataService: PatientDataProvider, ObservableObject {
         let calendar = Calendar.current
         let today = Date()
 
-        // Create mock reminders
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ NIL-COALESCING OPERATOR (??)                                        │
-        // │                                                                     │
-        // │ calendar.date(...) returns Date? (might fail)                       │
-        // │ ?? today provides a default if the result is nil                   │
-        // │                                                                     │
-        // │ result ?? default                                                   │
-        // │   - If result is non-nil: use result (unwrapped)                   │
-        // │   - If result is nil: use default                                  │
-        // └─────────────────────────────────────────────────────────────────────┘
-        reminders = [
-            Reminder(type: .medication, title: "Morning Medication", notes: "Aricept 10mg with breakfast", scheduledTime: calendar.date(bySettingHour: 8, minute: 0, second: 0, of: today) ?? today, repeatSchedule: .daily, isCompleted: true, completedAt: calendar.date(bySettingHour: 8, minute: 15, second: 0, of: today)),
-            Reminder(type: .medication, title: "Evening Medication", notes: "Blood pressure medication", scheduledTime: calendar.date(bySettingHour: 20, minute: 0, second: 0, of: today) ?? today, repeatSchedule: .daily),
-            Reminder(type: .hydration, title: "Drink Water", scheduledTime: calendar.date(bySettingHour: 14, minute: 0, second: 0, of: today) ?? today, repeatSchedule: .daily),
-            Reminder(type: .activity, title: "Afternoon Walk", notes: "15 minute walk around the block", scheduledTime: calendar.date(bySettingHour: 16, minute: 0, second: 0, of: today) ?? today, repeatSchedule: .daily),
-            Reminder(type: .appointment, title: "Doctor Appointment", notes: "Dr. Williams - Annual checkup", scheduledTime: calendar.date(byAdding: .day, value: 3, to: today) ?? today, repeatSchedule: .once)
-        ]
+        // Fetch reminders from API (falls back to empty array if server unavailable)
+        Task {
+            reminders = await reminderAPI.fetchReminders()
+        }
 
         // Create mock health data
         healthData = HealthData(
@@ -441,29 +428,39 @@ final class MockDataService: PatientDataProvider, ObservableObject {
     func addAlert(_ alert: PatientAlert) async throws { alerts.insert(alert, at: 0) }
 
     func addReminder(_ reminder: Reminder) async throws {
-        reminders.append(reminder)
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ SORTING WITH KEYPATH                                                │
-        // │                                                                     │
-        // │ sort { $0.scheduledTime < $1.scheduledTime }                       │
-        // │                                                                     │
-        // │ $0 = first element being compared                                  │
-        // │ $1 = second element being compared                                 │
-        // │ Returns true if $0 should come before $1                           │
-        // │                                                                     │
-        // │ This sorts reminders by scheduledTime (earliest first).            │
-        // └─────────────────────────────────────────────────────────────────────┘
-        reminders.sort { $0.scheduledTime < $1.scheduledTime }
+        let success = await reminderAPI.createReminder(reminder)
+        if success {
+            reminders = await reminderAPI.fetchReminders()
+        } else {
+            // Fallback to local-only if API unavailable
+            reminders.append(reminder)
+            reminders.sort { $0.scheduledTime < $1.scheduledTime }
+        }
     }
 
     func updateReminder(_ reminder: Reminder) async throws {
-        if let index = reminders.firstIndex(where: { $0.id == reminder.id }) { reminders[index] = reminder }
+        let success = await reminderAPI.updateReminder(reminder)
+        if success {
+            reminders = await reminderAPI.fetchReminders()
+        } else if let index = reminders.firstIndex(where: { $0.id == reminder.id }) {
+            reminders[index] = reminder
+        }
     }
 
-    func deleteReminder(id: UUID) async throws { reminders.removeAll { $0.id == id } }
+    func deleteReminder(id: UUID) async throws {
+        let success = await reminderAPI.deleteReminder(id: id)
+        if success {
+            reminders = await reminderAPI.fetchReminders()
+        } else {
+            reminders.removeAll { $0.id == id }
+        }
+    }
 
     func markReminderComplete(id: UUID) async throws {
-        if let index = reminders.firstIndex(where: { $0.id == id }) {
+        let success = await reminderAPI.markComplete(id: id)
+        if success {
+            reminders = await reminderAPI.fetchReminders()
+        } else if let index = reminders.firstIndex(where: { $0.id == id }) {
             reminders[index].isCompleted = true
             reminders[index].completedAt = Date()
         }

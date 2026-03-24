@@ -12,6 +12,7 @@ import os
 struct ContentView: View {
     @StateObject private var viewModel = VoiceViewModel()
     @StateObject private var locationViewModel = LocationViewModel()
+    @StateObject private var remindersViewModel = RemindersViewModel()
     @State private var currentPage: NavigationPage? = .voice
     @Environment(\.scenePhase) private var scenePhase
     @State private var wasConnectedBeforeBackground = false
@@ -19,7 +20,8 @@ struct ContentView: View {
     enum NavigationPage: Int, CaseIterable, Hashable {
         case history = 0
         case voice = 1
-        case settings = 2
+        case reminders = 2
+        case settings = 3
     }
 
     var body: some View {
@@ -38,8 +40,13 @@ struct ContentView: View {
             }
             .tag(NavigationPage.voice as NavigationPage?)
 
-            // Settings page (swipe right from voice page)
-            // Wrapped in NavigationStack to enable drill-down navigation
+            // Reminders page (swipe right from voice page)
+            NavigationStack {
+                RemindersPageView(viewModel: remindersViewModel, currentPage: $currentPage)
+            }
+            .tag(NavigationPage.reminders as NavigationPage?)
+
+            // Settings page (swipe right from reminders page)
             NavigationStack {
                 SettingsPageView(viewModel: viewModel, locationViewModel: locationViewModel, currentPage: $currentPage)
             }

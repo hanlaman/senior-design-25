@@ -17,6 +17,7 @@
 // │ modern UI framework that provides View, @State, etc.                        │
 // └─────────────────────────────────────────────────────────────────────────────┘
 import SwiftUI
+import UserNotifications
 
 // ┌─────────────────────────────────────────────────────────────────────────────┐
 // │ @main ATTRIBUTE                                                             │
@@ -50,6 +51,8 @@ import SwiftUI
 // │   3. Value semantics make state changes predictable                        │
 // └─────────────────────────────────────────────────────────────────────────────┘
 struct caregiverappApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
 
     // ┌─────────────────────────────────────────────────────────────────────────┐
     // │ @State PROPERTY WRAPPER                                                 │
@@ -138,5 +141,67 @@ struct caregiverappApp: App {
                     }
             }
         }
+    }
+}
+
+// MARK: - Notification Names
+
+extension Notification.Name {
+    static let remindersDidChange = Notification.Name("remindersDidChange")
+}
+
+// MARK: - AppDelegate
+
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    private let deviceTokenService = DeviceTokenService.shared
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if granted {
+                DispatchQueue.main.async {
+                    application.registerForRemoteNotifications()
+                }
+            }
+            if let error = error {
+                print("[AppDelegate] Notification authorization error: \(error.localizedDescription)")
+            }
+        }
+
+        Task {
+            await deviceTokenService.reregisterCachedToken()
+        }
+
+        return true
+    }
+
+    func application(
+        _ application: UIApplication,
+        didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+    ) {
+        Task {
+            await deviceTokenService.registerToken(deviceToken)
+        }
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
+    }
+
+    // Handle silent push notifications (content-available: 1)
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        NotificationCenter.default.post(name: .remindersDidChange, object: nil, userInfo: userInfo)
+        completionHandler(.newData)
     }
 }
