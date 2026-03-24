@@ -116,6 +116,8 @@ interface ConversationSessionTable {
   startTime: Date;
   endTime: Date | null;
   messageCount: number;
+  summary: string | null;
+  summarizedAt: Date | null;
   createdAt: Generated<Date>;
 }
 
