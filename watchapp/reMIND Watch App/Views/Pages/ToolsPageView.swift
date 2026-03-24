@@ -15,9 +15,10 @@ struct ToolsPageView: View {
         toolRegistry.toolsets.sorted { $0.id < $1.id }
     }
 
-    /// Tools for a toolset, sorted alphabetically by displayName
+    /// Tools for a toolset, sorted alphabetically by displayName (excludes hidden tools)
     private func sortedTools(for toolsetId: String) -> [LocalFunctionTool] {
         toolRegistry.tools(inToolset: toolsetId)
+            .filter { !$0.isHidden }
             .sorted { $0.displayName < $1.displayName }
     }
 

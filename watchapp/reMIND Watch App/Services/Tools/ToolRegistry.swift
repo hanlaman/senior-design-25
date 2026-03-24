@@ -15,10 +15,13 @@ public class ToolRegistry: ObservableObject {
     /// Shared singleton instance
     public static let shared = ToolRegistry()
 
-    /// Published array of available tools that views can observe
+    /// Published array of user-visible tools that can be toggled
     @Published public private(set) var availableTools: [LocalFunctionTool]
 
-    /// Published array of toolsets for organizing tools
+    /// Hidden tools that are always enabled and not shown in UI
+    @Published public private(set) var hiddenTools: [LocalFunctionTool]
+
+    /// Published array of toolsets for organizing visible tools
     @Published public private(set) var toolsets: [Toolset]
 
     private let settingsManager: ToolSettingsManager
@@ -26,12 +29,12 @@ public class ToolRegistry: ObservableObject {
     private init() {
         self.settingsManager = ToolSettingsManager.shared
 
-        // Define toolsets
+        // Define toolsets (for visible tools only)
         self.toolsets = [
             Toolset(id: "Utilities", icon: "wrench.and.screwdriver")
         ]
 
-        // Initialize with built-in tools
+        // Initialize with user-visible tools
         self.availableTools = [
             LocalFunctionTool(
                 id: "get_current_time",
@@ -41,21 +44,52 @@ public class ToolRegistry: ObservableObject {
                 shortDescription: "Get the time",
                 toolsetId: "Utilities",
                 isEnabled: true,
+                isHidden: false,
                 parameters: [:],
                 handler: .getCurrentTime
             )
-            // Future tools will be added here
+            // Future visible tools will be added here
+        ]
+
+        // Initialize hidden tools (always enabled, not shown in UI)
+        self.hiddenTools = [
+            LocalFunctionTool(
+                id: "get_session_transcript",
+                name: "get_session_transcript",
+                description: "Get the transcript of the current voice session conversation. Returns all messages exchanged between the user and assistant in chronological order. Use this to recall what was discussed earlier in the conversation.",
+                displayName: "Session Transcript",
+                shortDescription: "Get conversation history",
+                toolsetId: "System",
+                isEnabled: true,
+                isHidden: true,
+                parameters: [
+                    "type": AnyCodable("object"),
+                    "properties": AnyCodable([
+                        "max_messages": [
+                            "type": "integer",
+                            "description": "Maximum number of recent messages to return. Omit for all messages."
+                        ]
+                    ])
+                ],
+                handler: .getSessionTranscript
+            )
         ]
 
         // Load enabled state from settings manager
         updateToolStates()
 
-        AppLogger.general.info("ToolRegistry initialized with \(self.availableTools.count) tool(s) in \(self.toolsets.count) toolset(s)")
+        AppLogger.general.info("ToolRegistry initialized with \(self.availableTools.count) visible and \(self.hiddenTools.count) hidden tool(s)")
     }
 
     /// Toggle the enabled state of a tool
     /// - Parameter id: Unique identifier of the tool to toggle
     public func toggleTool(id: String) {
+        // Hidden tools cannot be toggled
+        if hiddenTools.contains(where: { $0.id == id }) {
+            AppLogger.general.warning("Attempted to toggle hidden tool: \(id)")
+            return
+        }
+
         guard let index = availableTools.firstIndex(where: { $0.id == id }) else {
             AppLogger.general.warning("Attempted to toggle unknown tool: \(id)")
             return
@@ -70,28 +104,39 @@ public class ToolRegistry: ObservableObject {
         AppLogger.general.info("Tool '\(id)' toggled to: \(newState)")
     }
 
-    /// Get array of enabled tools in Azure API format
-    /// - Returns: Array of RealtimeTool objects for enabled tools
+    /// Get array of enabled tools in Azure API format (includes hidden tools)
+    /// - Returns: Array of RealtimeTool objects for enabled and hidden tools
     public func getEnabledTools() -> [RealtimeTool] {
-        let enabledTools = availableTools
+        // Get enabled visible tools
+        let enabledVisibleTools = availableTools
             .filter { $0.isEnabled }
             .map { $0.toRealtimeTool() }
 
-        AppLogger.general.debug("Returning \(enabledTools.count) enabled tool(s)")
-        return enabledTools
+        // Hidden tools are always included
+        let hiddenToolsList = hiddenTools
+            .map { $0.toRealtimeTool() }
+
+        let allTools = enabledVisibleTools + hiddenToolsList
+        AppLogger.general.debug("Returning \(allTools.count) tools (\(enabledVisibleTools.count) visible, \(hiddenToolsList.count) hidden)")
+        return allTools
     }
 
-    /// Find a tool by its name
+    /// Find a tool by its name (searches both visible and hidden tools)
     /// - Parameter name: Name of the tool to find
-    /// - Returns: The tool if found and enabled, nil otherwise
+    /// - Returns: The tool if found and enabled (or hidden), nil otherwise
     public func findTool(byName name: String) -> LocalFunctionTool? {
-        let tool = availableTools.first { $0.name == name && $0.isEnabled }
-
-        if tool == nil {
-            AppLogger.general.debug("Tool '\(name)' not found or not enabled")
+        // First check visible enabled tools
+        if let tool = availableTools.first(where: { $0.name == name && $0.isEnabled }) {
+            return tool
         }
 
-        return tool
+        // Then check hidden tools (always enabled)
+        if let tool = hiddenTools.first(where: { $0.name == name }) {
+            return tool
+        }
+
+        AppLogger.general.debug("Tool '\(name)' not found or not enabled")
+        return nil
     }
 
     /// Get tools belonging to a specific toolset

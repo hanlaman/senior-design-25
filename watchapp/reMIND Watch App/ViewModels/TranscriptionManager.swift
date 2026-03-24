@@ -263,3 +263,21 @@ class TranscriptionManager: ObservableObject {
         AppLogger.general.debug("Cleared all transcription messages")
     }
 }
+
+// MARK: - TranscriptionProvider Conformance
+
+extension TranscriptionManager: TranscriptionProvider {
+    /// Get all messages from the current session as TranscriptEntry array
+    func getTranscriptMessages() -> [TranscriptEntry] {
+        return sortedMessages.compactMap { message in
+            // Only include messages with actual text
+            guard !message.displayText.isEmpty else { return nil }
+
+            return TranscriptEntry(
+                role: message.role == .user ? "user" : "assistant",
+                text: message.displayText,
+                sequenceNumber: message.sequenceNumber
+            )
+        }
+    }
+}

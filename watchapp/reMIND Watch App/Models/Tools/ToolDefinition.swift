@@ -25,6 +25,7 @@ public struct Toolset: Identifiable, Sendable {
 /// Enum mapping tool names to their implementations
 public enum ToolHandler: String, Codable, Sendable {
     case getCurrentTime
+    case getSessionTranscript
 
     // Future tools can be added here:
     // case getCurrentWeather
@@ -38,6 +39,8 @@ public enum ToolHandler: String, Codable, Sendable {
         switch self {
         case .getCurrentTime:
             return try await ToolExecutors.getCurrentTime(arguments: arguments)
+        case .getSessionTranscript:
+            return try await ToolExecutors.getSessionTranscript(arguments: arguments)
         }
     }
 }
@@ -53,6 +56,7 @@ public struct LocalFunctionTool: Identifiable, Codable, Sendable {
     public let shortDescription: String  // Brief UI description (e.g., "Get the time")
     public let toolsetId: String         // Group identifier (e.g., "utilities")
     public var isEnabled: Bool
+    public let isHidden: Bool            // Hidden tools are always enabled and not shown in UI
     public let parameters: [String: AnyCodable]
     public let handler: ToolHandler
 
@@ -64,6 +68,7 @@ public struct LocalFunctionTool: Identifiable, Codable, Sendable {
         case shortDescription
         case toolsetId
         case isEnabled
+        case isHidden
         case parameters
         case handler
     }
@@ -76,6 +81,7 @@ public struct LocalFunctionTool: Identifiable, Codable, Sendable {
         shortDescription: String,
         toolsetId: String,
         isEnabled: Bool,
+        isHidden: Bool = false,
         parameters: [String: AnyCodable],
         handler: ToolHandler
     ) {
@@ -86,6 +92,7 @@ public struct LocalFunctionTool: Identifiable, Codable, Sendable {
         self.shortDescription = shortDescription
         self.toolsetId = toolsetId
         self.isEnabled = isEnabled
+        self.isHidden = isHidden
         self.parameters = parameters
         self.handler = handler
     }

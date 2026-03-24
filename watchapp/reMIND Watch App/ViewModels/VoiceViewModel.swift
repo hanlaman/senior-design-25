@@ -80,6 +80,9 @@ class VoiceViewModel: ObservableObject {
         // Set up coordinator delegate
         coordinator.delegate = self
 
+        // Wire up transcription provider for hidden tools
+        ToolExecutors.transcriptionProvider = transcriptionManager
+
         // Observe coordinator state changes to trigger view updates
         coordinatorObserver = coordinator.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
