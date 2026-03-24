@@ -31,8 +31,15 @@ struct HistoryPageView: View {
             }
             .navigationTitle("History")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    backButton
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        WKInterfaceDevice.current().play(.click)
+                        currentPage = .voice
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.title3)
+                            .foregroundColor(.blue)
+                    }
                 }
             }
         }
@@ -165,16 +172,4 @@ struct HistoryPageView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Toolbar
-
-    private var backButton: some View {
-        Button {
-            WKInterfaceDevice.current().play(.click)
-            currentPage = .voice
-        } label: {
-            Image(systemName: "chevron.right")
-                .font(.title3)
-                .foregroundColor(.blue)
-        }
-    }
 }

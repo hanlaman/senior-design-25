@@ -2,7 +2,7 @@
 //  ServerSessionDetailView.swift
 //  reMIND Watch App
 //
-//  Detail view for displaying messages fetched from the backend server
+//  Detail view showing conversation summary with access to full transcript
 //
 
 import SwiftUI
@@ -17,6 +17,7 @@ struct ServerSessionDetailView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var showingDeleteAlert = false
+    @State private var showingTranscript = false
 
     var body: some View {
         Group {
@@ -25,15 +26,16 @@ struct ServerSessionDetailView: View {
             } else if let error = errorMessage {
                 errorView(error)
             } else if let session = session {
-                messageListView(session)
+                summaryView(session)
             }
         }
         .navigationTitle(session?.displayText ?? "Conversation")
-        .toolbar {
-            if session != nil {
-                ToolbarItem(placement: .topBarTrailing) {
-                    deleteButton
-                }
+        .sheet(isPresented: $showingTranscript) {
+            if let session = session {
+                ConversationTranscriptView(
+                    messages: session.messages,
+                    title: "Transcript"
+                )
             }
         }
         .alert("Delete Conversation?", isPresented: $showingDeleteAlert) {
@@ -68,42 +70,80 @@ struct ServerSessionDetailView: View {
     }
 
     private func deleteSession() async {
-        // TODO: Implement backend delete when needed
-        // For now, just dismiss
-        WKInterfaceDevice.current().play(.click)
-        dismiss()
-    }
-
-    // MARK: - Message List
-
-    private func messageListView(_ session: ServerConversationSessionDetail) -> some View {
-        List(session.messages) { message in
-            serverMessageRow(message)
+        do {
+            try await ConversationFetchService.shared.deleteSession(sessionId: sessionId)
+            WKInterfaceDevice.current().play(.success)
+            dismiss()
+        } catch {
+            AppLogger.general.error("Failed to delete session: \(error.localizedDescription)")
+            WKInterfaceDevice.current().play(.failure)
+            errorMessage = "Failed to delete: \(error.localizedDescription)"
         }
-        .listStyle(.carousel)
     }
 
-    private func serverMessageRow(_ message: ServerConversationMessage) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            // Role icon
-            Image(systemName: message.role == "user" ? "person.fill" : "waveform")
-                .foregroundColor(message.role == "user" ? .blue : .green)
-                .font(.title3)
-                .frame(width: 24, alignment: .center)
+    // MARK: - Summary View
 
-            VStack(alignment: .leading, spacing: 4) {
-                // Message content
-                Text(message.content)
-                    .font(.caption)
-                    .lineLimit(nil)
+    private func summaryView(_ session: ServerConversationSessionDetail) -> some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                // Summary section
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Summary", systemImage: "text.quote")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
 
-                // Timestamp
-                Text(message.timestamp, style: .time)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    if let summary = session.summary, !summary.isEmpty {
+                        Text(summary)
+                            .font(.caption)
+                            .lineLimit(nil)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        Text("No summary available")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .italic()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(.horizontal, 4)
+
+                Divider()
+
+                // Action buttons
+                VStack(spacing: 12) {
+                    // Transcript button
+                    Button {
+                        WKInterfaceDevice.current().play(.click)
+                        showingTranscript = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "text.bubble")
+                            Text("Transcript")
+                        }
+                        .font(.caption)
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    // Delete button
+                    Button {
+                        WKInterfaceDevice.current().play(.click)
+                        showingDeleteAlert = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "trash")
+                            Text("Delete")
+                        }
+                        .font(.caption)
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                }
             }
+            .padding(.vertical, 8)
         }
-        .padding(.vertical, 4)
     }
 
     // MARK: - Loading State
@@ -148,18 +188,6 @@ struct ServerSessionDetailView: View {
         }
     }
 
-    // MARK: - Delete Button
-
-    private var deleteButton: some View {
-        Button {
-            WKInterfaceDevice.current().play(.click)
-            showingDeleteAlert = true
-        } label: {
-            Image(systemName: "trash")
-                .font(.title3)
-                .foregroundColor(.red)
-        }
-    }
 }
 
 // MARK: - Helper Extensions

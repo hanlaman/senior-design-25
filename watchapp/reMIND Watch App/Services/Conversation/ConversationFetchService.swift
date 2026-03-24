@@ -79,6 +79,30 @@ actor ConversationFetchService {
         AppLogger.general.info("Fetched session \(sessionId) with \(session.messages.count) messages")
         return session
     }
+
+    /// Delete a conversation session from the backend
+    func deleteSession(sessionId: String) async throws {
+        guard let url = URL(string: "\(baseURL)/conversations/\(sessionId)") else {
+            throw ConversationFetchError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.timeoutInterval = 15
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ConversationFetchError.invalidResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            AppLogger.general.warning("Delete session failed with status \(httpResponse.statusCode)")
+            throw ConversationFetchError.httpError(httpResponse.statusCode)
+        }
+
+        AppLogger.general.info("Deleted session \(sessionId) from server")
+    }
 }
 
 // MARK: - Error Types
@@ -136,6 +160,8 @@ struct ServerConversationSessionDetail: Decodable, Identifiable {
     let startTime: Date
     let endTime: Date?
     let messageCount: Int
+    let summary: String?
+    let summarizedAt: Date?
     let messages: [ServerConversationMessage]
 }
 
