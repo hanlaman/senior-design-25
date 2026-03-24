@@ -10,9 +10,9 @@ async function bootstrap() {
   });
 
   const config = new DocumentBuilder()
-      .setTitle('reMIND API')
-      .setVersion('0.1')
-      .build();
+    .setTitle('reMIND API')
+    .setVersion('0.1')
+    .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory);
 

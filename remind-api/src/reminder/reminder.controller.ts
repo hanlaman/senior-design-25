@@ -94,8 +94,10 @@ export class ReminderController {
 
   private sendSyncPush(patientId: string, action: string, reminderId: string) {
     // Fire-and-forget: don't block the HTTP response
-    this.apnsService.notifyPatientDevices(patientId, action, reminderId).catch((err) => {
-      this.logger.error(`Failed to send sync push: ${err}`);
-    });
+    this.apnsService
+      .notifyPatientDevices(patientId, action, reminderId)
+      .catch((err) => {
+        this.logger.error(`Failed to send sync push: ${err}`);
+      });
   }
 }

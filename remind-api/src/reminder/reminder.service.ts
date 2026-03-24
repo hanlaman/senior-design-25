@@ -70,8 +70,10 @@ export class ReminderService {
       updateData.repeatSchedule = data.repeatSchedule;
     if (data.customDays !== undefined) updateData.customDays = data.customDays;
     if (data.isEnabled !== undefined) updateData.isEnabled = data.isEnabled;
-    if (data.isCompleted !== undefined) updateData.isCompleted = data.isCompleted;
-    if (data.sendToWatch !== undefined) updateData.sendToWatch = data.sendToWatch;
+    if (data.isCompleted !== undefined)
+      updateData.isCompleted = data.isCompleted;
+    if (data.sendToWatch !== undefined)
+      updateData.sendToWatch = data.sendToWatch;
 
     await db
       .updateTable('reminder')

@@ -116,7 +116,11 @@ export class ApnsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async notifyPatientDevices(patientId: string, action: string, reminderId: string) {
+  async notifyPatientDevices(
+    patientId: string,
+    action: string,
+    reminderId: string,
+  ) {
     const devices = await db
       .selectFrom('deviceToken')
       .selectAll()
@@ -125,7 +129,12 @@ export class ApnsService implements OnModuleInit, OnModuleDestroy {
 
     for (const device of devices) {
       try {
-        await this.sendSyncNotification(device.token, device.bundleId, action, reminderId);
+        await this.sendSyncNotification(
+          device.token,
+          device.bundleId,
+          action,
+          reminderId,
+        );
       } catch (error) {
         this.logger.error(
           `Failed to send sync push to ${device.platform} device: ${error}`,
@@ -140,7 +149,9 @@ export class ApnsService implements OnModuleInit, OnModuleDestroy {
     zoneName: string,
   ) {
     if (!this.provider) {
-      this.logger.warn('APNs provider not initialized, skipping geofence alert');
+      this.logger.warn(
+        'APNs provider not initialized, skipping geofence alert',
+      );
       return;
     }
 
@@ -163,7 +174,9 @@ export class ApnsService implements OnModuleInit, OnModuleDestroy {
       this.logger.error(
         `APNs geofence alert failed: ${JSON.stringify(failure.response)}`,
       );
-      throw new Error(`APNs geofence alert failed: ${failure.response?.reason}`);
+      throw new Error(
+        `APNs geofence alert failed: ${failure.response?.reason}`,
+      );
     }
 
     this.logger.debug(`APNs geofence alert sent for zone "${zoneName}"`);

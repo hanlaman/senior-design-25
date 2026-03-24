@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { db } from '../db';
+import { SummarizationService } from '../summarization/summarization.service';
 
 interface ConversationMessageInput {
   azureItemId: string;
@@ -20,6 +21,8 @@ interface CreateConversationInput {
 @Injectable()
 export class ConversationService {
   private readonly logger = new Logger(ConversationService.name);
+
+  constructor(private readonly summarizationService: SummarizationService) {}
 
   async create(data: CreateConversationInput) {
     // Check if session already exists (idempotent upload)
@@ -80,11 +83,32 @@ export class ConversationService {
         .execute();
     }
 
+    // Generate summary
+    let summarized = false;
+    if (data.messages.length > 0) {
+      const summary = await this.summarizationService.summarize(
+        data.messages.map((m) => ({ role: m.role, content: m.content })),
+      );
+
+      if (summary) {
+        await db
+          .updateTable('conversationSession')
+          .set({
+            summary,
+            summarizedAt: new Date(),
+          })
+          .where('id', '=', sessionId)
+          .execute();
+        summarized = true;
+        this.logger.log(`Generated summary for session ${sessionId}`);
+      }
+    }
+
     this.logger.log(
       `Created conversation session ${sessionId} with ${data.messages.length} messages`,
     );
 
-    return { success: true, sessionId };
+    return { success: true, sessionId, summarized };
   }
 
   async findAllForPatient(
@@ -118,6 +142,8 @@ export class ConversationService {
           startTime: session.startTime,
           endTime: session.endTime,
           messageCount: session.messageCount,
+          summary: session.summary,
+          summarizedAt: session.summarizedAt,
           preview: firstMessage?.content?.substring(0, 100) ?? '',
         };
       }),
