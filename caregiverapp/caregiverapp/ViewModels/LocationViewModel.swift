@@ -25,6 +25,10 @@ final class LocationViewModel {
 
     var locationStatusText: String {
         if let location = currentLocation {
+            let enabledZones = safeZones.filter { $0.isEnabled }
+            if enabledZones.isEmpty {
+                return "No Safe Zones Configured"
+            }
             return location.isInSafeZone ? "In Safe Zone: \(location.currentZoneName ?? "Unknown")" : "Outside Safe Zones"
         }
         return "Location Unknown"
@@ -135,10 +139,19 @@ final class LocationViewModel {
 
     private func evaluateGeofences(_ location: PatientLocation) -> PatientLocation {
         let enabledZones = safeZones.filter { $0.isEnabled }
+        var updatedLocation = location
+
+        // No enabled zones configured — don't flag patient as outside
+        if enabledZones.isEmpty {
+            updatedLocation.isInSafeZone = true
+            updatedLocation.currentZoneName = nil
+            previouslyInsideZoneIds = []
+            return updatedLocation
+        }
+
         let containingZones = enabledZones.filter { $0.contains(location: location) }
         let currentZoneIds = Set(containingZones.map { $0.id })
 
-        var updatedLocation = location
         if let firstZone = containingZones.first {
             updatedLocation.isInSafeZone = true
             updatedLocation.currentZoneName = firstZone.name
@@ -176,20 +189,16 @@ final class LocationViewModel {
 
     func addSafeZone(name: String, center: CLLocationCoordinate2D, radius: Double, durationMinutes: Int = 15) {
         let zone = SafeZone(name: name, center: Coordinate(from: center), radiusMeters: radius, durationMinutes: durationMinutes)
+        safeZones.append(zone)
         Task {
-            isLoading = true
-            defer { isLoading = false }
-            try? await dataProvider.addSafeZone(zone)
             _ = await locationAPIService.createSafeZone(zone)
-            safeZones = dataProvider.safeZones
         }
     }
 
     func removeSafeZone(_ zone: SafeZone) {
+        safeZones.removeAll { $0.id == zone.id }
         Task {
-            try? await dataProvider.removeSafeZone(id: zone.id)
             _ = await locationAPIService.deleteSafeZone(id: zone.id)
-            safeZones = dataProvider.safeZones
         }
     }
 
@@ -197,20 +206,22 @@ final class LocationViewModel {
         var updatedZone = zone
         updatedZone.radiusMeters = newRadius
         updatedZone.durationMinutes = newDuration
+        if let index = safeZones.firstIndex(where: { $0.id == zone.id }) {
+            safeZones[index] = updatedZone
+        }
         Task {
-            try? await dataProvider.updateSafeZone(updatedZone)
             _ = await locationAPIService.updateSafeZone(updatedZone)
-            safeZones = dataProvider.safeZones
         }
     }
 
     func toggleSafeZone(_ zone: SafeZone) {
         var updatedZone = zone
         updatedZone.isEnabled.toggle()
+        if let index = safeZones.firstIndex(where: { $0.id == zone.id }) {
+            safeZones[index] = updatedZone
+        }
         Task {
-            try? await dataProvider.updateSafeZone(updatedZone)
             _ = await locationAPIService.updateSafeZone(updatedZone)
-            safeZones = dataProvider.safeZones
         }
     }
 

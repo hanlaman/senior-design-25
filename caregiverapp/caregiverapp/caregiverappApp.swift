@@ -195,6 +195,15 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         print("[AppDelegate] Failed to register for remote notifications: \(error.localizedDescription)")
     }
 
+    // Show alert notifications even when app is in the foreground
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound, .badge])
+    }
+
     // Handle silent push notifications (content-available: 1)
     func application(
         _ application: UIApplication,
