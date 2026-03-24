@@ -53,6 +53,25 @@ const cognitiveProject = new cognitiveservices.Project(`foundry-project-${stack}
     }
 });
 
+// Deploy GPT-4o-mini model for conversation summarization
+const summarizerDeployment = new cognitiveservices.Deployment(`conversation-summarizer-${stack}`, {
+    accountName: foundry.name,
+    resourceGroupName: resourceGroup.name,
+    deploymentName: "conversation-summarizer",
+    properties: {
+        model: {
+            format: "OpenAI",
+            name: "gpt-4o-mini",
+            version: "2024-07-18",
+        },
+        versionUpgradeOption: "OnceCurrentVersionExpired",
+    },
+    sku: {
+        name: "GlobalStandard",
+        capacity: 1,
+    },
+});
+
 // Create a Cosmos DB account
 const cosmosDbAccount = new cosmosdb.DatabaseAccount(`cosmos-db-account-${stack}`, {
     accountName: `hsdaucsd26${stack}`,
@@ -110,3 +129,4 @@ const cosmosDbAccount = new cosmosdb.DatabaseAccount(`cosmos-db-account-${stack}
 });
 
 export const resourceGroupName = resourceGroup.name;
+export const summarizerDeploymentName = summarizerDeployment.name;
