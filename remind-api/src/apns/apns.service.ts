@@ -134,6 +134,41 @@ export class ApnsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async sendGeofenceAlertNotification(
+    deviceToken: string,
+    bundleId: string,
+    zoneName: string,
+  ) {
+    if (!this.provider) {
+      this.logger.warn('APNs provider not initialized, skipping geofence alert');
+      return;
+    }
+
+    const notification = new apn.Notification();
+    notification.topic = bundleId;
+    notification.pushType = 'alert';
+    notification.expiry = Math.floor(Date.now() / 1000) + 3600;
+    notification.sound = 'default';
+    notification.alert = {
+      title: 'Safe Zone Alert',
+      body: `Patient has left safe zone: ${zoneName}`,
+    };
+    (notification as any).category = 'GEOFENCE_ALERT';
+    notification.payload = { zoneName };
+
+    const result = await this.provider.send(notification, deviceToken);
+
+    if (result.failed.length > 0) {
+      const failure = result.failed[0];
+      this.logger.error(
+        `APNs geofence alert failed: ${JSON.stringify(failure.response)}`,
+      );
+      throw new Error(`APNs geofence alert failed: ${failure.response?.reason}`);
+    }
+
+    this.logger.debug(`APNs geofence alert sent for zone "${zoneName}"`);
+  }
+
   async registerDeviceToken(
     patientId: string,
     token: string,
