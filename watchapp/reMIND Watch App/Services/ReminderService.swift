@@ -15,7 +15,7 @@ actor ReminderService {
     private let patientId: String
 
     init(
-        baseURL: String = "https://3965-129-137-96-11.ngrok-free.app",
+        baseURL: String = "http://localhost:3000",
         patientId: String = "demo-patient-1"
     ) {
         self.baseURL = baseURL

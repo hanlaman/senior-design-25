@@ -30,7 +30,7 @@ final class APIAuthService: AuthService {
 
     // MARK: - Initialization
 
-    init(baseURL: String = "https://3965-129-137-96-11.ngrok-free.app") {
+    init(baseURL: String = "http://localhost:3000") {
         self.baseURL = baseURL
     }
 

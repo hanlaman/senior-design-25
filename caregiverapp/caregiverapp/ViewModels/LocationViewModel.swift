@@ -38,7 +38,7 @@ final class LocationViewModel {
     private let locationAPIService = LocationAPIService()
     private var cancellables = Set<AnyCancellable>()
     private var pollingTask: Task<Void, Never>?
-    private let pollingInterval: TimeInterval = 10
+    private let pollingInterval: TimeInterval = 15
     private var previouslyInsideZoneIds: Set<UUID> = []
 
     init(dataProvider: PatientDataProvider) {

@@ -26,9 +26,9 @@ actor LocationService: NSObject {
     let locationStream: AsyncStream<CLLocation>
 
     init(
-        baseURL: String = "https://3965-129-137-96-11.ngrok-free.app",
+        baseURL: String = "http://localhost:3000",
         patientId: String = "demo-patient-1",
-        updateInterval: TimeInterval = 60
+        updateInterval: TimeInterval = 15
     ) {
         var continuationHolder: AsyncStream<CLLocation>.Continuation?
         self.locationStream = AsyncStream { continuation in
