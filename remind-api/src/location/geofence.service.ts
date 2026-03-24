@@ -2,17 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ApnsService } from '../apns/apns.service';
 import { db } from '../db';
 
-interface BreachState {
-  exitedAt: Date;
-  notified: boolean;
-  closestZoneName: string;
-  gracePeriodMs: number;
-}
-
 @Injectable()
 export class GeofenceService {
   private readonly logger = new Logger(GeofenceService.name);
-  private readonly patientBreachState = new Map<string, BreachState>();
 
   constructor(private readonly apnsService: ApnsService) {}
 
@@ -42,12 +34,19 @@ export class GeofenceService {
         ) <= zone.radiusMeters,
     );
 
-    const breach = this.patientBreachState.get(patientId);
+    const breach = await db
+      .selectFrom('geofenceBreach')
+      .selectAll()
+      .where('patientId', '=', patientId)
+      .executeTakeFirst();
 
     if (insideAnyZone) {
       // Patient is inside a zone — clear any breach state
       if (breach) {
-        this.patientBreachState.delete(patientId);
+        await db
+          .deleteFrom('geofenceBreach')
+          .where('patientId', '=', patientId)
+          .execute();
         this.logger.log(`Patient ${patientId} has returned to a safe zone`);
       }
       return;
@@ -72,17 +71,20 @@ export class GeofenceService {
         return dist < closestDist ? zone : closest;
       });
 
-      // Use the max durationMinutes across all zones as the grace period
       const gracePeriodMinutes = Math.max(
         ...zones.map((z) => z.durationMinutes),
       );
 
-      this.patientBreachState.set(patientId, {
-        exitedAt: new Date(),
-        notified: false,
-        closestZoneName: closestZone.name,
-        gracePeriodMs: gracePeriodMinutes * 60 * 1000,
-      });
+      await db
+        .insertInto('geofenceBreach')
+        .values({
+          patientId,
+          exitedAt: new Date(),
+          notified: false,
+          closestZoneName: closestZone.name,
+          gracePeriodMs: gracePeriodMinutes * 60 * 1000,
+        })
+        .execute();
 
       this.logger.log(
         `Patient ${patientId} left safe zones — grace period ${gracePeriodMinutes}m started`,
@@ -91,14 +93,17 @@ export class GeofenceService {
     }
 
     if (breach.notified) {
-      // Already sent the notification for this breach
       return;
     }
 
     // Check if grace period has elapsed
-    const elapsed = Date.now() - breach.exitedAt.getTime();
+    const elapsed = Date.now() - new Date(breach.exitedAt).getTime();
     if (elapsed >= breach.gracePeriodMs) {
-      breach.notified = true;
+      await db
+        .updateTable('geofenceBreach')
+        .set({ notified: true })
+        .where('patientId', '=', patientId)
+        .execute();
 
       this.logger.warn(
         `Patient ${patientId} has been outside safe zone "${breach.closestZoneName}" for ${Math.round(elapsed / 60000)}m — notifying caregiver`,
@@ -141,7 +146,7 @@ function haversineDistance(
   lat2: number,
   lon2: number,
 ): number {
-  const R = 6371000; // Earth radius in meters
+  const R = 6371000;
   const toRad = (deg: number) => (deg * Math.PI) / 180;
 
   const dLat = toRad(lat2 - lat1);

@@ -24,7 +24,7 @@ export class LocationController {
     this.geofenceService
       .checkGeofence(body.patientId, body.latitude, body.longitude)
       .catch((err) => {
-        // fire-and-forget: don't block the location response
+        console.error('Geofence check failed:', err);
       });
 
     return result;

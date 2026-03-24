@@ -100,6 +100,15 @@ interface DeviceTokenTable {
   updatedAt: Generated<Date>;
 }
 
+interface GeofenceBreachTable {
+  id: Generated<string>;
+  patientId: string;
+  exitedAt: Date;
+  notified: boolean;
+  closestZoneName: string;
+  gracePeriodMs: number;
+}
+
 // Database interface combining all tables
 export interface Database {
   user: UserTable;
@@ -110,6 +119,7 @@ export interface Database {
   safeZone: SafeZoneTable;
   reminder: ReminderTable;
   deviceToken: DeviceTokenTable;
+  geofenceBreach: GeofenceBreachTable;
 }
 
 // Export the Kysely database instance
