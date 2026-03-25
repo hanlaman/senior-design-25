@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { AzureOpenAI } from 'openai';
+import { Prompts } from '../prompts';
 
 interface ConversationMessage {
   role: 'user' | 'assistant';
@@ -50,7 +51,7 @@ export class SummarizationService implements OnModuleInit {
       )
       .join('\n');
 
-    const prompt = `Summarize this conversation in 1-2 sentences. Be brief and factual.
+    const prompt = `${Prompts.CONVERSATION_SUMMARIZATION}
 
 ${formattedMessages}`;
 

@@ -7,6 +7,7 @@ import {
   MemoryContextResponse,
   GetMemoryContextQuery,
 } from './dto/memory.dto';
+import { Prompts } from '../prompts';
 
 @Injectable()
 export class RetrievalService {
@@ -121,11 +122,11 @@ export class RetrievalService {
    */
   private formatQueryResults(memories: ScoredMemory[], query: string): string {
     if (memories.length === 0) {
-      return `No memories found matching "${query}"`;
+      return Prompts.CONTEXT_TEMPLATES.noMemoriesFound(query);
     }
 
     const items = memories.map((m) => `- ${m.content}`).join('\n');
-    return `## Relevant Memories for "${query}"\n\n${items}`;
+    return `${Prompts.CONTEXT_TEMPLATES.queryResultsHeader(query)}\n\n${items}`;
   }
 
   /**
@@ -169,7 +170,10 @@ export class RetrievalService {
       `Query "${query}" similarity scores:\n` +
         allScored
           .sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0))
-          .map((m) => `  ${(m.similarity ?? 0).toFixed(3)}: ${m.content.substring(0, 50)}`)
+          .map(
+            (m) =>
+              `  ${(m.similarity ?? 0).toFixed(3)}: ${m.content.substring(0, 50)}`,
+          )
           .join('\n'),
     );
 
@@ -283,7 +287,8 @@ export class RetrievalService {
     );
     if (people.length > 0) {
       sections.push(
-        '### Key People\n' + people.map((m) => `- ${m.content}`).join('\n'),
+        `${Prompts.CONTEXT_TEMPLATES.SECTION_KEY_PEOPLE}\n` +
+          people.map((m) => `- ${m.content}`).join('\n'),
       );
     }
 
@@ -293,7 +298,8 @@ export class RetrievalService {
     const dailyLife = [...routines, ...preferences];
     if (dailyLife.length > 0) {
       sections.push(
-        '### Daily Life\n' + dailyLife.map((m) => `- ${m.content}`).join('\n'),
+        `${Prompts.CONTEXT_TEMPLATES.SECTION_DAILY_LIFE}\n` +
+          dailyLife.map((m) => `- ${m.content}`).join('\n'),
       );
     }
 
@@ -305,7 +311,7 @@ export class RetrievalService {
     );
     if (upcoming.length > 0) {
       sections.push(
-        '### Coming Up\n' +
+        `${Prompts.CONTEXT_TEMPLATES.SECTION_COMING_UP}\n` +
           upcoming
             .sort((a, b) => {
               if (!a.eventDate) return 1;
@@ -335,7 +341,7 @@ export class RetrievalService {
     );
     if (recent.length > 0) {
       sections.push(
-        '### Recent Conversations\n' +
+        `${Prompts.CONTEXT_TEMPLATES.SECTION_RECENT_CONVERSATIONS}\n` +
           recent
             .slice(0, 5)
             .map((m) => `- ${m.content}`)
@@ -347,7 +353,7 @@ export class RetrievalService {
     const concerns = groups.get('concern') || [];
     if (concerns.length > 0) {
       sections.push(
-        '### Things to Be Aware Of\n' +
+        `${Prompts.CONTEXT_TEMPLATES.SECTION_CONCERNS}\n` +
           concerns.map((m) => `- ${m.content}`).join('\n'),
       );
     }
@@ -360,6 +366,8 @@ export class RetrievalService {
       return '';
     }
 
-    return '## What You Know About This User\n\n' + sections.join('\n\n');
+    return (
+      `${Prompts.CONTEXT_TEMPLATES.GREETING_HEADER}\n\n` + sections.join('\n\n')
+    );
   }
 }

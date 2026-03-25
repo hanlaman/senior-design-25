@@ -74,6 +74,25 @@ Apple Watch → Backend API → Caregiver App (via polling/push)
 - `remind-api/src/app.module.ts` - API module registration
 - `remind-api/src/db/migrations/` - Database schema migrations
 
+## LLM Prompts
+
+All LLM system prompts and tool descriptions are centralized for easy review and modification:
+
+### Watch App
+- **File**: `watchapp/reMIND Watch App/Configuration/LLMPrompts.swift`
+- **Contents**:
+  - `assistantSystemPrompt` - Main reMIND assistant persona and behavior guidelines
+  - `Tools.getCurrentTime` - Tool description for time retrieval
+  - `Tools.getSessionTranscript` - Tool description for conversation history
+  - `Tools.getUserMemories` - Tool description for memory search
+
+### Backend API
+- **File**: `remind-api/src/prompts/index.ts`
+- **Contents**:
+  - `MEMORY_EXTRACTION` - Prompt for extracting memories from conversations
+  - `CONVERSATION_SUMMARIZATION` - Prompt for summarizing sessions
+  - `CONTEXT_TEMPLATES` - Templates for formatting memory context in prompts
+
 ## Testing
 
 - **API**: `npm run test` (Jest)

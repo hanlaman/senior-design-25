@@ -39,7 +39,7 @@ public class ToolRegistry: ObservableObject {
             LocalFunctionTool(
                 id: "get_current_time",
                 name: "get_current_time",
-                description: "Get the current local time in a human-readable format",
+                description: LLMPrompts.Tools.getCurrentTime,
                 displayName: "Current Time",
                 shortDescription: "Get the time",
                 toolsetId: "Utilities",
@@ -56,7 +56,7 @@ public class ToolRegistry: ObservableObject {
             LocalFunctionTool(
                 id: "get_session_transcript",
                 name: "get_session_transcript",
-                description: "Get the transcript of the current voice session conversation. Returns all messages exchanged between the user and assistant in chronological order. Use this to recall what was discussed earlier in the conversation.",
+                description: LLMPrompts.Tools.getSessionTranscript,
                 displayName: "Session Transcript",
                 shortDescription: "Get conversation history",
                 toolsetId: "System",
@@ -67,7 +67,7 @@ public class ToolRegistry: ObservableObject {
                     "properties": AnyCodable([
                         "max_messages": [
                             "type": "integer",
-                            "description": "Maximum number of recent messages to return. Omit for all messages."
+                            "description": LLMPrompts.Tools.getSessionTranscriptMaxMessagesParam
                         ]
                     ])
                 ],
@@ -76,7 +76,7 @@ public class ToolRegistry: ObservableObject {
             LocalFunctionTool(
                 id: "get_user_memories",
                 name: "get_user_memories",
-                description: "Search your memory for information about the user. IMPORTANT: You MUST call this function BEFORE saying you don't know something about the user. Use this when the user asks personal questions like 'what car do I drive?', 'who is my daughter?', 'where do I live?', or mentions people, places, or topics you should know about them.",
+                description: LLMPrompts.Tools.getUserMemories,
                 displayName: "User Memories",
                 shortDescription: "Get relevant user memories",
                 toolsetId: "System",
@@ -87,7 +87,7 @@ public class ToolRegistry: ObservableObject {
                     "properties": AnyCodable([
                         "query": [
                             "type": "string",
-                            "description": "The topic, person, or entity to search memories for (e.g., 'Sarah', 'doctor appointment', 'morning routine')"
+                            "description": LLMPrompts.Tools.getUserMemoriesQueryParam
                         ]
                     ]),
                     "required": AnyCodable(["query"])

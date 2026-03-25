@@ -3,6 +3,7 @@ import { AzureOpenAI } from 'openai';
 import { MemoryService } from './memory.service';
 import { EmbeddingService } from './embedding.service';
 import { ExtractedMemory, ExtractionResult } from './dto/memory.dto';
+import { Prompts } from '../prompts';
 
 interface ConversationMessage {
   role: 'user' | 'assistant';
@@ -219,45 +220,10 @@ export class ExtractionService implements OnModuleInit {
       return [];
     }
 
-    const prompt = `You are analyzing a conversation between a dementia patient and their AI companion (reMIND).
-
-Extract important information that should be remembered for future conversations. For each piece of memorable information, provide a JSON object.
-
-Focus on:
-- People mentioned (names, relationships, roles)
-- Routines and habits (daily activities, preferences)
-- Events that happened or are coming up (visits, appointments, calls)
-- Health-related mentions (NOT diagnoses - just what was said)
-- Emotional states or concerns expressed
-- Preferences and likes/dislikes
-- Places and locations mentioned
-
-For each memory, extract:
-{
-  "content": "Natural language description of what to remember",
-  "keywords": ["open", "vocabulary", "tags"],
-  "contextDescription": "Brief context explaining why this matters for future conversations",
-  "suggestedType": "fact|episode|routine|preference|concern|relationship",
-  "suggestedCategories": ["family", "health", "routine", "emotion", "location", "interest"],
-  "temporalRelevance": "past|ongoing|future|timeless",
-  "eventDate": "ISO date string if applicable, null otherwise",
-  "emotionalTone": "positive|negative|neutral|anxious|null",
-  "relatedTo": ["keywords that might connect to other memories"],
-  "confidence": 0.0-1.0
-}
-
-Guidelines:
-- Only extract facts explicitly stated or strongly implied
-- Do NOT infer medical diagnoses
-- Preserve the patient's own words for preferences when possible
-- Note if information seems uncertain (lower confidence)
-- Include relationship context (e.g., "Sarah" -> "daughter Sarah")
+    const prompt = `${Prompts.MEMORY_EXTRACTION}
 
 Conversation:
-${transcript}
-
-Respond with a JSON array of extracted memories. If nothing memorable, return empty array [].
-Only output valid JSON, no other text.`;
+${transcript}`;
 
     try {
       const response = await this.client.chat.completions.create({
