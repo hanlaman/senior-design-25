@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { db } from '../db';
 import { SummarizationService } from '../summarization/summarization.service';
+import { ExtractionService } from '../memory/extraction.service';
 
 interface ConversationMessageInput {
   azureItemId: string;
@@ -22,7 +23,10 @@ interface CreateConversationInput {
 export class ConversationService {
   private readonly logger = new Logger(ConversationService.name);
 
-  constructor(private readonly summarizationService: SummarizationService) {}
+  constructor(
+    private readonly summarizationService: SummarizationService,
+    private readonly extractionService: ExtractionService,
+  ) {}
 
   async create(data: CreateConversationInput) {
     // Check if session already exists (idempotent upload)
@@ -102,6 +106,26 @@ export class ConversationService {
         summarized = true;
         this.logger.log(`Generated summary for session ${sessionId}`);
       }
+
+      // Extract memories from conversation (async, non-blocking)
+      this.extractionService
+        .extractMemories(
+          data.patientId,
+          sessionId,
+          data.messages.map((m) => ({ role: m.role, content: m.content })),
+        )
+        .then((result) => {
+          if (result.memoriesCreated > 0 || result.memoriesUpdated > 0) {
+            this.logger.log(
+              `Memory extraction for session ${sessionId}: ${result.memoriesCreated} created, ${result.memoriesUpdated} updated`,
+            );
+          }
+        })
+        .catch((error) => {
+          this.logger.error(
+            `Memory extraction failed for session ${sessionId}: ${error}`,
+          );
+        });
     }
 
     this.logger.log(

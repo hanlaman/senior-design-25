@@ -8,6 +8,7 @@ import { SafeZoneModule } from './safezone/safezone.module';
 import { ReminderModule } from './reminder/reminder.module';
 import { ApnsModule } from './apns/apns.module';
 import { ConversationModule } from './conversation/conversation.module';
+import { MemoryModule } from './memory/memory.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ConversationModule } from './conversation/conversation.module';
     ReminderModule,
     ApnsModule,
     ConversationModule,
+    MemoryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

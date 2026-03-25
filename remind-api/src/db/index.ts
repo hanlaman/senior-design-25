@@ -132,6 +132,53 @@ interface ConversationMessageTable {
   createdAt: Generated<Date>;
 }
 
+interface PatientMemoryTable {
+  id: Generated<string>;
+  patientId: string;
+  // Core flexible content
+  content: string;
+  keywords: string | null; // JSON array
+  contextDescription: string | null;
+  embedding: Buffer | null; // VARBINARY for vector
+  // Optional computed facets
+  suggestedType: string | null;
+  suggestedCategories: string | null; // JSON array
+  temporalRelevance: string | null;
+  eventDate: Date | null;
+  emotionalTone: string | null;
+  // Metadata
+  confidence: number;
+  sourceSessionId: string | null;
+  mentionCount: number;
+  firstMentioned: Date;
+  lastMentioned: Date;
+  isActive: boolean;
+  createdAt: Generated<Date>;
+  updatedAt: Generated<Date>;
+}
+
+interface MemoryLinkTable {
+  id: Generated<string>;
+  fromMemoryId: string;
+  toMemoryId: string;
+  linkType: string;
+  linkStrength: number;
+  linkReason: string | null;
+  createdAt: Generated<Date>;
+}
+
+interface MemoryExtractionLogTable {
+  id: Generated<string>;
+  sessionId: string;
+  extractedAt: Date;
+  memoriesCreated: number;
+  memoriesUpdated: number;
+  linksCreated: number;
+  processingTimeMs: number | null;
+  extractionModel: string | null;
+  error: string | null;
+}
+
 // Database interface combining all tables
 export interface Database {
   user: UserTable;
@@ -145,6 +192,9 @@ export interface Database {
   geofenceBreach: GeofenceBreachTable;
   conversationSession: ConversationSessionTable;
   conversationMessage: ConversationMessageTable;
+  patientMemory: PatientMemoryTable;
+  memoryLink: MemoryLinkTable;
+  memoryExtractionLog: MemoryExtractionLogTable;
 }
 
 // Export the Kysely database instance

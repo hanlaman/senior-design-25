@@ -72,6 +72,27 @@ public class ToolRegistry: ObservableObject {
                     ])
                 ],
                 handler: .getSessionTranscript
+            ),
+            LocalFunctionTool(
+                id: "get_user_memories",
+                name: "get_user_memories",
+                description: "Retrieve relevant memories about the user based on the current conversation topic. Use this when the user mentions people, places, events, or topics that might have associated memories. This helps you recall past conversations and facts about the user.",
+                displayName: "User Memories",
+                shortDescription: "Get relevant user memories",
+                toolsetId: "System",
+                isEnabled: true,
+                isHidden: true,
+                parameters: [
+                    "type": AnyCodable("object"),
+                    "properties": AnyCodable([
+                        "query": [
+                            "type": "string",
+                            "description": "The topic, person, or entity to search memories for (e.g., 'Sarah', 'doctor appointment', 'morning routine')"
+                        ]
+                    ]),
+                    "required": AnyCodable(["query"])
+                ],
+                handler: .getUserMemories
             )
         ]
 

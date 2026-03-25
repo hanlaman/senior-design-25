@@ -50,29 +50,15 @@ export class SummarizationService implements OnModuleInit {
       )
       .join('\n');
 
-    const prompt = `You are an AI assistant helping caregivers of dementia patients.
-Summarize the following conversation between a dementia patient and their AI companion.
+    const prompt = `Summarize this conversation in 1-2 sentences. Be brief and factual.
 
-Focus on:
-- Key topics discussed or questions asked
-- Any signs of confusion, disorientation, or distress
-- Mentions of people, places, or events
-- Any health concerns or physical symptoms mentioned
-- The patient's emotional state during the conversation
-
-Keep the summary concise (2-4 sentences) and factual. Use third person (e.g., "The patient asked about...").
-If the conversation is too short or lacks meaningful content, simply state that.
-
-Conversation:
-${formattedMessages}
-
-Summary:`;
+${formattedMessages}`;
 
     try {
       const response = await this.client.chat.completions.create({
         model: this.deploymentName,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 300,
+        max_tokens: 100,
         temperature: 0.3,
       });
 

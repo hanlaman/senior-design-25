@@ -104,9 +104,74 @@ public enum ToolExecutors {
         return jsonString
     }
 
+    // MARK: - Get User Memories Tool
+
+    /// Fetch relevant memories about the user based on a query
+    /// - Parameter arguments: JSON string with "query" field
+    /// - Returns: JSON string with relevant memories
+    public static func getUserMemories(arguments: String) async throws -> String {
+        // Parse arguments
+        var query: String?
+
+        if !arguments.isEmpty, let data = arguments.data(using: .utf8) {
+            if let args = try? JSONDecoder().decode(MemoriesArguments.self, from: data) {
+                query = args.query
+            }
+        }
+
+        guard let queryString = query, !queryString.isEmpty else {
+            return "{\"error\": \"Missing required 'query' argument\", \"memories\": []}"
+        }
+
+        // Fetch memories from service
+        let memoryContext = await MemoryContextService.shared.fetchRelevantContext(query: queryString)
+
+        if let context = memoryContext, !context.isEmpty {
+            let response = MemoriesResponse(
+                query: queryString,
+                found: true,
+                context: context
+            )
+
+            let jsonData = try JSONEncoder().encode(response)
+            guard let jsonString = String(data: jsonData, encoding: .utf8) else {
+                throw ToolError.executionFailed("Failed to encode memories as UTF-8")
+            }
+
+            AppLogger.general.info("getUserMemories executed: found context for '\(queryString)'")
+            return jsonString
+        } else {
+            let response = MemoriesResponse(
+                query: queryString,
+                found: false,
+                context: "No relevant memories found for '\(queryString)'"
+            )
+
+            let jsonData = try JSONEncoder().encode(response)
+            guard let jsonString = String(data: jsonData, encoding: .utf8) else {
+                throw ToolError.executionFailed("Failed to encode memories as UTF-8")
+            }
+
+            AppLogger.general.info("getUserMemories executed: no memories found for '\(queryString)'")
+            return jsonString
+        }
+    }
+
     // MARK: - Future Tool Executors
 
     // Future tool implementations will be added here as static methods
+}
+
+// MARK: - Supporting Types for Get User Memories
+
+private struct MemoriesArguments: Codable {
+    let query: String?
+}
+
+private struct MemoriesResponse: Codable {
+    let query: String
+    let found: Bool
+    let context: String
 }
 
 // MARK: - Supporting Types for Get Session Transcript

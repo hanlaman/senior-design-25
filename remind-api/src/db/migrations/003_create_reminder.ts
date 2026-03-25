@@ -15,9 +15,7 @@ export async function up(db: Kysely<any>): Promise<void> {
       col.notNull().defaultTo('once'),
     )
     .addColumn('customDays', 'varchar(50)')
-    .addColumn('isEnabled', sql`BIT`, (col) =>
-      col.notNull().defaultTo(sql`1`),
-    )
+    .addColumn('isEnabled', sql`BIT`, (col) => col.notNull().defaultTo(sql`1`))
     .addColumn('isCompleted', sql`BIT`, (col) =>
       col.notNull().defaultTo(sql`0`),
     )

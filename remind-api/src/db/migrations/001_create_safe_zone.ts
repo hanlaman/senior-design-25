@@ -13,9 +13,7 @@ export async function up(db: Kysely<any>): Promise<void> {
     .addColumn('radiusMeters', sql`FLOAT`, (col) =>
       col.notNull().defaultTo(100),
     )
-    .addColumn('isEnabled', sql`BIT`, (col) =>
-      col.notNull().defaultTo(sql`1`),
-    )
+    .addColumn('isEnabled', sql`BIT`, (col) => col.notNull().defaultTo(sql`1`))
     .addColumn('createdAt', sql`DATETIME2`, (col) =>
       col.defaultTo(sql`GETDATE()`),
     )

@@ -55,6 +55,7 @@ class VoiceConnectionCoordinator: ObservableObject {
     private let settingsManager: VoiceSettingsManager
     private let toolRegistry: ToolRegistry
     private let historyManager: ConversationHistoryManager
+    private let memoryContextService: MemoryContextService
 
     // MARK: - Coordinators
 
@@ -80,6 +81,7 @@ class VoiceConnectionCoordinator: ObservableObject {
         settingsManager: VoiceSettingsManager = .shared,
         toolRegistry: ToolRegistry = .shared,
         historyManager: ConversationHistoryManager = .shared,
+        memoryContextService: MemoryContextService = .shared,
         azureServiceFactory: @escaping (String, String, String, String, VoiceSettings) -> VoiceLiveConnection = {
             endpoint, apiKey, model, apiVersion, settings in
             VoiceLiveConnection(
@@ -95,6 +97,7 @@ class VoiceConnectionCoordinator: ObservableObject {
         self.settingsManager = settingsManager
         self.toolRegistry = toolRegistry
         self.historyManager = historyManager
+        self.memoryContextService = memoryContextService
         self.azureServiceFactory = azureServiceFactory
         self.audioServiceFactory = audioServiceFactory
 
@@ -143,12 +146,23 @@ class VoiceConnectionCoordinator: ObservableObject {
 
         stateMachine.transitionTo(.connecting)
 
+        // Fetch memory context in parallel with service creation (non-blocking)
+        async let memoryContextTask = memoryContextService.fetchGreetingContext()
+
         do {
             let (azure, audio) = createServices(with: config)
             createCoordinators(azure: azure, audio: audio)
 
+            // Wait for memory context (with graceful fallback)
+            let memoryContext = await memoryContextTask
+            if let context = memoryContext {
+                AppLogger.general.info("Memory context loaded: \(context.count) chars")
+            } else {
+                AppLogger.general.debug("No memory context available (will use base instructions)")
+            }
+
             await startProcessingEvents()
-            let sessionId = try await establishSession(azure: azure)
+            let sessionId = try await establishSession(azure: azure, memoryContext: memoryContext)
             onConnectionEstablished(sessionId: sessionId)
 
             AppLogger.general.info("Voice assistant connected and ready")
@@ -183,6 +197,8 @@ class VoiceConnectionCoordinator: ObservableObject {
             if let session = historyManager.history.sessions.first(where: { $0.id == sessionId }) {
                 Task {
                     await ConversationSyncService.shared.syncSession(session)
+                    // Invalidate memory cache after sync so new memories can be fetched next session
+                    await memoryContextService.invalidateCache()
                 }
             }
         }
@@ -244,11 +260,13 @@ class VoiceConnectionCoordinator: ObservableObject {
         self.toolSyncCoordinator = toolSync
     }
 
-    private func establishSession(azure: VoiceLiveConnection) async throws -> String {
+    private func establishSession(azure: VoiceLiveConnection, memoryContext: String? = nil) async throws -> String {
         let enabledTools = toolRegistry.getEnabledTools()
         try await azure.connect()
 
-        let configWithTools = RealtimeRequestSession.fromSettings(settingsManager.settings, tools: enabledTools)
+        // Create settings with memory context injected into instructions
+        let settingsWithMemory = settingsManager.settings.withMemoryContext(memoryContext)
+        let configWithTools = RealtimeRequestSession.fromSettings(settingsWithMemory, tools: enabledTools)
         try await azure.session.update(configWithTools)
 
         let azureSessionState = await azure.sessionState

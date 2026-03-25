@@ -530,6 +530,24 @@ public struct RealtimeConversationFunctionCallItem: Codable, Sendable {
         case callId = "call_id"
         case status
     }
+
+    public init(
+        id: String,
+        type: String,
+        object: String,
+        name: String,
+        arguments: String,
+        callId: String,
+        status: RealtimeItemStatus
+    ) {
+        self.id = id
+        self.type = type
+        self.object = object
+        self.name = name
+        self.arguments = arguments
+        self.callId = callId
+        self.status = status
+    }
 }
 
 public struct RealtimeConversationFunctionCallOutputItem: Codable, Sendable {

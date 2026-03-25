@@ -120,6 +120,59 @@ Always be respectful, comforting, and clear.
         remoteVersion: nil
     )
 
+    // MARK: - Base Instructions
+
+    /// Base system instructions without memory context
+    public static let baseInstructions = """
+You are reMIND, a calm and supportive voice companion for older adults with memory challenges.
+
+Speak clearly, warmly, and patiently. Use short, simple sentences. Keep responses reassuring, concise, and easy to understand.
+
+Help with reminders, memory recall, orientation, and simple daily guidance. Repeat or rephrase when needed. Avoid overwhelming the user with too much information at once.
+
+If the user sounds confused or upset, respond gently and guide them one step at a time. Do not provide medical diagnosis. When safety is a concern, encourage contacting a caregiver or trusted person.
+
+Always be respectful, comforting, and clear.
+"""
+
+    // MARK: - Memory Context
+
+    /// Create instructions with memory context injected
+    /// - Parameter memoryContext: The formatted memory context from the backend
+    /// - Returns: Full instructions with memory context appended
+    public static func instructionsWithMemoryContext(_ memoryContext: String?) -> String {
+        guard let context = memoryContext, !context.isEmpty else {
+            return baseInstructions
+        }
+
+        return """
+\(baseInstructions)
+
+\(context)
+"""
+    }
+
+    /// Create a copy of settings with memory context included in instructions
+    /// - Parameter memoryContext: The formatted memory context from the backend
+    /// - Returns: New VoiceSettings with updated instructions
+    public func withMemoryContext(_ memoryContext: String?) -> VoiceSettings {
+        let fullInstructions = VoiceSettings.instructionsWithMemoryContext(memoryContext)
+
+        return VoiceSettings(
+            voiceName: voiceName,
+            speakingRate: speakingRate,
+            voiceTemperature: voiceTemperature,
+            continuousListeningEnabled: continuousListeningEnabled,
+            instructions: fullInstructions,
+            vadThreshold: vadThreshold,
+            vadPrefixPaddingMs: vadPrefixPaddingMs,
+            vadSilenceDurationMs: vadSilenceDurationMs,
+            sessionTemperature: sessionTemperature,
+            lastSyncDate: lastSyncDate,
+            remoteVersion: remoteVersion
+        )
+    }
+
     // MARK: - Validation
 
     /// Validate speaking rate is within acceptable range (Azure API: 0.5-1.5)

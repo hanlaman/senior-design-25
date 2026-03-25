@@ -26,6 +26,7 @@ public struct Toolset: Identifiable, Sendable {
 public enum ToolHandler: String, Codable, Sendable {
     case getCurrentTime
     case getSessionTranscript
+    case getUserMemories
 
     // Future tools can be added here:
     // case getCurrentWeather
@@ -41,6 +42,8 @@ public enum ToolHandler: String, Codable, Sendable {
             return try await ToolExecutors.getCurrentTime(arguments: arguments)
         case .getSessionTranscript:
             return try await ToolExecutors.getSessionTranscript(arguments: arguments)
+        case .getUserMemories:
+            return try await ToolExecutors.getUserMemories(arguments: arguments)
         }
     }
 }

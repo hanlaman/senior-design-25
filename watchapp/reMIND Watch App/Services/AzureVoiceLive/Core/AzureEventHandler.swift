@@ -86,6 +86,10 @@ class AzureEventHandler {
     /// events for the old recording which should be ignored
     private var currentRecordingItemId: String?
 
+    /// Tracks pending function calls waiting for arguments to stream in
+    /// Key: callId, Value: The function call item (arguments will be incomplete)
+    private var pendingFunctionCalls: [String: RealtimeConversationFunctionCallItem] = [:]
+
     // MARK: - Initialization
 
     init(
@@ -104,6 +108,11 @@ class AzureEventHandler {
     func resetRecordingState() {
         AppLogger.azure.debug("Resetting recording state, clearing itemId: \(self.currentRecordingItemId ?? "nil")")
         currentRecordingItemId = nil
+        // Clear any pending function calls that weren't completed
+        if !pendingFunctionCalls.isEmpty {
+            AppLogger.azure.debug("Clearing \(self.pendingFunctionCalls.count) pending function call(s)")
+            pendingFunctionCalls.removeAll()
+        }
     }
 
     // MARK: - Event Handling
@@ -158,10 +167,11 @@ class AzureEventHandler {
         case .conversationItemCreated(let itemEvent):
             AppLogger.azure.debug("Conversation item created: \(itemEvent.item.id) (type: \(itemEvent.item.type))")
 
-            // Check if this is a function call
+            // Check if this is a function call - store it pending until arguments are complete
             if case .functionCall(let functionCallItem) = itemEvent.item {
-                AppLogger.azure.info("🔧 Function call requested: \(functionCallItem.name) (call_id: \(functionCallItem.callId))")
-                await delegate?.eventHandler(self, didRequestFunctionCall: functionCallItem)
+                AppLogger.azure.info("🔧 Function call created (pending arguments): \(functionCallItem.name) (call_id: \(functionCallItem.callId))")
+                // Store the pending function call - don't execute yet, arguments are streamed in
+                pendingFunctionCalls[functionCallItem.callId] = functionCallItem
             }
 
             // Pre-create transcription message for user/assistant messages (reserves sequence number)
@@ -316,6 +326,24 @@ class AzureEventHandler {
 
         case .responseFunctionCallArgumentsDone(let event):
             AppLogger.azure.info("Function call arguments complete: call_id=\(event.callId), args=\(event.arguments)")
+
+            // Now execute the function call with complete arguments
+            if let pendingCall = pendingFunctionCalls.removeValue(forKey: event.callId) {
+                // Create a new function call item with the complete arguments
+                let completeCallItem = RealtimeConversationFunctionCallItem(
+                    id: pendingCall.id,
+                    type: pendingCall.type,
+                    object: pendingCall.object,
+                    name: pendingCall.name,
+                    arguments: event.arguments,  // Use the complete arguments
+                    callId: event.callId,
+                    status: pendingCall.status
+                )
+                AppLogger.azure.info("🔧 Executing function call: \(pendingCall.name) with complete arguments")
+                await delegate?.eventHandler(self, didRequestFunctionCall: completeCallItem)
+            } else {
+                AppLogger.azure.warning("Received function_call_arguments.done for unknown call_id: \(event.callId)")
+            }
 
         case .responseMcpCallArgumentsDelta:
             // High-frequency event - logging removed to reduce spam
