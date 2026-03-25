@@ -57,7 +57,7 @@ export class MemoryService {
         values.embedding = embeddingBuffer;
       } else {
         // Use CAST(NULL AS VARBINARY(MAX)) for MSSQL compatibility
-        values.embedding = sql`CAST(NULL AS VARBINARY(MAX))`
+        values.embedding = sql`CAST(NULL AS VARBINARY(MAX))`;
       }
 
       await db
@@ -384,9 +384,7 @@ export class MemoryService {
       id: row.id,
       patientId: row.patientId,
       content: row.content,
-      keywords: row.keywords
-        ? (JSON.parse(row.keywords) as string[])
-        : null,
+      keywords: row.keywords ? (JSON.parse(row.keywords) as string[]) : null,
       contextDescription: row.contextDescription,
       suggestedType: row.suggestedType,
       suggestedCategories: row.suggestedCategories

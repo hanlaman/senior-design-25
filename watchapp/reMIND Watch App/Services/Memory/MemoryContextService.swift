@@ -104,6 +104,8 @@ actor MemoryContextService {
             return cachedContext // Return cached as fallback
         }
 
+        AppLogger.general.info("🔍 Fetching memory context from: \(url.absoluteString)")
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -136,6 +138,7 @@ actor MemoryContextService {
             return contextResponse.formattedContext.isEmpty ? nil : contextResponse.formattedContext
 
         } catch {
+            AppLogger.general.error("❌ Memory context fetch failed for URL \(url.absoluteString): \(error.localizedDescription)")
             AppLogger.logError(error, category: AppLogger.general, context: "Failed to fetch memory context")
             return cachedContext // Return cached as fallback (graceful degradation)
         }

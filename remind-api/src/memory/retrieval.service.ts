@@ -12,10 +12,13 @@ import {
 export class RetrievalService {
   private readonly logger = new Logger(RetrievalService.name);
 
-  // Scoring weights
-  private readonly SIMILARITY_WEIGHT = 0.5;
-  private readonly RECENCY_WEIGHT = 0.3;
-  private readonly MENTION_WEIGHT = 0.2;
+  // Scoring weights for greeting context (no query)
+  private readonly RECENCY_WEIGHT = 0.6;
+  private readonly MENTION_WEIGHT = 0.4;
+
+  // Query-based retrieval settings
+  private readonly QUERY_MIN_SIMILARITY = 0.3; // Minimum similarity to include
+  private readonly QUERY_MAX_RESULTS = 5; // Fewer, more focused results for queries
 
   // Default limits
   private readonly DEFAULT_MAX_MEMORIES = 15;
@@ -47,65 +50,64 @@ export class RetrievalService {
       };
     }
 
-    // Score memories based on query (if provided), recency, and mention count
     let scoredMemories: ScoredMemory[];
 
     if (options.query) {
+      // Query-based retrieval: return only semantically relevant memories
       scoredMemories = await this.scoreMemoriesWithQuery(
         allMemories,
         options.query,
-        maxMemories,
       );
+      // Don't add time-relevant or linked memories for focused queries
     } else {
+      // Greeting context: broader context with recency/mention scoring
       scoredMemories = this.scoreMemoriesWithoutQuery(allMemories, maxMemories);
-    }
 
-    // Also include time-relevant memories (upcoming/recent events)
-    const timeRelevant = await this.memoryService.getTimeRelevantMemories(
-      patientId,
-      this.TIME_RELEVANCE_DAYS,
-      this.TIME_RELEVANCE_DAYS,
-    );
+      // Add time-relevant memories (upcoming/recent events)
+      const timeRelevant = await this.memoryService.getTimeRelevantMemories(
+        patientId,
+        this.TIME_RELEVANCE_DAYS,
+        this.TIME_RELEVANCE_DAYS,
+      );
 
-    // Merge time-relevant memories that aren't already in the list
-    const existingIds = new Set(scoredMemories.map((m) => m.id));
-    for (const memory of timeRelevant) {
-      if (!existingIds.has(memory.id)) {
-        scoredMemories.push({
-          ...memory,
-          similarity: 0,
-          recencyScore: 1.0, // Time-relevant memories get high recency score
-          totalScore: 0.8,
-        });
+      const existingIds = new Set(scoredMemories.map((m) => m.id));
+      for (const memory of timeRelevant) {
+        if (!existingIds.has(memory.id)) {
+          scoredMemories.push({
+            ...memory,
+            similarity: 0,
+            recencyScore: 1.0,
+            totalScore: 0.8,
+          });
+        }
       }
-    }
 
-    // Re-sort and limit
-    scoredMemories.sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0));
-    scoredMemories = scoredMemories.slice(0, maxMemories);
+      // Re-sort and limit
+      scoredMemories.sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0));
+      scoredMemories = scoredMemories.slice(0, maxMemories);
 
-    // Fetch linked memories for top results (1 hop)
-    const linkedMemories = await this.fetchLinkedMemories(
-      scoredMemories.slice(0, 5),
-    );
-    const linkedIds = new Set(scoredMemories.map((m) => m.id));
-    for (const linked of linkedMemories) {
-      if (!linkedIds.has(linked.id)) {
-        scoredMemories.push({
-          ...linked,
-          totalScore: 0.5, // Lower score for linked memories
-        });
+      // Fetch linked memories for top results (1 hop)
+      const linkedMemories = await this.fetchLinkedMemories(
+        scoredMemories.slice(0, 5),
+      );
+      const linkedIds = new Set(scoredMemories.map((m) => m.id));
+      for (const linked of linkedMemories) {
+        if (!linkedIds.has(linked.id)) {
+          scoredMemories.push({
+            ...linked,
+            totalScore: 0.5,
+          });
+        }
       }
-    }
 
-    // Final limit
-    scoredMemories = scoredMemories.slice(0, maxMemories);
+      // Final limit
+      scoredMemories = scoredMemories.slice(0, maxMemories);
+    }
 
     // Format for prompt injection
-    const formattedContext = this.formatMemoryContext(
-      scoredMemories,
-      options.sessionType,
-    );
+    const formattedContext = options.query
+      ? this.formatQueryResults(scoredMemories, options.query)
+      : this.formatGreetingContext(scoredMemories);
 
     return {
       memories: scoredMemories,
@@ -115,59 +117,75 @@ export class RetrievalService {
   }
 
   /**
-   * Score memories using semantic similarity to a query
+   * Format query results - simple list of matching memories
+   */
+  private formatQueryResults(memories: ScoredMemory[], query: string): string {
+    if (memories.length === 0) {
+      return `No memories found matching "${query}"`;
+    }
+
+    const items = memories.map((m) => `- ${m.content}`).join('\n');
+    return `## Relevant Memories for "${query}"\n\n${items}`;
+  }
+
+  /**
+   * Score memories using semantic similarity to a query.
+   * Only returns memories above a similarity threshold, sorted by similarity.
    */
   private async scoreMemoriesWithQuery(
     memories: Array<MemoryRecord & { embedding: Buffer | null }>,
     query: string,
-    maxMemories: number,
   ): Promise<ScoredMemory[]> {
     const queryEmbedding = await this.embeddingService.generateEmbedding(query);
 
     if (!queryEmbedding) {
-      return this.scoreMemoriesWithoutQuery(memories, maxMemories);
+      this.logger.warn('Failed to generate query embedding, returning empty');
+      return [];
     }
 
-    const now = new Date();
-    const maxAge = 90 * 24 * 60 * 60 * 1000; // 90 days in ms
+    const allScored = memories.map((memory) => {
+      // Calculate similarity
+      let similarity = 0;
+      if (memory.embedding) {
+        const memoryEmbedding = this.embeddingService.bufferToEmbedding(
+          memory.embedding,
+        );
+        similarity = this.embeddingService.cosineSimilarity(
+          queryEmbedding,
+          memoryEmbedding,
+        );
+      }
 
-    return memories
-      .map((memory) => {
-        // Calculate similarity
-        let similarity = 0;
-        if (memory.embedding) {
-          const memoryEmbedding = this.embeddingService.bufferToEmbedding(
-            memory.embedding,
-          );
-          similarity = this.embeddingService.cosineSimilarity(
-            queryEmbedding,
-            memoryEmbedding,
-          );
-        }
+      return {
+        ...memory,
+        embedding: undefined,
+        similarity,
+        totalScore: similarity,
+      } as ScoredMemory;
+    });
 
-        // Calculate recency score (0-1, higher is more recent)
-        const age = now.getTime() - memory.lastMentioned.getTime();
-        const recencyScore = Math.max(0, 1 - age / maxAge);
+    // Log all similarities for debugging
+    this.logger.log(
+      `Query "${query}" similarity scores:\n` +
+        allScored
+          .sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0))
+          .map((m) => `  ${(m.similarity ?? 0).toFixed(3)}: ${m.content.substring(0, 50)}`)
+          .join('\n'),
+    );
 
-        // Calculate mention bonus (capped)
-        const mentionBonus = Math.min(memory.mentionCount / 10, 1);
+    const scored = allScored
+      // Filter by minimum similarity threshold
+      .filter((m) => (m.similarity ?? 0) >= this.QUERY_MIN_SIMILARITY)
+      // Sort by similarity descending
+      .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
+      // Return limited results
+      .slice(0, this.QUERY_MAX_RESULTS);
 
-        // Total score
-        const totalScore =
-          similarity * this.SIMILARITY_WEIGHT +
-          recencyScore * this.RECENCY_WEIGHT +
-          mentionBonus * this.MENTION_WEIGHT;
+    this.logger.log(
+      `Query "${query}" matched ${scored.length} memories above threshold ${this.QUERY_MIN_SIMILARITY}`,
+    );
 
-        return {
-          ...memory,
-          embedding: undefined, // Remove embedding from response
-          similarity,
-          recencyScore,
-          totalScore,
-        } as ScoredMemory;
-      })
-      .sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0))
-      .slice(0, maxMemories);
+    return scored;
   }
 
   /**
@@ -224,10 +242,10 @@ export class RetrievalService {
   /**
    * Format memories into a context string for prompt injection
    */
-  private formatMemoryContext(
-    memories: ScoredMemory[],
-    sessionType?: string,
-  ): string {
+  /**
+   * Format greeting context - organized by category for session initialization
+   */
+  private formatGreetingContext(memories: ScoredMemory[]): string {
     if (memories.length === 0) {
       return '';
     }
@@ -280,7 +298,6 @@ export class RetrievalService {
     }
 
     // Coming up (future events)
-    const episodes = groups.get('episode') || [];
     const upcoming = memories.filter(
       (m) =>
         m.temporalRelevance === 'future' ||
@@ -334,6 +351,9 @@ export class RetrievalService {
           concerns.map((m) => `- ${m.content}`).join('\n'),
       );
     }
+
+    // Note: Other facts (car, hobbies, etc.) are not included in greeting context.
+    // They should be retrieved via query-based retrieval (get_user_memories tool).
 
     // Build final context
     if (sections.length === 0) {

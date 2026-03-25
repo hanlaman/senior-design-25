@@ -68,7 +68,7 @@ const summarizerDeployment = new cognitiveservices.Deployment(`conversation-summ
     },
     sku: {
         name: "GlobalStandard",
-        capacity: 1,
+        capacity: 10,
     },
 });
 
@@ -87,7 +87,7 @@ const embeddingDeployment = new cognitiveservices.Deployment(`text-embedding-3-s
     },
     sku: {
         name: "Standard",
-        capacity: 1,
+        capacity: 10,
     },
 }, { dependsOn: [summarizerDeployment] }); // Deploy after summarizer to avoid rate limits
 

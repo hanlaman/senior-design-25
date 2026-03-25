@@ -31,7 +31,7 @@ export class EmbeddingService implements OnModuleInit {
 
     this.logger.log(
       `Embedding service initialized with deployment: ${this.embeddingDeployment}. ` +
-      `Note: Create this deployment in Azure OpenAI if embeddings fail.`,
+        `Note: Create this deployment in Azure OpenAI if embeddings fail.`,
     );
   }
 
@@ -70,6 +70,71 @@ export class EmbeddingService implements OnModuleInit {
     } catch (error) {
       this.logger.error(`Embedding generation failed: ${error}`);
       return null;
+    }
+  }
+
+  /**
+   * Generate embeddings for multiple texts in a single API call (batch)
+   * Returns array in same order as input, with null for invalid/empty texts
+   */
+  async generateEmbeddings(texts: string[]): Promise<(number[] | null)[]> {
+    if (!this.client || !this.embeddingDeployment) {
+      this.logger.warn('Batch embedding skipped - Azure OpenAI not configured');
+      return texts.map(() => null);
+    }
+
+    if (texts.length === 0) {
+      return [];
+    }
+
+    // Track which indices have valid text
+    const validIndices: number[] = [];
+    const validTexts: string[] = [];
+
+    texts.forEach((text, index) => {
+      const trimmed = text?.trim();
+      if (trimmed && trimmed.length > 0) {
+        validIndices.push(index);
+        validTexts.push(trimmed);
+      }
+    });
+
+    if (validTexts.length === 0) {
+      return texts.map(() => null);
+    }
+
+    try {
+      const response = await this.client.embeddings.create({
+        model: this.embeddingDeployment,
+        input: validTexts,
+      });
+
+      // Build result array, mapping back to original indices
+      const results: (number[] | null)[] = texts.map(() => null);
+
+      for (let i = 0; i < response.data.length; i++) {
+        const embedding = response.data[i]?.embedding;
+        const originalIndex = validIndices[i];
+
+        if (
+          embedding &&
+          embedding.length === EmbeddingService.EMBEDDING_DIMENSION
+        ) {
+          results[originalIndex] = embedding;
+        } else {
+          this.logger.warn(
+            `Unexpected embedding dimension at index ${i}: ${embedding?.length ?? 0}`,
+          );
+        }
+      }
+
+      this.logger.debug(
+        `Batch generated ${validTexts.length} embeddings in single API call`,
+      );
+      return results;
+    } catch (error) {
+      this.logger.error(`Batch embedding generation failed: ${error}`);
+      return texts.map(() => null);
     }
   }
 

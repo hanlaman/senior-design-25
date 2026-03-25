@@ -76,7 +76,7 @@ public class ToolRegistry: ObservableObject {
             LocalFunctionTool(
                 id: "get_user_memories",
                 name: "get_user_memories",
-                description: "Retrieve relevant memories about the user based on the current conversation topic. Use this when the user mentions people, places, events, or topics that might have associated memories. This helps you recall past conversations and facts about the user.",
+                description: "Search your memory for information about the user. IMPORTANT: You MUST call this function BEFORE saying you don't know something about the user. Use this when the user asks personal questions like 'what car do I drive?', 'who is my daughter?', 'where do I live?', or mentions people, places, or topics you should know about them.",
                 displayName: "User Memories",
                 shortDescription: "Get relevant user memories",
                 toolsetId: "System",

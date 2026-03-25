@@ -554,18 +554,18 @@ public struct RealtimeConversationFunctionCallOutputItem: Codable, Sendable {
     let id: String
     let type: String
     let object: String
-    let name: String
     let output: String
     let callId: String
-    let status: RealtimeItemStatus
+    let name: String?
+    let status: RealtimeItemStatus?
 
     enum CodingKeys: String, CodingKey {
         case id
         case type
         case object
-        case name
         case output
         case callId = "call_id"
+        case name
         case status
     }
 }

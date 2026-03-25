@@ -99,21 +99,21 @@ export class ExtractionService implements OnModuleInit {
       // Process each extracted memory
       const createdMemoryIds: string[] = [];
 
-      // Track if embeddings are working for this batch
-      let embeddingsAvailable = true;
+      // Batch generate embeddings for all extracted memories (single API call)
+      const contents = extractedMemories.map((m) => m.content);
+      const embeddings =
+        await this.embeddingService.generateEmbeddings(contents);
 
-      for (const extracted of extractedMemories) {
-        // Generate embedding for deduplication check
-        const newEmbedding = await this.embeddingService.generateEmbedding(
-          extracted.content,
+      const embeddingsAvailable = embeddings.some((e) => e !== null);
+      if (!embeddingsAvailable && extractedMemories.length > 0) {
+        this.logger.warn(
+          'Embeddings unavailable - deduplication disabled. Create Azure OpenAI embedding deployment.',
         );
+      }
 
-        if (!newEmbedding && embeddingsAvailable) {
-          this.logger.warn(
-            'Embeddings unavailable - deduplication disabled. Create Azure OpenAI embedding deployment.',
-          );
-          embeddingsAvailable = false;
-        }
+      for (let i = 0; i < extractedMemories.length; i++) {
+        const extracted = extractedMemories[i];
+        const newEmbedding = embeddings[i];
 
         // Check for similar existing memories
         let isDuplicate = false;
