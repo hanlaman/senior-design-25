@@ -72,6 +72,25 @@ const summarizerDeployment = new cognitiveservices.Deployment(`conversation-summ
     },
 });
 
+// Deploy text-embedding-3-small model for memory semantic search
+const embeddingDeployment = new cognitiveservices.Deployment(`text-embedding-3-small-${stack}`, {
+    accountName: foundry.name,
+    resourceGroupName: resourceGroup.name,
+    deploymentName: "text-embedding-3-small",
+    properties: {
+        model: {
+            format: "OpenAI",
+            name: "text-embedding-3-small",
+            version: "1",
+        },
+        versionUpgradeOption: "OnceCurrentVersionExpired",
+    },
+    sku: {
+        name: "Standard",
+        capacity: 1,
+    },
+}, { dependsOn: [summarizerDeployment] }); // Deploy after summarizer to avoid rate limits
+
 // Create a Cosmos DB account
 const cosmosDbAccount = new cosmosdb.DatabaseAccount(`cosmos-db-account-${stack}`, {
     accountName: `hsdaucsd26${stack}`,
@@ -130,3 +149,4 @@ const cosmosDbAccount = new cosmosdb.DatabaseAccount(`cosmos-db-account-${stack}
 
 export const resourceGroupName = resourceGroup.name;
 export const summarizerDeploymentName = summarizerDeployment.name;
+export const embeddingDeploymentName = embeddingDeployment.name;
