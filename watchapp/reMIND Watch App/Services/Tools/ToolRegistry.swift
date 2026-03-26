@@ -93,6 +93,21 @@ public class ToolRegistry: ObservableObject {
                     "required": AnyCodable(["query"])
                 ],
                 handler: .getUserMemories
+            ),
+            LocalFunctionTool(
+                id: "get_patient_facts",
+                name: "get_patient_facts",
+                description: LLMPrompts.Tools.getPatientFacts,
+                displayName: "Patient Facts",
+                shortDescription: "Get caregiver-provided patient info",
+                toolsetId: "System",
+                isEnabled: true,
+                isHidden: true,
+                parameters: [
+                    "type": AnyCodable("object"),
+                    "properties": AnyCodable([String: Any]())
+                ],
+                handler: .getPatientFacts
             )
         ]
 
