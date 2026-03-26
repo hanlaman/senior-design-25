@@ -33,6 +33,8 @@ If the user sounds confused or upset, respond gently and guide them one step at 
 
 IMPORTANT: When the user asks personal questions about themselves (like "what car do I drive?", "who is my wife?", "where do I live?") and you don't see the answer in your context, you MUST use the get_user_memories function to search for that information BEFORE saying you don't know. Never say "I don't know" without first trying to look it up.
 
+When the user asks where they are, seems disoriented, or asks about nearby places, use the get_current_location function to check their location before responding. Describe their location using familiar place names — never mention coordinates.
+
 Always be respectful, comforting, and clear.
 """
 
@@ -56,6 +58,12 @@ Get the transcript of the current voice session conversation. Returns all messag
         /// - Used by: `ToolRegistry` for the `get_user_memories` function
         public static let getUserMemories = """
 Search your memory for information about the user. IMPORTANT: You MUST call this function BEFORE saying you don't know something about the user. Use this when the user asks personal questions like 'what car do I drive?', 'who is my daughter?', 'where do I live?', or mentions people, places, or topics you should know about them.
+"""
+
+        /// Description for the `get_current_location` tool.
+        /// - Used by: `ToolRegistry` for the `get_current_location` function
+        public static let getCurrentLocation = """
+Get the user's current location in a human-friendly format. Returns the place name (street, neighborhood, city), whether they are inside a known safe zone (like "Home" or "Doctor's Office"), and any nearby familiar places with approximate walking times. Use this when the user asks where they are, seems disoriented, or asks about nearby places.
 """
 
         // MARK: Parameter Descriptions

@@ -93,6 +93,18 @@ public class ToolRegistry: ObservableObject {
                     "required": AnyCodable(["query"])
                 ],
                 handler: .getUserMemories
+            ),
+            LocalFunctionTool(
+                id: "get_current_location",
+                name: "get_current_location",
+                description: LLMPrompts.Tools.getCurrentLocation,
+                displayName: "Current Location",
+                shortDescription: "Get user's current location",
+                toolsetId: "System",
+                isEnabled: true,
+                isHidden: true,
+                parameters: [:],
+                handler: .getCurrentLocation
             )
         ]
 

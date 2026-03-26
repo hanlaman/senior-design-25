@@ -30,6 +30,7 @@ class LocationViewModel: ObservableObject {
     func startTracking() async {
         let service = locationServiceFactory()
         self.locationService = service
+        ToolExecutors.locationService = service
 
         observeTask = Task {
             for await location in service.locationStream {
@@ -46,6 +47,7 @@ class LocationViewModel: ObservableObject {
         observeTask?.cancel()
         observeTask = nil
         await locationService?.stopTracking()
+        ToolExecutors.locationService = nil
         locationService = nil
         isTracking = false
     }

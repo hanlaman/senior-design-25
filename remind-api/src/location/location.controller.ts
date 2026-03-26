@@ -30,6 +30,12 @@ export class LocationController {
     return result;
   }
 
+  @Get('context/:patientId')
+  @AllowAnonymous()
+  async getLocationContext(@Param('patientId') patientId: string) {
+    return this.locationService.getLocationContext(patientId);
+  }
+
   @Get(':patientId')
   @AllowAnonymous()
   async getLocation(@Param('patientId') patientId: string) {
