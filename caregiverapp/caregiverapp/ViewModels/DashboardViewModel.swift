@@ -55,7 +55,6 @@ final class DashboardViewModel {
     // │ Instead, they call methods like acknowledgeAlert().                    │
     // └─────────────────────────────────────────────────────────────────────────┘
     private(set) var patient: Patient?
-    private(set) var healthData: HealthData = HealthData()
     private(set) var currentLocation: PatientLocation?
     private(set) var recentAlerts: [PatientAlert] = []
     private(set) var upcomingReminders: [Reminder] = []
@@ -101,7 +100,6 @@ final class DashboardViewModel {
         // Check conditions in order of priority
         if !isConnected { return .disconnected }
         if recentAlerts.contains(where: { $0.severity >= .high && !$0.isAcknowledged }) { return .needsAttention }
-        if healthData.heartRate.status.isAbnormal { return .warning }
         return .normal
     }
 
@@ -146,7 +144,6 @@ final class DashboardViewModel {
     // │ [weak self] prevents retain cycles (ViewModel → closure → ViewModel).  │
     // └─────────────────────────────────────────────────────────────────────────┘
     private func setupBindings() {
-        dataProvider.healthDataPublisher.receive(on: DispatchQueue.main).sink { [weak self] in self?.healthData = $0 }.store(in: &cancellables)
         dataProvider.locationPublisher.receive(on: DispatchQueue.main).sink { [weak self] in self?.currentLocation = $0 }.store(in: &cancellables)
 
         // ┌─────────────────────────────────────────────────────────────────────┐
@@ -202,15 +199,13 @@ final class DashboardViewModel {
     // └─────────────────────────────────────────────────────────────────────────┘
     func onAppear() {
         patient = dataProvider.currentPatient
-        healthData = dataProvider.healthData
         currentLocation = dataProvider.currentLocation
         recentAlerts = Array(dataProvider.alerts.prefix(5))
         isConnected = dataProvider.isConnected
         lastSyncTime = dataProvider.lastSyncTime
-        dataProvider.startHealthMonitoring()
     }
 
-    func onDisappear() { dataProvider.stopHealthMonitoring() }
+    func onDisappear() { }
 
     // ┌─────────────────────────────────────────────────────────────────────────┐
     // │ ACTION METHODS                                                          │

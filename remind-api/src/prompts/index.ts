@@ -82,6 +82,9 @@ Only output valid JSON, no other text.`,
     SECTION_RECENT_CONVERSATIONS: '### Recent Conversations',
     SECTION_CONCERNS: '### Things to Be Aware Of',
 
+    /** Section header for caregiver-provided facts */
+    SECTION_CAREGIVER_FACTS: '## Caregiver-Provided Information',
+
     /** Query results header template */
     queryResultsHeader: (query: string): string =>
       `## Relevant Memories for "${query}"`,

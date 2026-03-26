@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MemoryService } from './memory.service';
 import { EmbeddingService } from './embedding.service';
+import { PatientFactService } from '../patient-fact/patient-fact.service';
 import {
   MemoryRecord,
   ScoredMemory,
@@ -28,6 +29,7 @@ export class RetrievalService {
   constructor(
     private readonly memoryService: MemoryService,
     private readonly embeddingService: EmbeddingService,
+    private readonly patientFactService: PatientFactService,
   ) {}
 
   /**
@@ -105,10 +107,20 @@ export class RetrievalService {
       scoredMemories = scoredMemories.slice(0, maxMemories);
     }
 
+    // Fetch caregiver-provided patient facts
+    const patientFacts =
+      await this.patientFactService.findAll(patientId);
+    const factsContext = this.formatPatientFacts(patientFacts);
+
     // Format for prompt injection
-    const formattedContext = options.query
+    const memoriesContext = options.query
       ? this.formatQueryResults(scoredMemories, options.query)
       : this.formatGreetingContext(scoredMemories);
+
+    // Patient facts come first (caregiver-verified, highest priority)
+    const formattedContext = [factsContext, memoriesContext]
+      .filter(Boolean)
+      .join('\n\n');
 
     return {
       memories: scoredMemories,
@@ -369,5 +381,44 @@ export class RetrievalService {
     return (
       `${Prompts.CONTEXT_TEMPLATES.GREETING_HEADER}\n\n` + sections.join('\n\n')
     );
+  }
+
+  /**
+   * Format caregiver-provided patient facts into a context section.
+   * These are high-confidence facts entered by the caregiver.
+   */
+  private formatPatientFacts(
+    facts: Array<{ category: string; label: string; value: string }>,
+  ): string {
+    if (facts.length === 0) {
+      return '';
+    }
+
+    // Group by category
+    const groups = new Map<string, Array<{ label: string; value: string }>>();
+    for (const fact of facts) {
+      if (!groups.has(fact.category)) {
+        groups.set(fact.category, []);
+      }
+      groups.get(fact.category)!.push({ label: fact.label, value: fact.value });
+    }
+
+    const categoryLabels: Record<string, string> = {
+      personal: 'Personal',
+      family: 'Family & Relationships',
+      medical: 'Medical',
+      routine: 'Daily Routine',
+      preference: 'Preferences',
+      other: 'Other',
+    };
+
+    const sections: string[] = [];
+    for (const [category, items] of groups) {
+      const heading = categoryLabels[category] || category;
+      const lines = items.map((f) => `- **${f.label}**: ${f.value}`);
+      sections.push(`### ${heading}\n${lines.join('\n')}`);
+    }
+
+    return `${Prompts.CONTEXT_TEMPLATES.SECTION_CAREGIVER_FACTS}\n\n${sections.join('\n\n')}`;
   }
 }

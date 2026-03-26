@@ -101,7 +101,6 @@ struct DashboardView: View {
                 if !viewModel.recentAlerts.filter({ $0.severity >= .high && !$0.isAcknowledged }).isEmpty { criticalAlertsSection }
                 recentAlertsSection
                 upcomingRemindersSection
-                healthOverviewSection
             }
             // ┌─────────────────────────────────────────────────────────────────┐
             // │ .padding() MODIFIER                                             │
@@ -228,25 +227,6 @@ struct DashboardView: View {
                 // │ Spacer(minLength: 10) sets a minimum size.                 │
                 // └─────────────────────────────────────────────────────────────┘
                 Spacer()
-
-                VStack(spacing: 4) {
-                    HStack(spacing: 4) {
-                        // ┌─────────────────────────────────────────────────────┐
-                        // │ SF SYMBOLS                                          │
-                        // │                                                     │
-                        // │ Image(systemName:) uses SF Symbols - Apple's free  │
-                        // │ icon library with 4000+ icons.                      │
-                        // │                                                     │
-                        // │ Browse at: https://developer.apple.com/sf-symbols/ │
-                        // │ Or download the SF Symbols app for Mac.            │
-                        // │                                                     │
-                        // │ Icons scale with text and support weights/sizes.   │
-                        // └─────────────────────────────────────────────────────┘
-                        Image(systemName: "heart.fill").foregroundStyle(.red)
-                        Text("\(viewModel.healthData.heartRate.current)").font(.title).fontWeight(.bold).monospacedDigit()
-                    }
-                    Text("BPM").font(.caption).foregroundStyle(.secondary)
-                }
             }
 
             // ┌─────────────────────────────────────────────────────────────────┐
@@ -260,20 +240,9 @@ struct DashboardView: View {
             Divider()
 
             HStack(spacing: 0) {
-                StatItem(icon: "figure.walk", value: formatNumber(viewModel.healthData.activity.steps), label: "Steps")
-                Divider().frame(height: 40)
-                StatItem(icon: "bed.double.fill", value: formatSleep(viewModel.healthData.activity.sleepHours), label: "Sleep")
-                Divider().frame(height: 40)
-
-                // ┌─────────────────────────────────────────────────────────────┐
-                // │ TERNARY OPERATOR                                            │
-                // │                                                             │
-                // │ condition ? valueIfTrue : valueIfFalse                     │
-                // │                                                             │
-                // │ A compact if-else for expressions.                         │
-                // │ viewModel.currentLocation?.isInSafeZone == true ? "Safe" : "Away"│
-                // └─────────────────────────────────────────────────────────────┘
                 StatItem(icon: "location.fill", value: viewModel.currentLocation?.isInSafeZone == true ? "Safe" : "Away", label: "Location")
+                Divider().frame(height: 40)
+                StatItem(icon: "wifi", value: viewModel.isConnected ? "Connected" : "Offline", label: "Watch")
             }
         }
         .padding()
@@ -389,38 +358,4 @@ struct DashboardView: View {
         }
     }
 
-    private var healthOverviewSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Today's Health").font(.headline)
-            // ┌─────────────────────────────────────────────────────────────────┐
-            // │ LazyVGrid - GRID LAYOUT                                         │
-            // │                                                                 │
-            // │ Creates a grid that loads items lazily (on demand).            │
-            // │ Columns define the grid structure.                              │
-            // │                                                                 │
-            // │ GridItem(.flexible()) = flexible width column                  │
-            // │ Two flexible columns = 2-column grid that splits space evenly  │
-            // │                                                                 │
-            // │ Other GridItem options:                                         │
-            // │   .fixed(100)        - Exactly 100 points wide                 │
-            // │   .adaptive(minimum: 100) - As many as fit, min 100 each       │
-            // └─────────────────────────────────────────────────────────────────┘
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                StatCard(icon: "heart.fill", title: "Heart Rate", value: "\(viewModel.healthData.heartRate.min)-\(viewModel.healthData.heartRate.max)", unit: "BPM range", color: .red)
-                StatCard(icon: "drop.fill", title: "Blood Oxygen", value: "\(viewModel.healthData.bloodOxygen ?? 0)", unit: "%", color: .blue)
-                StatCard(icon: "flame.fill", title: "Calories", value: formatNumber(viewModel.healthData.activity.calories), unit: "kcal", color: .orange)
-                StatCard(icon: "moon.fill", title: "Sleep Quality", value: sleepQuality, color: .indigo)
-            }
-        }
-    }
-
-    // ┌─────────────────────────────────────────────────────────────────────────┐
-    // │ HELPER FUNCTIONS                                                        │
-    // │                                                                         │
-    // │ These format data for display. Private because only this view uses them.│
-    // │ They're functions (not computed properties) because they take parameters.│
-    // └─────────────────────────────────────────────────────────────────────────┘
-    private func formatNumber(_ number: Int) -> String { let f = NumberFormatter(); f.numberStyle = .decimal; return f.string(from: NSNumber(value: number)) ?? "\(number)" }
-    private func formatSleep(_ hours: Double?) -> String { guard let hours = hours else { return "N/A" }; return String(format: "%.1fh", hours) }
-    private var sleepQuality: String { guard let hours = viewModel.healthData.activity.sleepHours else { return "N/A" }; if hours >= 7 { return "Good" }; if hours >= 5 { return "Fair" }; return "Poor" }
 }
