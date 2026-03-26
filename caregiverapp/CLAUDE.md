@@ -28,25 +28,26 @@ The Watch connects to the patient's iPhone via Bluetooth (WatchConnectivity fram
 caregiverapp/
 ├── Models/
 │   ├── Patient.swift          # Patient, EmergencyContact
-│   ├── HealthData.swift       # HeartRateData, ActivityData, readings
+│   ├── PatientFact.swift      # PatientFact, FactCategory
 │   ├── Location.swift         # PatientLocation, SafeZone, Coordinate
 │   ├── PatientAlert.swift     # PatientAlert, AlertType, AlertSeverity
 │   └── Reminder.swift         # Reminder, ReminderType, RepeatSchedule
 ├── Services/
 │   ├── Protocols/
 │   │   └── PatientDataProvider.swift
-│   └── MockDataService.swift
+│   ├── MockDataService.swift
+│   └── PatientFactsAPIService.swift
 ├── ViewModels/
 │   ├── DashboardViewModel.swift
 │   ├── LocationViewModel.swift
-│   ├── HealthViewModel.swift
+│   ├── PatientFactsViewModel.swift
 │   ├── AlertsViewModel.swift
 │   └── RemindersViewModel.swift
 ├── Views/
 │   ├── Components/            # Reusable UI components
 │   ├── Dashboard/
 │   ├── Location/
-│   ├── Health/
+│   ├── PatientFacts/          # Patient info CRUD (feeds into watch voice context)
 │   ├── Alerts/
 │   └── Reminders/
 ├── ContentView.swift          # Tab navigation
@@ -56,24 +57,20 @@ caregiverapp/
 ## Features
 
 ### 1. Dashboard
-Overview of patient status, quick actions, recent alerts, and health summary.
+Overview of patient status, quick actions, recent alerts, and upcoming reminders.
 
 ### 2. Location & Geofencing
 - Real-time patient location on map
 - Safe zones with configurable radius
 - Alerts when patient leaves safe zones
 
-### 3. Heart Rate Monitoring
-- Live heart rate display
-- Historical charts (1H, 24H, 7D)
-- High/low heart rate alerts
+### 3. Patient Info (Facts)
+- Caregiver-entered factual information about the patient
+- Organized by category: Personal, Family, Medical, Routine, Preferences, Other
+- Facts are synced to backend and injected into the watch voice assistant's context
+- CRUD operations via PatientFactsAPIService → /patient-facts API endpoints
 
-### 4. Activity Tracking
-- Steps, calories, standing hours
-- Inactivity detection
-- Movement reminders
-
-### 5. Alerts System
+### 4. Alerts System
 - Fall detection alerts
 - Geofence breach alerts
 - Health anomaly alerts
@@ -90,14 +87,12 @@ Overview of patient status, quick actions, recent alerts, and health summary.
 MockDataService provides simulation methods for demos:
 - `simulateFall()`: Triggers fall detection alert
 - `simulateGeofenceExit()`: Moves patient outside safe zone
-- `simulateHighHeartRate()`: Spikes heart rate to 120+ BPM
-- `simulateLowHeartRate()`: Drops heart rate below 50 BPM
+- `simulateConnectionLost()` / `restoreConnection()`: Toggle watch connectivity
 
 ## Tech Stack
 - SwiftUI (iOS 18+)
 - Swift 6 with strict concurrency
 - MapKit for maps
-- Swift Charts for visualizations
 - Combine for publishers
 
 ## Future Integration

@@ -111,10 +111,10 @@ struct ContentView: View {
             .tag(1)
 
             NavigationStack {
-                HealthTabView(dataProvider: dataProvider)
+                PatientFactsView()
             }
             .tabItem {
-                Label("Health", systemImage: "heart.fill")
+                Label("Patient Info", systemImage: "person.text.rectangle")
             }
             .tag(2)
 
@@ -134,72 +134,6 @@ struct ContentView: View {
             }
             .tag(4)
         }
-    }
-}
-
-// ┌─────────────────────────────────────────────────────────────────────────────┐
-// │ MULTIPLE STRUCTS IN ONE FILE                                               │
-// │                                                                             │
-// │ Swift allows multiple types in one file. This is useful for small,         │
-// │ related views. Larger views should go in their own files.                  │
-// │                                                                             │
-// │ HealthTabView is a simple intermediate view that shows options to          │
-// │ navigate to HeartRateView or ActivityView.                                 │
-// └─────────────────────────────────────────────────────────────────────────────┘
-struct HealthTabView: View {
-    let dataProvider: PatientDataProvider
-
-    var body: some View {
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ List - SCROLLABLE LIST OF ITEMS                                     │
-        // │                                                                     │
-        // │ List is like UITableView but declarative. It automatically         │
-        // │ handles scrolling, cell reuse, and styling.                        │
-        // └─────────────────────────────────────────────────────────────────────┘
-        List {
-            // ┌─────────────────────────────────────────────────────────────────┐
-            // │ NavigationLink - TAP TO NAVIGATE                                │
-            // │                                                                 │
-            // │ NavigationLink has two parts:                                   │
-            // │   - destination: The view to show when tapped                   │
-            // │   - label: What the user sees and taps                          │
-            // │                                                                 │
-            // │ TRAILING CLOSURE SYNTAX:                                        │
-            // │ When the last parameter is a closure, you can write it         │
-            // │ outside the parentheses:                                        │
-            // │                                                                 │
-            // │   NavigationLink(destination: HeartRateView(...)) {            │
-            // │       Label(...)  // This is the 'label' parameter              │
-            // │   }                                                              │
-            // │                                                                 │
-            // │ With labeled closure syntax (used here):                        │
-            // │   NavigationLink { destination } label: { label }              │
-            // └─────────────────────────────────────────────────────────────────┘
-            NavigationLink {
-                HeartRateView(dataProvider: dataProvider)
-            } label: {
-                Label("Heart Rate", systemImage: "heart.fill")
-                    // .foregroundStyle() sets the color
-                    // In older SwiftUI it was .foregroundColor()
-                    .foregroundStyle(.red)
-            }
-
-            NavigationLink {
-                ActivityView(dataProvider: dataProvider)
-            } label: {
-                Label("Activity", systemImage: "figure.walk")
-                    .foregroundStyle(.green)
-            }
-        }
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ .navigationTitle() - SETS THE HEADER TEXT                           │
-        // │                                                                     │
-        // │ This modifier is applied to the content INSIDE NavigationStack,    │
-        // │ but the NavigationStack displays it in the navigation bar.         │
-        // │ This is a common SwiftUI pattern - child views declare their       │
-        // │ preferences, parent containers read and display them.              │
-        // └─────────────────────────────────────────────────────────────────────┘
-        .navigationTitle("Health")
     }
 }
 

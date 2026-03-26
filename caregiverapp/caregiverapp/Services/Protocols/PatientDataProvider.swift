@@ -85,12 +85,6 @@ protocol PatientDataProvider: AnyObject {
     // └─────────────────────────────────────────────────────────────────────────┘
     func fetchPatient(id: String) async throws -> Patient
 
-    // Health Data
-    var healthData: HealthData { get }
-    var healthDataPublisher: AnyPublisher<HealthData, Never> { get }
-    func startHealthMonitoring()
-    func stopHealthMonitoring()
-
     // Location
     var currentLocation: PatientLocation? { get }
     var locationPublisher: AnyPublisher<PatientLocation?, Never> { get }

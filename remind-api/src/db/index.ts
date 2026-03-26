@@ -179,6 +179,16 @@ interface MemoryExtractionLogTable {
   error: string | null;
 }
 
+interface PatientFactTable {
+  id: Generated<string>;
+  patientId: string;
+  category: string;
+  label: string;
+  value: string;
+  createdAt: Generated<Date>;
+  updatedAt: Generated<Date>;
+}
+
 // Database interface combining all tables
 export interface Database {
   user: UserTable;
@@ -195,6 +205,7 @@ export interface Database {
   patientMemory: PatientMemoryTable;
   memoryLink: MemoryLinkTable;
   memoryExtractionLog: MemoryExtractionLogTable;
+  patientFact: PatientFactTable;
 }
 
 // Export the Kysely database instance
