@@ -40,32 +40,6 @@ jobs:
             --image remind-api:latest \
             ./remind-api
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install pnpm
-        run: npm install -g pnpm
-
-      - name: Install Pulumi CLI
-        uses: pulumi/actions@v6
-        with:
-          command: version
-
-      - name: Install infra dependencies
-        working-directory: infra
-        run: pnpm install
-
-      - name: Deploy infrastructure
-        uses: pulumi/actions@v6
-        with:
-          command: up
-          stack-name: dev
-          work-dir: infra
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-
       - name: Update Container App image
         run: |
           az containerapp update \
