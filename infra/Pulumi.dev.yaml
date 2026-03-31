@@ -1,2 +1,8 @@
 config:
   azure-native:location: EastUS2
+  senior-design-26:sqlAdminPassword:
+    secure: AAABAHnWJuPHP2Jgq/skNjnnwtQyEvYix2NmqiR/5UdGYbEgY4Md3sgGIGexj0Qb
+  senior-design-26:betterAuthSecret:
+    secure: AAABAJE5AfhTO7l5NZDHskcj4z2ZwTo07rKD6pQLvzit5/5TzI4OLZvkXLNFNJy4
+  senior-design-26:azureOpenAiApiKey:
+    secure: AAABAO+fZJxInGcSGlpyHwQiiS+Jt24rvmIC9wp04/tCqqXFklI0ZwwvYnAwW1Bk

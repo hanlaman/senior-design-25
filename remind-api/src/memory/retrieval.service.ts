@@ -42,8 +42,7 @@ export class RetrievalService {
     const maxMemories = options.maxMemories || this.DEFAULT_MAX_MEMORIES;
 
     // Fetch caregiver-provided patient facts (always, regardless of memories)
-    const allPatientFacts =
-      await this.patientFactService.findAll(patientId);
+    const allPatientFacts = await this.patientFactService.findAll(patientId);
 
     // Get all memories with embeddings for scoring
     const allMemories =

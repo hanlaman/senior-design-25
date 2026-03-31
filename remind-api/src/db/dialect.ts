@@ -24,7 +24,7 @@ export const dialect = new MssqlDialect({
           database: process.env.MSSQL_DATABASE!,
           port: parseInt(process.env.MSSQL_PORT || '1433'),
           trustServerCertificate: true,
-          encrypt: false,
+          encrypt: process.env.MSSQL_ENCRYPT === 'true',
         },
         server: process.env.MSSQL_HOST || 'localhost',
       }),

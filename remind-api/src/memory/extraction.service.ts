@@ -40,7 +40,7 @@ export class ExtractionService implements OnModuleInit {
     this.client = new AzureOpenAI({
       endpoint,
       apiKey,
-      apiVersion: '2024-08-01-preview',
+      apiVersion: process.env.AZURE_OPENAI_API_VERSION || '2024-08-01-preview',
     });
 
     this.logger.log('Memory extraction service initialized');

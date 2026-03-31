@@ -1,0 +1,83 @@
+name: Deploy remind-api
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_migrations:
+        description: "Run database migrations"
+        required: false
+        type: boolean
+        default: false
+
+env:
+  ACR_NAME: reminddevacr
+  RESOURCE_GROUP: senior-design-dev
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
+
+      - name: Build & push image to ACR
+        run: |
+          az acr build \
+            --registry ${{ env.ACR_NAME }} \
+            --image remind-api:${{ github.sha }} \
+            --image remind-api:latest \
+            ./remind-api
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: npm install -g pnpm
+
+      - name: Install Pulumi CLI
+        uses: pulumi/actions@v6
+        with:
+          command: version
+
+      - name: Install infra dependencies
+        working-directory: infra
+        run: pnpm install
+
+      - name: Deploy infrastructure
+        uses: pulumi/actions@v6
+        with:
+          command: up
+          stack-name: dev
+          work-dir: infra
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: Update Container App image
+        run: |
+          az containerapp update \
+            --name remind-api-dev \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.ACR_NAME }}.azurecr.io/remind-api:${{ github.sha }}
+
+      - name: Run database migrations
+        if: ${{ inputs.run_migrations }}
+        working-directory: remind-api
+        run: |
+          npm ci
+          npx ts-node src/db/migrate.ts
+        env:
+          MSSQL_HOST: remind-sql-dev.database.windows.net
+          MSSQL_PORT: "1433"
+          MSSQL_USER: remindadmin
+          MSSQL_PASSWORD: ${{ secrets.SQL_ADMIN_PASSWORD }}
+          MSSQL_DATABASE: remind_db
+          MSSQL_ENCRYPT: "true"
