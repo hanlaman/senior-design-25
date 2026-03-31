@@ -9,6 +9,7 @@ import { ReminderModule } from './reminder/reminder.module';
 import { ApnsModule } from './apns/apns.module';
 import { ConversationModule } from './conversation/conversation.module';
 import { MemoryModule } from './memory/memory.module';
+import { PatientFactModule } from './patient-fact/patient-fact.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { MemoryModule } from './memory/memory.module';
     ApnsModule,
     ConversationModule,
     MemoryModule,
+    PatientFactModule,
   ],
   controllers: [AppController],
   providers: [AppService],

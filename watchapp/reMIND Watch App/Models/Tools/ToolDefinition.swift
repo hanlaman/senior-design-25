@@ -27,6 +27,7 @@ public enum ToolHandler: String, Codable, Sendable {
     case getCurrentTime
     case getSessionTranscript
     case getUserMemories
+    case getPatientFacts
     case getCurrentLocation
 
     /// Execute the tool with given arguments
@@ -40,6 +41,8 @@ public enum ToolHandler: String, Codable, Sendable {
             return try await ToolExecutors.getSessionTranscript(arguments: arguments)
         case .getUserMemories:
             return try await ToolExecutors.getUserMemories(arguments: arguments)
+        case .getPatientFacts:
+            return try await ToolExecutors.getPatientFacts(arguments: arguments)
         case .getCurrentLocation:
             return try await ToolExecutors.getCurrentLocation(arguments: arguments)
         }

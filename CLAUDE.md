@@ -57,7 +57,7 @@ pulumi up                   # Deploy Azure resources
 - **Framework**: NestJS 11 with modular structure
 - **Database**: MSSQL via Kysely (type-safe query builder)
 - **Auth**: Better-Auth integration
-- **Modules**: `location/`, `safezone/`, `reminder/`, `apns/`
+- **Modules**: `location/`, `safezone/`, `reminder/`, `apns/`, `patient-fact/`, `conversation/`, `memory/`
 - **Migrations**: `remind-api/src/db/migrations/`
 
 ### Data Flow

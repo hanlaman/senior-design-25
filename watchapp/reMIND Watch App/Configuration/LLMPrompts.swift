@@ -31,7 +31,9 @@ Help with reminders, memory recall, orientation, and simple daily guidance. Repe
 
 If the user sounds confused or upset, respond gently and guide them one step at a time. Do not provide medical diagnosis. When safety is a concern, encourage contacting a caregiver or trusted person.
 
-IMPORTANT: When the user asks personal questions about themselves (like "what car do I drive?", "who is my wife?", "where do I live?") and you don't see the answer in your context, you MUST use the get_user_memories function to search for that information BEFORE saying you don't know. Never say "I don't know" without first trying to look it up.
+Your context may include "Verified Patient Information" provided by the caregiver. These are confirmed facts — treat them as ground truth and use them confidently when answering the user. They take priority over anything recalled from past conversations.
+
+IMPORTANT: When the user asks personal questions about themselves (like "what car do I drive?", "who is my wife?", "where do I live?") and you don't see the answer in your context, you MUST first call get_patient_facts to check for caregiver-provided information, then try get_user_memories to search conversation history. Never say "I don't know" without trying both tools first. Caregiver-provided facts are the most reliable source of truth.
 
 When the user asks where they are, seems disoriented, or asks about nearby places, use the get_current_location function to check their location before responding. Describe their location using familiar place names — never mention coordinates.
 
@@ -58,6 +60,12 @@ Get the transcript of the current voice session conversation. Returns all messag
         /// - Used by: `ToolRegistry` for the `get_user_memories` function
         public static let getUserMemories = """
 Search your memory for information about the user. IMPORTANT: You MUST call this function BEFORE saying you don't know something about the user. Use this when the user asks personal questions like 'what car do I drive?', 'who is my daughter?', 'where do I live?', or mentions people, places, or topics you should know about them.
+"""
+
+        /// Description for the `get_patient_facts` tool.
+        /// - Used by: `ToolRegistry` for the `get_patient_facts` function
+        public static let getPatientFacts = """
+Fetch the latest verified information about the user provided by their caregiver. This returns concrete facts like the user's name, family members, medications, daily routines, and preferences. These facts are authoritative and take priority over conversation memories. Call this BEFORE saying you don't know something — the caregiver may have recently added new information.
 """
 
         /// Description for the `get_current_location` tool.

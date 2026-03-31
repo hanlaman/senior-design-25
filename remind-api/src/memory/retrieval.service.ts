@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MemoryService } from './memory.service';
 import { EmbeddingService } from './embedding.service';
+import { PatientFactService } from '../patient-fact/patient-fact.service';
 import {
   MemoryRecord,
   ScoredMemory,
@@ -28,6 +29,7 @@ export class RetrievalService {
   constructor(
     private readonly memoryService: MemoryService,
     private readonly embeddingService: EmbeddingService,
+    private readonly patientFactService: PatientFactService,
   ) {}
 
   /**
@@ -39,76 +41,91 @@ export class RetrievalService {
   ): Promise<MemoryContextResponse> {
     const maxMemories = options.maxMemories || this.DEFAULT_MAX_MEMORIES;
 
+    // Fetch caregiver-provided patient facts (always, regardless of memories)
+    const allPatientFacts =
+      await this.patientFactService.findAll(patientId);
+
     // Get all memories with embeddings for scoring
     const allMemories =
       await this.memoryService.getMemoriesWithEmbeddings(patientId);
 
-    if (allMemories.length === 0) {
-      return {
-        memories: [],
-        formattedContext: '',
-        retrievedAt: new Date(),
-      };
+    let scoredMemories: ScoredMemory[] = [];
+
+    if (allMemories.length > 0) {
+      if (options.query) {
+        // Query-based retrieval: return only semantically relevant memories
+        scoredMemories = await this.scoreMemoriesWithQuery(
+          allMemories,
+          options.query,
+        );
+        // Don't add time-relevant or linked memories for focused queries
+      } else {
+        // Greeting context: broader context with recency/mention scoring
+        scoredMemories = this.scoreMemoriesWithoutQuery(
+          allMemories,
+          maxMemories,
+        );
+
+        // Add time-relevant memories (upcoming/recent events)
+        const timeRelevant = await this.memoryService.getTimeRelevantMemories(
+          patientId,
+          this.TIME_RELEVANCE_DAYS,
+          this.TIME_RELEVANCE_DAYS,
+        );
+
+        const existingIds = new Set(scoredMemories.map((m) => m.id));
+        for (const memory of timeRelevant) {
+          if (!existingIds.has(memory.id)) {
+            scoredMemories.push({
+              ...memory,
+              similarity: 0,
+              recencyScore: 1.0,
+              totalScore: 0.8,
+            });
+          }
+        }
+
+        // Re-sort and limit
+        scoredMemories.sort(
+          (a, b) => (b.totalScore || 0) - (a.totalScore || 0),
+        );
+        scoredMemories = scoredMemories.slice(0, maxMemories);
+
+        // Fetch linked memories for top results (1 hop)
+        const linkedMemories = await this.fetchLinkedMemories(
+          scoredMemories.slice(0, 5),
+        );
+        const linkedIds = new Set(scoredMemories.map((m) => m.id));
+        for (const linked of linkedMemories) {
+          if (!linkedIds.has(linked.id)) {
+            scoredMemories.push({
+              ...linked,
+              totalScore: 0.5,
+            });
+          }
+        }
+
+        // Final limit
+        scoredMemories = scoredMemories.slice(0, maxMemories);
+      }
     }
 
-    let scoredMemories: ScoredMemory[];
+    // Format patient facts — for queries, filter to relevant facts only
+    const factsContext = options.query
+      ? this.formatPatientFacts(
+          this.filterFactsByQuery(allPatientFacts, options.query),
+        )
+      : this.formatPatientFacts(allPatientFacts);
 
-    if (options.query) {
-      // Query-based retrieval: return only semantically relevant memories
-      scoredMemories = await this.scoreMemoriesWithQuery(
-        allMemories,
-        options.query,
-      );
-      // Don't add time-relevant or linked memories for focused queries
-    } else {
-      // Greeting context: broader context with recency/mention scoring
-      scoredMemories = this.scoreMemoriesWithoutQuery(allMemories, maxMemories);
-
-      // Add time-relevant memories (upcoming/recent events)
-      const timeRelevant = await this.memoryService.getTimeRelevantMemories(
-        patientId,
-        this.TIME_RELEVANCE_DAYS,
-        this.TIME_RELEVANCE_DAYS,
-      );
-
-      const existingIds = new Set(scoredMemories.map((m) => m.id));
-      for (const memory of timeRelevant) {
-        if (!existingIds.has(memory.id)) {
-          scoredMemories.push({
-            ...memory,
-            similarity: 0,
-            recencyScore: 1.0,
-            totalScore: 0.8,
-          });
-        }
-      }
-
-      // Re-sort and limit
-      scoredMemories.sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0));
-      scoredMemories = scoredMemories.slice(0, maxMemories);
-
-      // Fetch linked memories for top results (1 hop)
-      const linkedMemories = await this.fetchLinkedMemories(
-        scoredMemories.slice(0, 5),
-      );
-      const linkedIds = new Set(scoredMemories.map((m) => m.id));
-      for (const linked of linkedMemories) {
-        if (!linkedIds.has(linked.id)) {
-          scoredMemories.push({
-            ...linked,
-            totalScore: 0.5,
-          });
-        }
-      }
-
-      // Final limit
-      scoredMemories = scoredMemories.slice(0, maxMemories);
-    }
-
-    // Format for prompt injection
-    const formattedContext = options.query
+    // Format conversation-extracted memories
+    const memoriesContext = options.query
       ? this.formatQueryResults(scoredMemories, options.query)
       : this.formatGreetingContext(scoredMemories);
+
+    // Patient facts come first (caregiver-verified, highest priority)
+    const formattedContext = [factsContext, memoriesContext]
+      .filter(Boolean)
+      .join('\n\n');
 
     return {
       memories: scoredMemories,
@@ -369,5 +386,64 @@ export class RetrievalService {
     return (
       `${Prompts.CONTEXT_TEMPLATES.GREETING_HEADER}\n\n` + sections.join('\n\n')
     );
+  }
+
+  /**
+   * Filter patient facts by relevance to a query.
+   * Uses simple keyword matching on label, value, and category.
+   */
+  private filterFactsByQuery(
+    facts: Array<{ category: string; label: string; value: string }>,
+    query: string,
+  ): Array<{ category: string; label: string; value: string }> {
+    const queryTerms = query
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((t) => t.length > 1);
+
+    return facts.filter((fact) => {
+      const searchable =
+        `${fact.label} ${fact.value} ${fact.category}`.toLowerCase();
+      return queryTerms.some((term) => searchable.includes(term));
+    });
+  }
+
+  /**
+   * Format caregiver-provided patient facts into a context section.
+   * These are verified facts from the caregiver — highest authority.
+   */
+  private formatPatientFacts(
+    facts: Array<{ category: string; label: string; value: string }>,
+  ): string {
+    if (facts.length === 0) {
+      return '';
+    }
+
+    // Group by category
+    const groups = new Map<string, Array<{ label: string; value: string }>>();
+    for (const fact of facts) {
+      if (!groups.has(fact.category)) {
+        groups.set(fact.category, []);
+      }
+      groups.get(fact.category)!.push({ label: fact.label, value: fact.value });
+    }
+
+    const categoryLabels: Record<string, string> = {
+      personal: 'Personal',
+      family: 'Family & Relationships',
+      medical: 'Medical',
+      routine: 'Daily Routine',
+      preference: 'Preferences',
+      other: 'Other',
+    };
+
+    const sections: string[] = [];
+    for (const [category, items] of groups) {
+      const heading = categoryLabels[category] || category;
+      const lines = items.map((f) => `- **${f.label}**: ${f.value}`);
+      sections.push(`### ${heading}\n${lines.join('\n')}`);
+    }
+
+    return `${Prompts.CONTEXT_TEMPLATES.SECTION_CAREGIVER_FACTS}\n\n${sections.join('\n\n')}`;
   }
 }

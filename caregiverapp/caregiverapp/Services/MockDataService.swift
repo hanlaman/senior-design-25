@@ -59,7 +59,6 @@ final class MockDataService: PatientDataProvider, ObservableObject {
     // │ This prevents external code from accidentally modifying the patient.   │
     // └─────────────────────────────────────────────────────────────────────────┘
     @Published private(set) var currentPatient: Patient?
-    @Published private(set) var healthData: HealthData = HealthData()
     @Published private(set) var currentLocation: PatientLocation?
     @Published private(set) var safeZones: [SafeZone] = []
     @Published private(set) var alerts: [PatientAlert] = []
@@ -84,7 +83,6 @@ final class MockDataService: PatientDataProvider, ObservableObject {
     // │                                                                         │
     // │ The protocol requires AnyPublisher, so we must erase.                  │
     // └─────────────────────────────────────────────────────────────────────────┘
-    var healthDataPublisher: AnyPublisher<HealthData, Never> { $healthData.eraseToAnyPublisher() }
     var locationPublisher: AnyPublisher<PatientLocation?, Never> { $currentLocation.eraseToAnyPublisher() }
     var alertsPublisher: AnyPublisher<[PatientAlert], Never> { $alerts.eraseToAnyPublisher() }
     var remindersPublisher: AnyPublisher<[Reminder], Never> { $reminders.eraseToAnyPublisher() }
@@ -99,7 +97,6 @@ final class MockDataService: PatientDataProvider, ObservableObject {
     // │                                                                         │
     // │ private means only this class can access it.                            │
     // └─────────────────────────────────────────────────────────────────────────┘
-    private var healthTimer: Timer?
     private let reminderAPI = ReminderAPIService()
 
     // ┌─────────────────────────────────────────────────────────────────────────┐
@@ -148,103 +145,12 @@ final class MockDataService: PatientDataProvider, ObservableObject {
             PatientAlert(type: .inactivity, severity: .low, title: "Low Activity", message: "Patient has been stationary for 2 hours", timestamp: Date().addingTimeInterval(-3600))
         ]
 
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ Calendar - DATE MANIPULATION                                        │
-        // │                                                                     │
-        // │ Calendar provides date math operations:                             │
-        // │   .current - The user's current calendar (Gregorian in US)         │
-        // │   .date(bySettingHour:minute:second:of:) - Set time of a date      │
-        // │   .date(byAdding:value:to:) - Add days/months/years                │
-        // │   .isDateInToday(date) - Check if date is today                    │
-        // │   .startOfDay(for:) - Midnight of that date                        │
-        // │                                                                     │
-        // │ Using 'let' for calendar since we don't modify it.                 │
-        // └─────────────────────────────────────────────────────────────────────┘
-        let calendar = Calendar.current
-        let today = Date()
-
         // Fetch reminders from API (falls back to empty array if server unavailable)
         Task {
             reminders = await reminderAPI.fetchReminders()
         }
 
-        // Create mock health data
-        healthData = HealthData(
-            heartRate: HeartRateData(current: 72, min: 65, max: 78, history: generateMockHeartRateHistory()),
-            activity: ActivityData(steps: 3240, distance: 2100, calories: 1240, standingHours: 6, lastMovement: Date().addingTimeInterval(-1800), sleepHours: 7.5),
-            bloodOxygen: 98,
-            lastUpdated: Date()
-        )
-
         lastSyncTime = Date()
-    }
-
-    // ┌─────────────────────────────────────────────────────────────────────────┐
-    // │ PRIVATE HELPER METHOD                                                   │
-    // │                                                                         │
-    // │ generateMockHeartRateHistory() creates fake heart rate readings.       │
-    // │ It's private because it's an internal implementation detail.           │
-    // │                                                                         │
-    // │ -> [HeartRateReading] specifies the return type.                       │
-    // └─────────────────────────────────────────────────────────────────────────┘
-    private func generateMockHeartRateHistory() -> [HeartRateReading] {
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ EMPTY ARRAY LITERAL                                                 │
-        // │                                                                     │
-        // │ var readings: [HeartRateReading] = []                              │
-        // │                                                                     │
-        // │ Creates an empty array. Type annotation is optional here because   │
-        // │ Swift infers from the function return type.                        │
-        // │                                                                     │
-        // │ Could also write: var readings = [HeartRateReading]()              │
-        // └─────────────────────────────────────────────────────────────────────┘
-        var readings: [HeartRateReading] = []
-        let now = Date()
-
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ FOR-IN LOOP WITH RANGE                                              │
-        // │                                                                     │
-        // │ 0..<24 creates a Range: 0, 1, 2, ... 23 (excludes 24)              │
-        // │ 0...24 would include 24 (closed range)                             │
-        // │                                                                     │
-        // │ The loop variable 'i' is automatically created.                    │
-        // │ You can use _ if you don't need the value: for _ in 0..<24         │
-        // └─────────────────────────────────────────────────────────────────────┘
-        for i in 0..<24 {
-            // Calculate a timestamp i hours ago
-            let timestamp = now.addingTimeInterval(TimeInterval(-i * 3600))
-
-            // ┌─────────────────────────────────────────────────────────────────┐
-            // │ RANDOM NUMBER GENERATION                                        │
-            // │                                                                 │
-            // │ Int.random(in: -10...15) returns a random Int from -10 to 15   │
-            // │ This adds variety to mock data.                                │
-            // │                                                                 │
-            // │ Also available:                                                 │
-            // │   Double.random(in: 0.0...1.0)                                 │
-            // │   Bool.random()                                                 │
-            // │   array.randomElement()                                         │
-            // │   array.shuffled()                                             │
-            // └─────────────────────────────────────────────────────────────────┘
-            let value = 70 + Int.random(in: -10...15)
-            readings.append(HeartRateReading(value: value, timestamp: timestamp))
-        }
-
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ ARRAY METHODS                                                       │
-        // │                                                                     │
-        // │ reversed() returns readings in opposite order.                     │
-        // │ We built oldest-first but want newest-first for display.           │
-        // │                                                                     │
-        // │ Other useful array methods:                                         │
-        // │   sorted()           - Sort in natural order                       │
-        // │   sorted(by:)        - Sort with custom comparison                 │
-        // │   filter { }         - Keep elements matching condition            │
-        // │   map { }            - Transform each element                      │
-        // │   compactMap { }     - Transform and remove nils                   │
-        // │   reduce(initial) { } - Combine all elements into one value        │
-        // └─────────────────────────────────────────────────────────────────────┘
-        return readings.reversed()
     }
 
     // ┌─────────────────────────────────────────────────────────────────────────┐
@@ -277,124 +183,6 @@ final class MockDataService: PatientDataProvider, ObservableObject {
         return patient
     }
 
-    func startHealthMonitoring() {
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ Timer.scheduledTimer - REPEATED EXECUTION                           │
-        // │                                                                     │
-        // │ Creates a timer that fires every 5 seconds.                        │
-        // │ The closure { ... } runs each time it fires.                       │
-        // │                                                                     │
-        // │ Parameters:                                                         │
-        // │   withTimeInterval: 5.0  - Fire every 5 seconds                    │
-        // │   repeats: true          - Keep firing (false = fire once)         │
-        // │   { _ in ... }           - Code to run (underscore ignores timer)  │
-        // └─────────────────────────────────────────────────────────────────────┘
-        healthTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            // ┌─────────────────────────────────────────────────────────────────┐
-            // │ [weak self] - CAPTURE LIST                                      │
-            // │                                                                 │
-            // │ Closures can "capture" variables from their surrounding scope. │
-            // │ By default, closures create STRONG references to captured      │
-            // │ objects, which can cause MEMORY LEAKS (retain cycles).         │
-            // │                                                                 │
-            // │ [weak self] creates a WEAK reference:                          │
-            // │   - self becomes optional (self?)                              │
-            // │   - If the object is deallocated, self becomes nil             │
-            // │   - Prevents retain cycles                                      │
-            // │                                                                 │
-            // │ RETAIN CYCLE (memory leak):                                     │
-            // │   Timer holds closure → closure holds self → self holds timer  │
-            // │   Nothing can be freed!                                         │
-            // │                                                                 │
-            // │ WITH [weak self]:                                               │
-            // │   Timer holds closure → closure holds WEAK self                │
-            // │   self can be freed, then closure's self? becomes nil          │
-            // └─────────────────────────────────────────────────────────────────┘
-
-            // ┌─────────────────────────────────────────────────────────────────┐
-            // │ Task { @MainActor ... }                                         │
-            // │                                                                 │
-            // │ Task creates an asynchronous context.                           │
-            // │ @MainActor ensures the code runs on the main thread.           │
-            // │                                                                 │
-            // │ Timer callbacks run on a background thread by default,         │
-            // │ but our @MainActor class requires main thread access.          │
-            // │                                                                 │
-            // │ [weak self] is repeated to capture self weakly in this Task.   │
-            // └─────────────────────────────────────────────────────────────────┘
-            Task { @MainActor [weak self] in
-                // ┌─────────────────────────────────────────────────────────────┐
-                // │ OPTIONAL CHAINING: self?.method()                           │
-                // │                                                             │
-                // │ If self is nil (object was deallocated), the whole         │
-                // │ expression returns nil and nothing happens.                │
-                // │ If self is non-nil, the method is called normally.         │
-                // └─────────────────────────────────────────────────────────────┘
-                self?.updateMockHealthData()
-            }
-        }
-    }
-
-    func stopHealthMonitoring() {
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ INVALIDATING A TIMER                                                │
-        // │                                                                     │
-        // │ invalidate() stops the timer permanently.                          │
-        // │ After invalidation, the timer object is no longer useful.          │
-        // │ Setting to nil allows ARC to deallocate it.                        │
-        // │                                                                     │
-        // │ Optional chaining: healthTimer?.invalidate()                       │
-        // │ This safely does nothing if healthTimer is already nil.            │
-        // └─────────────────────────────────────────────────────────────────────┘
-        healthTimer?.invalidate()
-        healthTimer = nil
-    }
-
-    private func updateMockHealthData() {
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ MAX AND MIN FUNCTIONS                                               │
-        // │                                                                     │
-        // │ max(a, b) returns the larger value                                 │
-        // │ min(a, b) returns the smaller value                                │
-        // │                                                                     │
-        // │ max(55, min(95, value)) clamps value between 55 and 95:            │
-        // │   1. min(95, value) - ensures value doesn't exceed 95              │
-        // │   2. max(55, ...) - ensures value is at least 55                   │
-        // └─────────────────────────────────────────────────────────────────────┘
-        let variation = Int.random(in: -3...3)
-        let newHeartRate = max(55, min(95, healthData.heartRate.current + variation))
-
-        // ┌─────────────────────────────────────────────────────────────────────┐
-        // │ MODIFYING STRUCT PROPERTIES                                         │
-        // │                                                                     │
-        // │ Structs are value types. To modify, we:                            │
-        // │   1. Copy to a new var                                             │
-        // │   2. Modify the copy                                               │
-        // │   3. Assign back to @Published property                            │
-        // │                                                                     │
-        // │ The assignment to healthData triggers @Published,                  │
-        // │ notifying all subscribers of the change.                           │
-        // └─────────────────────────────────────────────────────────────────────┘
-        var newHealthData = healthData
-        newHealthData.heartRate.current = newHeartRate
-        newHealthData.heartRate.min = min(newHealthData.heartRate.min, newHeartRate)
-        newHealthData.heartRate.max = max(newHealthData.heartRate.max, newHeartRate)
-        newHealthData.heartRate.history.append(HeartRateReading(value: newHeartRate, timestamp: Date()))
-        newHealthData.activity.steps += Int.random(in: 0...20)
-        newHealthData.lastUpdated = Date()
-
-        healthData = newHealthData
-        lastSyncTime = Date()
-    }
-
-    // ┌─────────────────────────────────────────────────────────────────────────┐
-    // │ ASYNC FUNCTIONS WITH SIMPLE IMPLEMENTATIONS                             │
-    // │                                                                         │
-    // │ These are marked async throws to satisfy the protocol, even though     │
-    // │ our mock implementation is synchronous.                                │
-    // │                                                                         │
-    // │ In a real implementation, these would make network calls.              │
-    // └─────────────────────────────────────────────────────────────────────────┘
     func addSafeZone(_ zone: SafeZone) async throws { safeZones.append(zone) }
     func removeSafeZone(id: UUID) async throws { safeZones.removeAll { $0.id == id } }
     func updateSafeZone(_ zone: SafeZone) async throws {
@@ -487,14 +275,6 @@ final class MockDataService: PatientDataProvider, ObservableObject {
     func simulateGeofenceExit() {
         currentLocation = PatientLocation(coordinate: Coordinate(latitude: 37.7849, longitude: -122.4094), isInSafeZone: false, address: "456 Oak Street, San Francisco, CA")
         alerts.insert(PatientAlert(type: .geofence, severity: .high, title: "Left Safe Zone", message: "Patient has left the 'Home' safe zone", timestamp: Date()), at: 0)
-    }
-
-    func simulateAbnormalHeartRate() {
-        var newHealthData = healthData
-        newHealthData.heartRate.current = 115
-        newHealthData.heartRate.max = 115
-        healthData = newHealthData
-        alerts.insert(PatientAlert(type: .heartRate, severity: .high, title: "High Heart Rate", message: "Heart rate elevated to 115 BPM for 5+ minutes", timestamp: Date()), at: 0)
     }
 
     func simulateConnectionLost() {

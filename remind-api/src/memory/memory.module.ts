@@ -4,8 +4,10 @@ import { MemoryService } from './memory.service';
 import { EmbeddingService } from './embedding.service';
 import { ExtractionService } from './extraction.service';
 import { RetrievalService } from './retrieval.service';
+import { PatientFactModule } from '../patient-fact/patient-fact.module';
 
 @Module({
+  imports: [PatientFactModule],
   controllers: [MemoryController],
   providers: [
     MemoryService,
