@@ -26,8 +26,8 @@ actor LocationService: NSObject {
     let locationStream: AsyncStream<CLLocation>
 
     init(
-        baseURL: String = "http://localhost:3000",
-        patientId: String = "demo-patient-1",
+        baseURL: String = BuildConfiguration.apiBaseURL,
+        patientId: String = BuildConfiguration.patientId,
         updateInterval: TimeInterval = 15
     ) {
         var continuationHolder: AsyncStream<CLLocation>.Continuation?

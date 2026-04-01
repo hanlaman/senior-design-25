@@ -190,6 +190,14 @@ const sqlFirewallAllowAzure = new sql.FirewallRule(`sql-fw-azure-${stack}`, {
     endIpAddress: "0.0.0.0",
 });
 
+const sqlFirewallAllowAll = new sql.FirewallRule(`sql-fw-all-${stack}`, {
+    serverName: sqlServer.name,
+    resourceGroupName: resourceGroup.name,
+    firewallRuleName: "AllowAll",
+    startIpAddress: "0.0.0.0",
+    endIpAddress: "255.255.255.255",
+});
+
 const sqlDatabase = new sql.Database(`sql-db-${stack}`, {
     databaseName: "remind_db",
     serverName: sqlServer.name,

@@ -15,8 +15,8 @@ actor ConversationFetchService {
     private let patientId: String
 
     init(
-        baseURL: String = "http://localhost:3000",
-        patientId: String = "demo-patient-1"
+        baseURL: String = BuildConfiguration.apiBaseURL,
+        patientId: String = BuildConfiguration.patientId
     ) {
         self.baseURL = baseURL
         self.patientId = patientId

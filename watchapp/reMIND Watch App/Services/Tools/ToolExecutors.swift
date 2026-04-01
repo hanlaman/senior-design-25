@@ -183,67 +183,7 @@ public enum ToolExecutors {
         AppLogger.general.info("getPatientFacts executed: \(facts.count) facts returned")
         return jsonString
     }
-}
 
-// MARK: - Supporting Types for Get Patient Facts
-
-private struct PatientFactsResponse: Codable {
-    let found: Bool
-    let factCount: Int
-    let facts: [PatientFactEntry]
-
-    enum CodingKeys: String, CodingKey {
-        case found
-        case factCount = "fact_count"
-        case facts
-    }
-}
-
-struct PatientFactEntry: Codable {
-    let category: String
-    let label: String
-    let value: String
-}
-
-/// Lightweight fetcher for patient facts from the backend API
-actor PatientFactsFetcher {
-    static let shared = PatientFactsFetcher()
-
-    private let baseURL: String
-    private let patientId: String
-
-    init(
-        baseURL: String = "http://localhost:3000",
-        patientId: String = "demo-patient-1"
-    ) {
-        self.baseURL = baseURL
-        self.patientId = patientId
-    }
-
-    func fetchFacts() async -> [PatientFactEntry] {
-        guard let url = URL(string: "\(baseURL)/patient-facts/\(patientId)") else {
-            return []
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = 10
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode) else {
-                return []
-            }
-            let rawFacts = try JSONDecoder().decode([RawPatientFact].self, from: data)
-            return rawFacts.map { PatientFactEntry(category: $0.category, label: $0.label, value: $0.value) }
-        } catch {
-            AppLogger.general.error("Failed to fetch patient facts: \(error.localizedDescription)")
-            return []
-        }
-    }
     // MARK: - Get Current Location Tool
 
     /// Get the user's current location in a human-friendly format
@@ -322,8 +262,8 @@ actor PatientFactsFetcher {
     }
 
     private static func fetchLocationContext() async -> LocationContextResponse? {
-        let baseURL = "http://localhost:3000"
-        let patientId = "demo-patient-1"
+        let baseURL = BuildConfiguration.apiBaseURL
+        let patientId = BuildConfiguration.patientId
 
         guard let url = URL(string: "\(baseURL)/location/context/\(patientId)") else { return nil }
 
@@ -340,6 +280,67 @@ actor PatientFactsFetcher {
         } catch {
             AppLogger.general.warning("Location context fetch failed: \(error.localizedDescription)")
             return nil
+        }
+    }
+}
+
+// MARK: - Supporting Types for Get Patient Facts
+
+private struct PatientFactsResponse: Codable {
+    let found: Bool
+    let factCount: Int
+    let facts: [PatientFactEntry]
+
+    enum CodingKeys: String, CodingKey {
+        case found
+        case factCount = "fact_count"
+        case facts
+    }
+}
+
+struct PatientFactEntry: Codable {
+    let category: String
+    let label: String
+    let value: String
+}
+
+/// Lightweight fetcher for patient facts from the backend API
+actor PatientFactsFetcher {
+    static let shared = PatientFactsFetcher()
+
+    private let baseURL: String
+    private let patientId: String
+
+    init(
+        baseURL: String = BuildConfiguration.apiBaseURL,
+        patientId: String = BuildConfiguration.patientId
+    ) {
+        self.baseURL = baseURL
+        self.patientId = patientId
+    }
+
+    func fetchFacts() async -> [PatientFactEntry] {
+        guard let url = URL(string: "\(baseURL)/patient-facts/\(patientId)") else {
+            return []
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 10
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                return []
+            }
+            let rawFacts = try JSONDecoder().decode([RawPatientFact].self, from: data)
+            return rawFacts.map { PatientFactEntry(category: $0.category, label: $0.label, value: $0.value) }
+        } catch {
+            AppLogger.general.error("Failed to fetch patient facts: \(error.localizedDescription)")
+            return []
         }
     }
 }

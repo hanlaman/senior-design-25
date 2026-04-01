@@ -11,7 +11,7 @@ on:
 
 env:
   ACR_NAME: reminddevacr
-  RESOURCE_GROUP: senior-design-dev
+  RESOURCE_GROUP: senior-design-dev6268b001
 
 jobs:
   deploy:
@@ -32,13 +32,17 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Log in to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
+
       - name: Build & push image to ACR
         run: |
-          az acr build \
-            --registry ${{ env.ACR_NAME }} \
-            --image remind-api:${{ github.sha }} \
-            --image remind-api:latest \
+          docker build \
+            -t ${{ env.ACR_NAME }}.azurecr.io/remind-api:${{ github.sha }} \
+            -t ${{ env.ACR_NAME }}.azurecr.io/remind-api:latest \
             ./remind-api
+          docker push ${{ env.ACR_NAME }}.azurecr.io/remind-api:${{ github.sha }}
+          docker push ${{ env.ACR_NAME }}.azurecr.io/remind-api:latest
 
       - name: Update Container App image
         run: |

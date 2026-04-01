@@ -45,8 +45,8 @@ actor MemoryContextService {
     private let cacheValiditySeconds: TimeInterval = 24 * 60 * 60 // 24 hours
 
     init(
-        baseURL: String = "http://localhost:3000",
-        patientId: String = "demo-patient-1"
+        baseURL: String = BuildConfiguration.apiBaseURL,
+        patientId: String = BuildConfiguration.patientId
     ) {
         self.baseURL = baseURL
         self.patientId = patientId

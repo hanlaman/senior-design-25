@@ -16,8 +16,8 @@ actor ConversationSyncService {
     private let historyManager: ConversationHistoryManager
 
     init(
-        baseURL: String = "http://localhost:3000",
-        patientId: String = "demo-patient-1",
+        baseURL: String = BuildConfiguration.apiBaseURL,
+        patientId: String = BuildConfiguration.patientId,
         historyManager: ConversationHistoryManager = .shared
     ) {
         self.baseURL = baseURL

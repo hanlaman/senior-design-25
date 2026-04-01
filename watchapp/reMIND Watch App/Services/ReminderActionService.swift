@@ -11,7 +11,7 @@ import os
 actor ReminderActionService {
     private let baseURL: String
 
-    init(baseURL: String = "http://localhost:3000") {
+    init(baseURL: String = BuildConfiguration.apiBaseURL) {
         self.baseURL = baseURL
     }
 

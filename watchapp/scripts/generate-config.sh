@@ -26,6 +26,8 @@ enum BuildConfiguration {
     static let azureAPIKey = "${AZURE_API_KEY}"
     static let azureResourceName = "${AZURE_RESOURCE_NAME}"
     static let azureAPIVersion = "${AZURE_API_VERSION}"
+    static let apiBaseURL = "${API_BASE_URL}"
+    static let patientId = "${PATIENT_ID}"
 
     static var websocketURL: URL? {
         let urlString = "wss://\(azureResourceName).services.ai.azure.com/voice-live/realtime?api-version=\(azureAPIVersion)"
@@ -36,7 +38,9 @@ enum BuildConfiguration {
         !azureAPIKey.isEmpty &&
         azureAPIKey != "YOUR_API_KEY_HERE" &&
         !azureResourceName.isEmpty &&
-        azureResourceName != "YOUR_RESOURCE_NAME_HERE"
+        azureResourceName != "YOUR_RESOURCE_NAME_HERE" &&
+        !apiBaseURL.isEmpty &&
+        apiBaseURL != "YOUR_API_BASE_URL_HERE"
     }
 }
 EOF
