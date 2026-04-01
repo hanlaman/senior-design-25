@@ -32,6 +32,26 @@
       "introspection": {
         "progressive": false
       }
+    },
+    {
+      "connectionId": "CA-LHGKfS8MkttPRpyKns",
+      "name": "Dev",
+      "driver": "mssql",
+      "connectionType": "host",
+      "host": "remind-sql-dev.database.windows.net",
+      "port": 1433,
+      "ssl": true,
+      "authMethod": "sql",
+      "username": "remindadmin",
+      "password": "",
+      "savePassword": "secretStorage",
+      "readOnly": false,
+      "postConnectionSqlType": "inline",
+      "connectionTimeout": 30,
+      "pinnedConnectionTimeout": "0",
+      "introspection": {
+        "progressive": false
+      }
     }
   ]
 }

@@ -5,4 +5,4 @@ config:
   senior-design-26:betterAuthSecret:
     secure: AAABAJE5AfhTO7l5NZDHskcj4z2ZwTo07rKD6pQLvzit5/5TzI4OLZvkXLNFNJy4
   senior-design-26:azureOpenAiApiKey:
-    secure: AAABAO+fZJxInGcSGlpyHwQiiS+Jt24rvmIC9wp04/tCqqXFklI0ZwwvYnAwW1Bk
+    secure: AAABADYotb1FdbTQ5O3DZD/cYfTAfIzPuS2518XFyJpuQ6CXMhRoYEHuk85X+ra4RwaJW1YYDwQDtt3N7uKe/RVR/coh0OtVrkgL1Got+MaGiFNe5TwsuPEtqePjrRrOjo81nkiT/rA8iBesDJNGot6yUN0=
