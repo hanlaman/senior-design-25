@@ -32,7 +32,7 @@ final class LocationAPIService {
     private let baseURL: String
     private let patientId: String
 
-    init(baseURL: String = "http://localhost:3000", patientId: String = "demo-patient-1") {
+    init(baseURL: String = BuildConfiguration.apiBaseURL, patientId: String = BuildConfiguration.patientId) {
         self.baseURL = baseURL
         self.patientId = patientId
     }

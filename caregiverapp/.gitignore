@@ -33,3 +33,6 @@ Carthage/Build/
 .lsbom
 .ncrc
 .swp
+
+# Build configuration (contains secrets/environment-specific values)
+**/Configuration/BuildConfiguration.swift

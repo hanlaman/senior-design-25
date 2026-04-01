@@ -1,0 +1,14 @@
+//
+//  BuildConfiguration.swift
+//  caregiverapp
+//
+//  Copy this file to BuildConfiguration.swift and fill in your values.
+//  BuildConfiguration.swift is gitignored — do not commit it.
+//
+
+import Foundation
+
+enum BuildConfiguration {
+    static let apiBaseURL = "YOUR_API_BASE_URL_HERE"
+    static let patientId = "YOUR_PATIENT_ID_HERE"
+}

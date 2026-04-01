@@ -30,7 +30,7 @@ final class APIAuthService: AuthService {
 
     // MARK: - Initialization
 
-    init(baseURL: String = "http://localhost:3000") {
+    init(baseURL: String = BuildConfiguration.apiBaseURL) {
         self.baseURL = baseURL
     }
 
