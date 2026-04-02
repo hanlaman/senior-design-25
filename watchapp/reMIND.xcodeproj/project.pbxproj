@@ -460,6 +460,7 @@
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "reMIND uses your location to share it with your caregiver for safety.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "reMIND needs microphone access to listen to your voice commands and communicate with the AI assistant.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKBackgroundModes = "audio";
 				INFOPLIST_KEY_WKWatchOnly = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -496,6 +497,7 @@
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "reMIND uses your location to share it with your caregiver for safety.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "reMIND needs microphone access to listen to your voice commands and communicate with the AI assistant.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_WKBackgroundModes = "audio";
 				INFOPLIST_KEY_WKWatchOnly = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
