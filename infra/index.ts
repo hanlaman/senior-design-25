@@ -249,6 +249,9 @@ const containerAppEnv = new app.ManagedEnvironment(`cae-${stack}`, {
 // ── Container App (remind-api) ────────────────────────────────────────────────
 const betterAuthSecret = config.requireSecret("betterAuthSecret");
 const azureOpenAiApiKey = config.requireSecret("azureOpenAiApiKey");
+const apnsKeyContents = config.requireSecret("apnsKeyContents");
+const apnsKeyId = config.requireSecret("apnsKeyId");
+const apnsTeamId = config.requireSecret("apnsTeamId");
 
 const containerApp = new app.ContainerApp(`remind-api-${stack}`, {
     containerAppName: `remind-api-${stack}`,
@@ -271,6 +274,9 @@ const containerApp = new app.ContainerApp(`remind-api-${stack}`, {
             { name: "sql-password", value: sqlAdminPassword },
             { name: "better-auth-secret", value: betterAuthSecret },
             { name: "azure-openai-api-key", value: azureOpenAiApiKey },
+            { name: "apns-key-contents", value: apnsKeyContents },
+            { name: "apns-key-id", value: apnsKeyId },
+            { name: "apns-team-id", value: apnsTeamId },
         ],
     },
     template: {
@@ -297,6 +303,11 @@ const containerApp = new app.ContainerApp(`remind-api-${stack}`, {
                 { name: "AZURE_OPENAI_DEPLOYMENT_NAME", value: "conversation-summarizer" },
                 { name: "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", value: "text-embedding-3-small" },
                 { name: "AZURE_OPENAI_API_VERSION", value: "2024-08-01-preview" },
+                { name: "APNS_KEY_CONTENTS", secretRef: "apns-key-contents" },
+                { name: "APNS_KEY_ID", secretRef: "apns-key-id" },
+                { name: "APNS_TEAM_ID", secretRef: "apns-team-id" },
+                { name: "APNS_BUNDLE_ID_WATCH", value: "com.remind.patientwatch" },
+                { name: "APNS_BUNDLE_ID_IOS", value: "com.remind.caregiver" },
             ],
         }],
         scale: {

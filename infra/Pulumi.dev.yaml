@@ -6,3 +6,9 @@ config:
     secure: AAABAJE5AfhTO7l5NZDHskcj4z2ZwTo07rKD6pQLvzit5/5TzI4OLZvkXLNFNJy4
   senior-design-26:azureOpenAiApiKey:
     secure: AAABADYotb1FdbTQ5O3DZD/cYfTAfIzPuS2518XFyJpuQ6CXMhRoYEHuk85X+ra4RwaJW1YYDwQDtt3N7uKe/RVR/coh0OtVrkgL1Got+MaGiFNe5TwsuPEtqePjrRrOjo81nkiT/rA8iBesDJNGot6yUN0=
+  senior-design-26:apnsKeyId:
+    secure: AAABADkRAs5+OZprRK7tL5uLeHsa4Vnq5vHAKBa750iqKw1Th1hhitiW
+  senior-design-26:apnsTeamId:
+    secure: AAABAISR3CmoUJ3ClOBl4PAvv5WoAT9sd5UK2iY4fJQoIVwgA+Kgv6/h
+  senior-design-26:apnsKeyContents:
+    secure: AAABACPJZoO44NQRYokEiVbW5W0+s1hSSgK+h7fJPEuWawCjd0Mxqc3qbfeg903kr+Qr9UVfrIDqQCg7Ehy0uM8uSc3Z8lSNrBeUjf6MKJiT4qEFxMN+oLsfvubGzl2cbcROeB6SKAvQHPWgCnY36vBwpI7Mse1smKBKu0kgaBURn5W3T6f3p5DuMH0ag6885O9YIIXNAvGlJZw9hnuDFDsEaUvuqy5cXXrcvY9IIqNA3ANBraNM+ugGo+Eqj3/MKI6GIHt61zRv358E97tkl1jHK2aUK+2+eIRKA+H0oL8TCfn6dq9gtJpO7vs/9ueoMNY747RoDIzdvZArYiT0d9MB53IQ6uZ9MBkByt7GJl+2ysJmR33QZtbrJ4qbq8csww==
