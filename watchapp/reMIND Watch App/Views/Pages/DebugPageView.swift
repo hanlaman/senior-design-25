@@ -16,6 +16,7 @@ struct DebugPageView: View {
     @State private var wifiPath: String = "checking..."
     @State private var connectivityTest: String = "—"
     @State private var wsTest: String = "—"
+    @State private var urlSessionWsTest: String = "—"
 
     var body: some View {
         List {
@@ -42,6 +43,7 @@ struct DebugPageView: View {
                     color: BuildConfiguration.isConfigured ? .green : .red)
                 row("Endpoint Test", value: connectivityTest)
                 row("WS Test", value: wsTest)
+                row("WS (URLSession)", value: urlSessionWsTest)
             }
 
             Section {
@@ -52,6 +54,11 @@ struct DebugPageView: View {
 
                 Button("Test WebSocket") {
                     Task { await testWebSocket() }
+                }
+                .foregroundColor(.blue)
+
+                Button("Test WS (URLSession)") {
+                    Task { await testWebSocketURLSession() }
                 }
                 .foregroundColor(.blue)
 
@@ -197,6 +204,59 @@ struct DebugPageView: View {
         }
         connection.stateUpdateHandler = nil
         connection.cancel()
+    }
+
+    /// Tests WebSocket connectivity using URLSessionWebSocketTask (high-level networking).
+    /// Unlike NWConnection, URLSession can route through the companion tunnel (Bluetooth relay).
+    private func testWebSocketURLSession() async {
+        urlSessionWsTest = "Connecting..."
+        guard let url = BuildConfiguration.websocketURL else {
+            urlSessionWsTest = "Bad URL"
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue(BuildConfiguration.azureAPIKey, forHTTPHeaderField: "api-key")
+        request.timeoutInterval = 15
+
+        let session = URLSession(configuration: .default)
+        let task = session.webSocketTask(with: request)
+        let startTime = Date()
+
+        task.resume()
+
+        do {
+            // Try to receive one message to confirm the connection is live.
+            // Azure sends session.created immediately on connect.
+            let message = try await withThrowingTaskGroup(of: String.self) { group in
+                group.addTask {
+                    let msg = try await task.receive()
+                    let elapsed = String(format: "%.1f", Date().timeIntervalSince(startTime))
+                    switch msg {
+                    case .data(let data):
+                        return "Open! Got \(data.count)B (\(elapsed)s)"
+                    case .string(let text):
+                        return "Open! Got \(text.count) chars (\(elapsed)s)"
+                    @unknown default:
+                        return "Open! Unknown msg (\(elapsed)s)"
+                    }
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 15_000_000_000)
+                    return "Timeout (15s)"
+                }
+                let result = try await group.next()!
+                group.cancelAll()
+                return result
+            }
+            urlSessionWsTest = message
+        } catch {
+            let elapsed = String(format: "%.1f", Date().timeIntervalSince(startTime))
+            urlSessionWsTest = "\(error.localizedDescription) (\(elapsed)s)"
+        }
+
+        task.cancel(with: .goingAway, reason: nil)
+        session.invalidateAndCancel()
     }
 
     /// Tests basic HTTPS connectivity to the Azure endpoint (not WebSocket)
