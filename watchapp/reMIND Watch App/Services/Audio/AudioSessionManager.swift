@@ -82,6 +82,10 @@ final class AudioSessionManager: Sendable {
         AppLogger.audio.info("Audio session activated: category=playAndRecord, mode=voiceChat")
         AppLogger.audio.debug("Current route: \(audioSession.currentRoute)")
 
+        if audioSession.currentRoute.inputs.isEmpty {
+            AppLogger.audio.warning("Audio session active but no input route available — microphone may not work")
+        }
+
         // Start monitoring
         startMonitoringInterruptions()
         startMonitoringRouteChanges()

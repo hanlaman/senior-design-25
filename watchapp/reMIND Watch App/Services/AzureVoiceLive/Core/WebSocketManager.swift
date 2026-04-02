@@ -2,29 +2,30 @@
 //  WebSocketManager.swift
 //  reMIND Watch App
 //
-//  WebSocket connection manager using Network.framework NWConnection.
+//  WebSocket connection manager using URLSessionWebSocketTask.
+//  URLSession handles companion tunnel routing on watchOS automatically,
+//  unlike NWConnection which may fail to route through the Bluetooth relay.
 //  Per TN3135, an active AVAudioSession enables low-level networking on watchOS.
 //  The caller (VoiceConnectionCoordinator) activates the audio session before connecting.
 //
 
 import Foundation
-import Network
 import os
 
-/// WebSocket connection manager using Network.framework
+/// WebSocket connection manager using URLSessionWebSocketTask
 actor WebSocketManager {
     // MARK: - Properties
 
-    private var connection: NWConnection?
+    private var webSocketTask: URLSessionWebSocketTask?
+    private var urlSession: URLSession?
+    private var delegateHandler: WebSocketDelegateHandler?
+
     private let url: URL
     private let apiKey: String
 
     private var isConnected = false
     private var reconnectAttempts = 0
     private let maxReconnectAttempts = WebSocketConfiguration.maxReconnectAttempts
-
-    // Dispatch queue for NWConnection callbacks
-    private let networkQueue = DispatchQueue(label: "com.remind.websocket", qos: .userInteractive)
 
     // Event stream
     private var eventContinuation: AsyncStream<Result<Data, Error>>.Continuation?
@@ -76,79 +77,70 @@ actor WebSocketManager {
             throw WebSocketError.invalidURL("Missing host in URL")
         }
 
-        // Configure WebSocket protocol options
-        let wsOptions = NWProtocolWebSocket.Options()
-        wsOptions.autoReplyPing = true
-        wsOptions.setAdditionalHeaders([
-            ("api-key", apiKey)
-        ])
+        // Build URLRequest with API key header
+        var request = URLRequest(url: url)
+        request.setValue(apiKey, forHTTPHeaderField: "api-key")
+        request.timeoutInterval = WebSocketConfiguration.connectionTimeout
 
-        // Configure TLS
-        let tlsOptions = NWProtocolTLS.Options()
+        // Configure URLSession for watchOS companion tunnel support.
+        // waitsForConnectivity lets the system find any available path,
+        // including the Bluetooth relay through the paired iPhone.
+        let config = URLSessionConfiguration.default
+        config.waitsForConnectivity = true
+        config.timeoutIntervalForRequest = WebSocketConfiguration.connectionTimeout
+        config.timeoutIntervalForResource = WebSocketConfiguration.resourceTimeout
+        config.shouldUseExtendedBackgroundIdleMode = true
 
-        // Build network parameters. Per TN3135, an active AVAudioSession enables
-        // all networking APIs on watchOS — including through the companion tunnel.
-        // Don't restrict interface types; let the system choose the best path.
-        let params = NWParameters(tls: tlsOptions)
-        params.defaultProtocolStack.applicationProtocols.insert(wsOptions, at: 0)
-        params.prohibitExpensivePaths = false
-        params.prohibitConstrainedPaths = false
-        params.serviceClass = .interactiveVoice
+        // Create delegate handler, session, and task
+        let delegate = WebSocketDelegateHandler()
+        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
+        let task = session.webSocketTask(with: request)
 
-        // Create endpoint with full path
-        let endpoint = NWEndpoint.url(url)
+        self.delegateHandler = delegate
+        self.urlSession = session
+        self.webSocketTask = task
 
-        // Create connection
-        let nwConnection = NWConnection(to: endpoint, using: params)
-        self.connection = nwConnection
-
-        // Await connection ready state with timeout.
-        // Use OSAllocatedUnfairLock to ensure the continuation is only resumed once,
-        // since stateUpdateHandler can fire multiple state transitions.
+        // Await WebSocket open with timeout.
+        // OSAllocatedUnfairLock prevents double-resume since multiple delegate
+        // callbacks can fire (e.g., didOpen then didComplete).
         try await withThrowingTaskGroup(of: Bool.self) { group in
-            group.addTask { [networkQueue] in
+            group.addTask {
                 try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
                     let resumed = OSAllocatedUnfairLock(initialState: false)
 
-                    nwConnection.stateUpdateHandler = { state in
-                        switch state {
-                        case .ready:
-                            AppLogger.network.info("NWConnection ready (WebSocket handshake complete)")
-                            resumed.withLock { didResume in
-                                guard !didResume else { return }
-                                didResume = true
-                                continuation.resume(returning: true)
-                            }
-                        case .failed(let error):
-                            AppLogger.network.error("NWConnection failed: \(error.localizedDescription)")
-                            resumed.withLock { didResume in
-                                guard !didResume else { return }
-                                didResume = true
-                                continuation.resume(throwing: WebSocketError.connectionFailed(error))
-                            }
-                        case .waiting(let error):
-                            // On watchOS, .waiting means no suitable path (e.g., no WiFi available)
-                            AppLogger.network.warning("NWConnection waiting: \(error.localizedDescription)")
-                            resumed.withLock { didResume in
-                                guard !didResume else { return }
-                                didResume = true
-                                continuation.resume(throwing: WebSocketError.connectionFailed(error))
-                            }
-                        case .preparing:
-                            AppLogger.network.debug("NWConnection preparing...")
-                        case .setup:
-                            break
-                        case .cancelled:
-                            resumed.withLock { didResume in
-                                guard !didResume else { return }
-                                didResume = true
-                                continuation.resume(throwing: WebSocketError.connectionCancelled)
-                            }
-                        @unknown default:
-                            break
+                    delegate.onOpen = { @Sendable protocol_ in
+                        AppLogger.network.info("URLSessionWebSocketTask opened (protocol: \(protocol_ ?? "none"))")
+                        resumed.withLock { didResume in
+                            guard !didResume else { return }
+                            didResume = true
+                            continuation.resume(returning: true)
                         }
                     }
-                    nwConnection.start(queue: networkQueue)
+
+                    delegate.onClose = { @Sendable closeCode, reason in
+                        let reasonStr = reason.flatMap { String(data: $0, encoding: .utf8) } ?? "unknown"
+                        AppLogger.network.error("WebSocket closed during connect: code=\(closeCode.rawValue), reason=\(reasonStr)")
+                        resumed.withLock { didResume in
+                            guard !didResume else { return }
+                            didResume = true
+                            continuation.resume(throwing: WebSocketError.connectionClosed(
+                                closeCode: closeCode, reason: reasonStr
+                            ))
+                        }
+                    }
+
+                    delegate.onTaskComplete = { @Sendable error in
+                        if let error = error {
+                            AppLogger.network.error("WebSocket task failed during connect: \(error.localizedDescription)")
+                            resumed.withLock { didResume in
+                                guard !didResume else { return }
+                                didResume = true
+                                continuation.resume(throwing: WebSocketError.connectionFailed(error))
+                            }
+                        }
+                    }
+
+                    task.resume()
                 }
             }
             group.addTask {
@@ -160,37 +152,32 @@ actor WebSocketManager {
             group.cancelAll()
 
             if !succeeded {
-                nwConnection.cancel()
+                task.cancel(with: .goingAway, reason: nil)
+                session.invalidateAndCancel()
+                self.webSocketTask = nil
+                self.urlSession = nil
+                self.delegateHandler = nil
                 throw WebSocketError.connectionFailed(
-                    NWError.posix(.ETIMEDOUT)
+                    NSError(domain: "WebSocket", code: -1, userInfo: [NSLocalizedDescriptionKey: "Connection timed out"])
                 )
             }
         }
 
-        // Install permanent handlers for post-connection lifecycle events
-        nwConnection.stateUpdateHandler = { [weak self] state in
+        // Replace delegate closures with post-connection lifecycle handlers
+        delegate.onOpen = nil
+        delegate.onClose = { [weak self] closeCode, reason in
+            let reasonStr = reason.flatMap { String(data: $0, encoding: .utf8) } ?? "unknown"
+            AppLogger.network.warning("WebSocket closed: code=\(closeCode.rawValue), reason=\(reasonStr)")
             Task { [weak self] in
-                await self?.handleConnectionStateChange(state)
+                await self?.handleConnectionLost()
             }
         }
-
-        // Viability handler fires immediately when the connection can no longer
-        // send/receive (e.g., WiFi drops). Much faster than heartbeat detection.
-        nwConnection.viabilityUpdateHandler = { [weak self] isViable in
-            if !isViable {
-                AppLogger.network.warning("NWConnection is no longer viable (network path lost)")
+        delegate.onTaskComplete = { [weak self] error in
+            if let error = error {
+                AppLogger.network.error("WebSocket task error: \(error.localizedDescription)")
                 Task { [weak self] in
-                    guard let self = self, await self.isConnected else { return }
-                    await self.handleConnectionLost()
+                    await self?.handleConnectionLost()
                 }
-            }
-        }
-
-        // Better path handler notifies when a higher-quality path becomes available
-        // (e.g., WiFi restored after cellular fallback). Log it for diagnostics.
-        nwConnection.betterPathUpdateHandler = { hasBetterPath in
-            if hasBetterPath {
-                AppLogger.network.info("NWConnection: better network path available")
             }
         }
 
@@ -200,7 +187,7 @@ actor WebSocketManager {
         lastMessageTime = Date()
 
         connectionStateContinuation?.yield(.connected)
-        AppLogger.network.info("WebSocket connected via NWConnection")
+        AppLogger.network.info("WebSocket connected via URLSession")
 
         // Start receiving messages and heartbeat
         startReceiving()
@@ -218,23 +205,19 @@ actor WebSocketManager {
         receiveTask?.cancel()
         receiveTask = nil
 
-        // Send close frame, clear handlers, and cancel connection
-        if let connection = connection {
-            // Clear handlers to break retain cycles before cancellation
-            connection.stateUpdateHandler = nil
-            connection.viabilityUpdateHandler = nil
-            connection.betterPathUpdateHandler = nil
+        // Clear delegate closures to prevent callbacks during teardown
+        delegateHandler?.onOpen = nil
+        delegateHandler?.onClose = nil
+        delegateHandler?.onTaskComplete = nil
 
-            let metadata = NWProtocolWebSocket.Metadata(opcode: .close)
-            metadata.closeCode = .protocolCode(.goingAway)
-            let context = NWConnection.ContentContext(
-                identifier: "close",
-                metadata: [metadata]
-            )
-            connection.send(content: nil, contentContext: context, isComplete: true, completion: .idempotent)
-            connection.cancel()
-        }
-        connection = nil
+        // Send close frame and cancel task
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
+
+        // Invalidate URLSession to break strong delegate reference cycle
+        urlSession?.invalidateAndCancel()
+        urlSession = nil
+        delegateHandler = nil
 
         isConnected = false
 
@@ -250,100 +233,45 @@ actor WebSocketManager {
 
     /// Send data over WebSocket
     func send(_ data: Data) async throws {
-        guard isConnected, let connection = connection else {
+        guard isConnected, let task = webSocketTask else {
             throw WebSocketError.notConnected
         }
 
-        let metadata = NWProtocolWebSocket.Metadata(opcode: .binary)
-        let context = NWConnection.ContentContext(
-            identifier: "binaryMessage",
-            metadata: [metadata]
-        )
-
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            connection.send(content: data, contentContext: context, isComplete: true, completion: .contentProcessed { error in
-                if let error = error {
-                    AppLogger.logError(error, category: AppLogger.network, context: "WebSocket send (data) failed")
-                    continuation.resume(throwing: WebSocketError.sendFailed(error))
-                } else {
-                    continuation.resume()
-                }
-            })
+        do {
+            try await task.send(.data(data))
+        } catch {
+            AppLogger.logError(error, category: AppLogger.network, context: "WebSocket send (data) failed")
+            throw WebSocketError.sendFailed(error)
         }
     }
 
     /// Send text over WebSocket
     func send(_ text: String) async throws {
-        guard isConnected, let connection = connection else {
+        guard isConnected, let task = webSocketTask else {
             throw WebSocketError.notConnected
         }
 
-        guard let data = text.data(using: .utf8) else {
-            throw WebSocketError.sendFailed(
-                NSError(domain: "WebSocket", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to encode text as UTF-8"])
-            )
-        }
-
-        let metadata = NWProtocolWebSocket.Metadata(opcode: .text)
-        let context = NWConnection.ContentContext(
-            identifier: "textMessage",
-            metadata: [metadata]
-        )
-
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            connection.send(content: data, contentContext: context, isComplete: true, completion: .contentProcessed { error in
-                if let error = error {
-                    AppLogger.logError(error, category: AppLogger.network, context: "WebSocket send (text) failed")
-                    continuation.resume(throwing: WebSocketError.sendFailed(error))
-                } else {
-                    continuation.resume()
-                }
-            })
+        do {
+            try await task.send(.string(text))
+        } catch {
+            AppLogger.logError(error, category: AppLogger.network, context: "WebSocket send (text) failed")
+            throw WebSocketError.sendFailed(error)
         }
     }
 
     // MARK: - Connection State Handling
 
-    /// Called when viabilityUpdateHandler reports the connection is no longer viable
+    /// Called when delegate reports connection lost or receive loop detects failure
     private func handleConnectionLost() async {
         guard isConnected else { return }
         isConnected = false
         connectionStateContinuation?.yield(.disconnected)
         eventContinuation?.yield(.failure(WebSocketError.connectionFailed(
-            NWError.posix(.ENETDOWN)
+            NSError(domain: "WebSocket", code: -1, userInfo: [NSLocalizedDescriptionKey: "Connection lost"])
         )))
 
         // Attempt automatic reconnection
         await attemptReconnection()
-    }
-
-    private func handleConnectionStateChange(_ state: NWConnection.State) {
-        switch state {
-        case .failed(let error):
-            AppLogger.network.error("WebSocket connection failed: \(error.localizedDescription)")
-            if isConnected {
-                isConnected = false
-                connectionStateContinuation?.yield(.error(error.localizedDescription))
-                eventContinuation?.yield(.failure(WebSocketError.connectionFailed(error)))
-            }
-
-        case .waiting(let error):
-            AppLogger.network.warning("WebSocket connection waiting: \(error.localizedDescription)")
-            if isConnected {
-                isConnected = false
-                connectionStateContinuation?.yield(.disconnected)
-                eventContinuation?.yield(.failure(WebSocketError.connectionFailed(error)))
-            }
-
-        case .cancelled:
-            if isConnected {
-                isConnected = false
-                connectionStateContinuation?.yield(.disconnected)
-            }
-
-        default:
-            break
-        }
     }
 
     // MARK: - Private Methods
@@ -375,52 +303,26 @@ actor WebSocketManager {
     }
 
     private func receiveMessage() async throws -> Data {
-        guard let connection = connection else {
+        guard let task = webSocketTask else {
             throw WebSocketError.notConnected
         }
 
-        // Loop to skip control frames (pong, etc.) that have no payload
-        while true {
-            let data: Data? = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data?, Error>) in
-                connection.receiveMessage { content, context, isComplete, error in
-                    if let error = error {
-                        continuation.resume(throwing: WebSocketError.receiveFailed(error))
-                        return
-                    }
+        let message = try await task.receive()
 
-                    // Check for WebSocket close frame
-                    if let metadata = context?.protocolMetadata(definition: NWProtocolWebSocket.definition) as? NWProtocolWebSocket.Metadata {
-                        if metadata.opcode == .close {
-                            let closeCode = metadata.closeCode
-                            continuation.resume(throwing: WebSocketError.connectionClosed(
-                                closeCode: closeCode,
-                                reason: "Server closed connection"
-                            ))
-                            return
-                        }
-
-                        // Control frames (pong, etc.) have no payload — return nil to skip
-                        if metadata.opcode == .pong {
-                            continuation.resume(returning: nil)
-                            return
-                        }
-                    }
-
-                    if let data = content {
-                        continuation.resume(returning: data)
-                    } else {
-                        // Nil content without error or close frame — treat as control frame
-                        continuation.resume(returning: nil)
-                    }
-                }
+        switch message {
+        case .data(let data):
+            return data
+        case .string(let text):
+            guard let data = text.data(using: .utf8) else {
+                throw WebSocketError.receiveFailed(
+                    NSError(domain: "WebSocket", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to decode text as UTF-8"])
+                )
             }
-
-            // If we got actual data, return it; otherwise it was a control frame —
-            // update lastMessageTime (proves connection is alive) and loop.
-            if let data = data {
-                return data
-            }
-            lastMessageTime = Date()
+            return data
+        @unknown default:
+            throw WebSocketError.receiveFailed(
+                NSError(domain: "WebSocket", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unknown message type"])
+            )
         }
     }
 
@@ -450,24 +352,19 @@ actor WebSocketManager {
                 }
 
                 // Send ping to keep connection alive
-                await sendPing()
+                sendPing()
             }
         }
     }
 
     private func sendPing() {
-        guard let connection = connection else { return }
+        guard let task = webSocketTask else { return }
 
-        let metadata = NWProtocolWebSocket.Metadata(opcode: .ping)
-        let context = NWConnection.ContentContext(
-            identifier: "ping",
-            metadata: [metadata]
-        )
-        connection.send(content: Data(), contentContext: context, isComplete: true, completion: .contentProcessed { error in
+        task.sendPing { error in
             if let error = error {
                 AppLogger.network.error("Heartbeat ping failed: \(error.localizedDescription)")
             }
-        })
+        }
     }
 
     private func attemptReconnection() async {
@@ -516,25 +413,59 @@ actor WebSocketManager {
     }
 }
 
+// MARK: - WebSocket Delegate Handler
+
+/// Bridges URLSessionWebSocketDelegate callbacks into actor-isolated closures.
+/// Must be a class (not actor) because URLSession delegates are @objc protocols.
+final class WebSocketDelegateHandler: NSObject, URLSessionWebSocketDelegate, URLSessionTaskDelegate, @unchecked Sendable {
+    // Closures are only mutated from the owning WebSocketManager actor.
+    // @unchecked Sendable is safe because mutation is serialized by the actor.
+    var onOpen: (@Sendable (String?) -> Void)?
+    var onClose: (@Sendable (URLSessionWebSocketTask.CloseCode, Data?) -> Void)?
+    var onTaskComplete: (@Sendable (Error?) -> Void)?
+
+    func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didOpenWithProtocol protocol: String?
+    ) {
+        onOpen?(`protocol`)
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
+        reason: Data?
+    ) {
+        onClose?(closeCode, reason)
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        onTaskComplete?(error)
+    }
+}
+
 // MARK: - WebSocket Errors
 
 enum WebSocketError: LocalizedError {
     case notConnected
-    case noDirectNetwork
     case invalidURL(String)
     case sendFailed(Error)
     case receiveFailed(Error)
     case maxReconnectAttemptsReached
     case connectionCancelled
     case connectionFailed(Error)
-    case connectionClosed(closeCode: NWProtocolWebSocket.CloseCode, reason: String)
+    case connectionClosed(closeCode: URLSessionWebSocketTask.CloseCode, reason: String)
 
     var errorDescription: String? {
         switch self {
         case .notConnected:
             return "WebSocket is not connected"
-        case .noDirectNetwork:
-            return "Voice requires WiFi or cellular. Connect your Apple Watch to WiFi and try again."
         case .invalidURL(let detail):
             return "Invalid WebSocket URL: \(detail)"
         case .sendFailed(let error):
@@ -548,7 +479,7 @@ enum WebSocketError: LocalizedError {
         case .connectionFailed(let error):
             return "Connection failed: \(error.localizedDescription)"
         case .connectionClosed(let closeCode, let reason):
-            return "Connection closed: code=\(closeCode), reason=\(reason)"
+            return "Connection closed: code=\(closeCode.rawValue), reason=\(reason)"
         }
     }
 }
