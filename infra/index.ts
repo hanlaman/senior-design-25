@@ -96,7 +96,7 @@ const embeddingDeployment = new cognitiveservices.Deployment(`text-embedding-3-s
     },
 }, { dependsOn: [summarizerDeployment] }); // Deploy after summarizer to avoid rate limits
 
-// Deploy gpt-4o-realtime-preview model for watch app voice assistant
+// Deploy gpt-realtime GA model for watch app voice assistant
 const realtimeDeployment = new cognitiveservices.Deployment(`gpt-realtime-${stack}`, {
     accountName: foundry.name,
     resourceGroupName: resourceGroup.name,
@@ -104,8 +104,8 @@ const realtimeDeployment = new cognitiveservices.Deployment(`gpt-realtime-${stac
     properties: {
         model: {
             format: "OpenAI",
-            name: "gpt-4o-realtime-preview",
-            version: "2024-12-17",
+            name: "gpt-realtime",
+            version: "2025-08-28",
         },
         versionUpgradeOption: "OnceCurrentVersionExpired",
     },
