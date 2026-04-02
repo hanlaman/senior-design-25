@@ -240,6 +240,23 @@ actor AudioService: AudioServiceProtocol {
 
         AppLogger.audio.info("Starting audio capture")
 
+        // Request microphone permission before proceeding
+        let permissionGranted: Bool
+        if #available(watchOS 10.0, *) {
+            permissionGranted = await AVAudioApplication.requestRecordPermission()
+        } else {
+            permissionGranted = await withCheckedContinuation { continuation in
+                AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                    continuation.resume(returning: granted)
+                }
+            }
+        }
+
+        guard permissionGranted else {
+            AppLogger.audio.error("Microphone permission denied")
+            throw AudioServiceError.microphonePermissionDenied
+        }
+
         // Create fresh audio chunk stream for this capture session
         // AsyncStream can only be iterated once, so we need a new one each time
         resetAudioChunkStream()
@@ -508,6 +525,7 @@ enum AudioServiceError: LocalizedError {
     case conversionFailed
     case captureNotStarted
     case engineStartFailed(Error)
+    case microphonePermissionDenied
 
     var errorDescription: String? {
         switch self {
@@ -519,6 +537,8 @@ enum AudioServiceError: LocalizedError {
             return "Audio capture not started"
         case .engineStartFailed(let error):
             return "Failed to start audio engine: \(error.localizedDescription)"
+        case .microphonePermissionDenied:
+            return "Microphone permission was denied. Please enable it in Settings."
         }
     }
 }
