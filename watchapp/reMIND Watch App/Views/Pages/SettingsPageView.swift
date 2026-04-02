@@ -118,6 +118,18 @@ struct SettingsPageView: View {
                             .font(.body)
                     }
                 }
+
+                NavigationLink {
+                    DebugPageView(viewModel: viewModel)
+                } label: {
+                    HStack {
+                        Image(systemName: "ant")
+                            .font(.title3)
+                            .foregroundColor(.orange)
+                        Text("Debug")
+                            .font(.body)
+                    }
+                }
             }
         }
         .toolbar {

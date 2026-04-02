@@ -46,6 +46,11 @@ class VoiceViewModel: ObservableObject {
         coordinator.isConfigured
     }
 
+    /// Diagnostic sub-phase during connection (for debug page)
+    var connectingPhase: String {
+        coordinator.connectingPhase
+    }
+
     // MARK: - Initialization
 
     /// Initialize VoiceViewModel with optional dependency injection for testability

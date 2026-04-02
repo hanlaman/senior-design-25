@@ -75,6 +75,9 @@ class VoiceConnectionCoordinator: ObservableObject {
     private var stateMachineObserver: AnyCancellable?
     private var userCanceledInteraction = false
 
+    /// Diagnostic sub-phase shown during connection (helps debug hardware issues)
+    @Published private(set) var connectingPhase: String = ""
+
     // MARK: - Initialization
 
     init(
@@ -150,16 +153,19 @@ class VoiceConnectionCoordinator: ObservableObject {
         async let memoryContextTask = memoryContextService.fetchGreetingContext()
 
         do {
+            connectingPhase = "Creating services"
             let (azure, audio) = createServices(with: config)
             createCoordinators(azure: azure, audio: audio)
 
             // Activate audio session BEFORE opening WebSocket.
             // On watchOS, URLSessionWebSocketTask requires an active AVAudioSession
             // (classified as low-level networking per Apple TN3135).
+            connectingPhase = "Activating audio"
             try await audio.activateSession()
             await audio.holdSession()
 
             // Wait for memory context (with graceful fallback)
+            connectingPhase = "Loading context"
             let memoryContext = await memoryContextTask
             if let context = memoryContext {
                 AppLogger.general.info("Memory context loaded: \(context.count) chars")
@@ -167,8 +173,11 @@ class VoiceConnectionCoordinator: ObservableObject {
                 AppLogger.general.debug("No memory context available (will use base instructions)")
             }
 
+            connectingPhase = "Starting events"
             await startProcessingEvents()
+            connectingPhase = "Opening WebSocket"
             let sessionId = try await establishSession(azure: azure, memoryContext: memoryContext)
+            connectingPhase = "Connected"
             onConnectionEstablished(sessionId: sessionId)
 
             AppLogger.general.info("Voice assistant connected and ready")
@@ -271,13 +280,16 @@ class VoiceConnectionCoordinator: ObservableObject {
 
     private func establishSession(azure: VoiceLiveConnection, memoryContext: String? = nil) async throws -> String {
         let enabledTools = toolRegistry.getEnabledTools()
+        connectingPhase = "WebSocket handshake"
         try await azure.connect()
 
         // Create settings with memory context injected into instructions
+        connectingPhase = "Configuring session"
         let settingsWithMemory = settingsManager.settings.withMemoryContext(memoryContext)
         let configWithTools = RealtimeRequestSession.fromSettings(settingsWithMemory, tools: enabledTools)
         try await azure.session.update(configWithTools)
 
+        connectingPhase = "Waiting for session ID"
         let azureSessionState = await azure.sessionState
         guard let sessionId = azureSessionState.sessionId else {
             throw NSError(domain: "VoiceConnectionCoordinator", code: 1, userInfo: [NSLocalizedDescriptionKey: "Session ID not available"])
