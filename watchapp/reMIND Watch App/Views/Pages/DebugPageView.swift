@@ -125,9 +125,9 @@ struct DebugPageView: View {
         params.defaultProtocolStack.applicationProtocols.insert(wsOptions, at: 0)
         params.prohibitExpensivePaths = false
         params.prohibitConstrainedPaths = false
-        // Note: no requiredInterfaceType set here — the test should work on
-        // any path (including simulator). Production code checks for WiFi/cellular
-        // before connecting and shows a user-facing error if only companion is available.
+        #if !targetEnvironment(simulator)
+        params.prohibitedInterfaceTypes = [.other, .loopback]
+        #endif
 
         let endpoint = NWEndpoint.url(url)
         let connection = NWConnection(to: endpoint, using: params)

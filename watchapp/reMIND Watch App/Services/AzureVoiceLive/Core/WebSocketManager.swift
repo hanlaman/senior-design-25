@@ -86,31 +86,18 @@ actor WebSocketManager {
         // Configure TLS
         let tlsOptions = NWProtocolTLS.Options()
 
-        // Build network parameters requiring WiFi or cellular — never use the
+        // Build network parameters allowing WiFi or cellular but never the
         // companion tunnel (Bluetooth relay) which can't sustain WebSocket connections.
+        // Prohibiting .other signals watchOS to activate WiFi/cellular radios.
+        // serviceClass .avStreaming marks this as audio streaming traffic per TN3135,
+        // which is required for NWConnection to work reliably on watchOS.
         let params = NWParameters(tls: tlsOptions)
         params.defaultProtocolStack.applicationProtocols.insert(wsOptions, at: 0)
         params.prohibitExpensivePaths = false
         params.prohibitConstrainedPaths = false
-
-        // Check if WiFi or cellular is available before attempting connection.
-        // The companion tunnel (interface type .other) does not support WebSocket.
-        // Skip this check on simulator where the Mac's network doesn't report as WiFi/cellular.
+        params.serviceClass = .avStreaming
         #if !targetEnvironment(simulator)
-        let pathReady = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
-            let monitor = NWPathMonitor()
-            monitor.pathUpdateHandler = { path in
-                let hasWifi = path.usesInterfaceType(.wifi)
-                let hasCellular = path.usesInterfaceType(.cellular)
-                continuation.resume(returning: hasWifi || hasCellular)
-                monitor.cancel()
-            }
-            monitor.start(queue: DispatchQueue.global(qos: .utility))
-        }
-
-        if !pathReady {
-            throw WebSocketError.noDirectNetwork
-        }
+        params.prohibitedInterfaceTypes = [.other, .loopback]
         #endif
 
         // Create endpoint with full path
