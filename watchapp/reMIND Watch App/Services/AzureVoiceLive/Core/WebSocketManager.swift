@@ -89,13 +89,11 @@ actor WebSocketManager {
         // Build network parameters allowing WiFi or cellular but never the
         // companion tunnel (Bluetooth relay) which can't sustain WebSocket connections.
         // Prohibiting .other signals watchOS to activate WiFi/cellular radios.
-        // serviceClass .avStreaming marks this as audio streaming traffic per TN3135,
-        // which is required for NWConnection to work reliably on watchOS.
         let params = NWParameters(tls: tlsOptions)
         params.defaultProtocolStack.applicationProtocols.insert(wsOptions, at: 0)
         params.prohibitExpensivePaths = false
         params.prohibitConstrainedPaths = false
-        params.serviceClass = .avStreaming
+        params.serviceClass = .interactiveVoice
         #if !targetEnvironment(simulator)
         params.prohibitedInterfaceTypes = [.other, .loopback]
         #endif
