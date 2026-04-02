@@ -117,7 +117,7 @@ actor AudioService: AudioServiceProtocol {
 
     /// Activate the audio session without starting capture.
     /// On watchOS, this must be called before opening a WebSocket connection
-    /// because URLSessionWebSocketTask requires an active AVAudioSession.
+    /// because the WebSocket connection requires an active AVAudioSession.
     func activateSession() throws {
         try configureAudioSession()
     }

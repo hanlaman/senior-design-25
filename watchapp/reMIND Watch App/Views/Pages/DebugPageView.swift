@@ -8,10 +8,12 @@
 import SwiftUI
 import WatchConnectivity
 import Network
+import os
 
 struct DebugPageView: View {
     @ObservedObject var viewModel: VoiceViewModel
     @State private var networkPath: String = "checking..."
+    @State private var wifiPath: String = "checking..."
     @State private var connectivityTest: String = "—"
     @State private var wsTest: String = "—"
 
@@ -35,6 +37,7 @@ struct DebugPageView: View {
             Section("Network") {
                 row("WS Host", value: BuildConfiguration.websocketURL?.host ?? "nil")
                 row("Path", value: networkPath)
+                row("WiFi", value: wifiPath, color: wifiPath.starts(with: "OK") ? .green : .red)
                 row("Configured", value: BuildConfiguration.isConfigured ? "Yes" : "No",
                     color: BuildConfiguration.isConfigured ? .green : .red)
                 row("Endpoint Test", value: connectivityTest)
@@ -76,6 +79,7 @@ struct DebugPageView: View {
     }
 
     private func checkNetworkPath() {
+        // General path monitor
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { path in
             var parts: [String] = []
@@ -90,37 +94,92 @@ struct DebugPageView: View {
             monitor.cancel()
         }
         monitor.start(queue: DispatchQueue.global(qos: .utility))
+
+        // WiFi-specific path monitor (diagnostic: shows if direct WiFi is available)
+        let wifiMonitor = NWPathMonitor(requiredInterfaceType: .wifi)
+        wifiMonitor.pathUpdateHandler = { path in
+            let status = path.status == .satisfied ? "OK" : "Unavailable"
+            DispatchQueue.main.async {
+                wifiPath = status
+            }
+            wifiMonitor.cancel()
+        }
+        wifiMonitor.start(queue: DispatchQueue.global(qos: .utility))
     }
 
-    /// Tests WebSocket connectivity to the Azure endpoint using URLSession.shared
+    /// Tests WebSocket connectivity using NWConnection (same config as production)
     private func testWebSocket() async {
         wsTest = "Connecting..."
-        let urlString = "wss://\(BuildConfiguration.azureResourceName).services.ai.azure.com/voice-live/realtime?api-version=\(BuildConfiguration.azureAPIVersion)&model=\(BuildConfiguration.azureModel)"
-        guard let url = URL(string: urlString) else {
+        guard let url = BuildConfiguration.websocketURL else {
             wsTest = "Bad URL"
             return
         }
 
-        var request = URLRequest(url: url)
-        request.setValue(BuildConfiguration.azureAPIKey, forHTTPHeaderField: "api-key")
-        request.timeoutInterval = 15
+        // Build NWConnection with same config as WebSocketManager
+        let wsOptions = NWProtocolWebSocket.Options()
+        wsOptions.autoReplyPing = true
+        wsOptions.setAdditionalHeaders([("api-key", BuildConfiguration.azureAPIKey)])
 
-        // Test 1: Use URLSession.shared (simplest possible config)
-        let task = URLSession.shared.webSocketTask(with: request)
-        task.resume()
+        let tlsOptions = NWProtocolTLS.Options()
+        let params = NWParameters(tls: tlsOptions)
+        params.defaultProtocolStack.applicationProtocols.insert(wsOptions, at: 0)
+        params.prohibitExpensivePaths = false
+        params.prohibitConstrainedPaths = false
+        // Note: no requiredInterfaceType set here — the test should work on
+        // any path (including simulator). Production code checks for WiFi/cellular
+        // before connecting and shows a user-facing error if only companion is available.
 
-        // Wait up to 15 seconds for the handshake
+        let endpoint = NWEndpoint.url(url)
+        let connection = NWConnection(to: endpoint, using: params)
+
         let startTime = Date()
+        let queue = DispatchQueue(label: "com.remind.ws-test")
+
         do {
+            // Wait for connection ready with timeout.
+            // OSAllocatedUnfairLock prevents double-resume since stateUpdateHandler
+            // can fire multiple transitions (e.g., .waiting fires repeatedly).
             try await withThrowingTaskGroup(of: String.self) { group in
                 group.addTask {
-                    // Try to receive — if handshake succeeds, this will either
-                    // get a message or wait for one
-                    let msg = try await task.receive()
-                    switch msg {
-                    case .string(let s): return "Open! Got: \(s.prefix(30))"
-                    case .data(let d): return "Open! Got \(d.count)B"
-                    @unknown default: return "Open! Unknown msg"
+                    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
+                        let resumed = OSAllocatedUnfairLock(initialState: false)
+
+                        connection.stateUpdateHandler = { state in
+                            switch state {
+                            case .ready:
+                                connection.receiveMessage { content, _, _, error in
+                                    let elapsed = String(format: "%.1f", Date().timeIntervalSince(startTime))
+                                    resumed.withLock { didResume in
+                                        guard !didResume else { return }
+                                        didResume = true
+                                        if let error = error {
+                                            continuation.resume(returning: "Ready but recv err: \(error.localizedDescription) (\(elapsed)s)")
+                                        } else if let data = content {
+                                            continuation.resume(returning: "Open! Got \(data.count)B (\(elapsed)s)")
+                                        } else {
+                                            continuation.resume(returning: "Open! No data (\(elapsed)s)")
+                                        }
+                                    }
+                                }
+                            case .failed(let error):
+                                let elapsed = String(format: "%.1f", Date().timeIntervalSince(startTime))
+                                resumed.withLock { didResume in
+                                    guard !didResume else { return }
+                                    didResume = true
+                                    continuation.resume(returning: "Failed: \(error.localizedDescription) (\(elapsed)s)")
+                                }
+                            case .waiting(let error):
+                                let elapsed = String(format: "%.1f", Date().timeIntervalSince(startTime))
+                                resumed.withLock { didResume in
+                                    guard !didResume else { return }
+                                    didResume = true
+                                    continuation.resume(returning: "Waiting: \(error.localizedDescription) (\(elapsed)s)")
+                                }
+                            default:
+                                break
+                            }
+                        }
+                        connection.start(queue: queue)
                     }
                 }
                 group.addTask {
@@ -128,22 +187,16 @@ struct DebugPageView: View {
                     return "Timeout (15s)"
                 }
                 if let result = try await group.next() {
-                    let elapsed = String(format: "%.1f", Date().timeIntervalSince(startTime))
-                    wsTest = "\(result) (\(elapsed)s)"
+                    wsTest = result
                     group.cancelAll()
                 }
             }
         } catch {
             let elapsed = String(format: "%.1f", Date().timeIntervalSince(startTime))
-            let errDesc: String
-            if let urlError = error as? URLError {
-                errDesc = "URLErr \(urlError.code.rawValue): \(urlError.localizedDescription)"
-            } else {
-                errDesc = error.localizedDescription
-            }
-            wsTest = "\(errDesc) (\(elapsed)s)"
+            wsTest = "\(error.localizedDescription) (\(elapsed)s)"
         }
-        task.cancel(with: .goingAway, reason: nil)
+        connection.stateUpdateHandler = nil
+        connection.cancel()
     }
 
     /// Tests basic HTTPS connectivity to the Azure endpoint (not WebSocket)

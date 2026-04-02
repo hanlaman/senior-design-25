@@ -158,7 +158,7 @@ class VoiceConnectionCoordinator: ObservableObject {
             createCoordinators(azure: azure, audio: audio)
 
             // Activate audio session BEFORE opening WebSocket.
-            // On watchOS, URLSessionWebSocketTask requires an active AVAudioSession
+            // On watchOS, the WebSocket connection requires an active AVAudioSession
             // (classified as low-level networking per Apple TN3135).
             connectingPhase = "Activating audio"
             try await audio.activateSession()
