@@ -13,10 +13,10 @@
 ## Table of Contents
 
 1. Project Description  
-   - [Overview](project-description.md)
+   - [Overview](assignments/project-description.md)
 
 2. User Interface Specification  
-   - [User Interface Documentation](user-interface.md)
+   - [User Interface Documentation](assignments/user-interface.md)
 
 3. Test Plan and Results  
    - [Test Plans](test-plans.pdf)
