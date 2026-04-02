@@ -330,7 +330,7 @@ const containerApp = new app.ContainerApp(`remind-api-${stack}`, {
             ],
         }],
         scale: {
-            minReplicas: 0,
+            minReplicas: 1,
             maxReplicas: 1,
             rules: [{
                 name: "http-rule",
