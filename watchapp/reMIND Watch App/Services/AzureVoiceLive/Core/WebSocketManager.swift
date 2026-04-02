@@ -365,7 +365,11 @@ actor WebSocketManager {
                     if await self.isConnected && !Task.isCancelled {
                         AppLogger.logError(error, category: AppLogger.network, context: "WebSocket receive failed")
                         await self.eventContinuation?.yield(.failure(error))
-                        await self.attemptReconnection()
+                        // Spawn reconnection in a separate task so that disconnect()
+                        // cancelling receiveTask doesn't cancel the reconnection itself.
+                        Task { [weak self] in
+                            await self?.attemptReconnection()
+                        }
                     }
                     break
                 }
@@ -378,33 +382,48 @@ actor WebSocketManager {
             throw WebSocketError.notConnected
         }
 
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
-            connection.receiveMessage { content, context, isComplete, error in
-                if let error = error {
-                    continuation.resume(throwing: WebSocketError.receiveFailed(error))
-                    return
-                }
-
-                // Check for WebSocket close frame
-                if let metadata = context?.protocolMetadata(definition: NWProtocolWebSocket.definition) as? NWProtocolWebSocket.Metadata {
-                    if metadata.opcode == .close {
-                        let closeCode = metadata.closeCode
-                        continuation.resume(throwing: WebSocketError.connectionClosed(
-                            closeCode: closeCode,
-                            reason: "Server closed connection"
-                        ))
+        // Loop to skip control frames (pong, etc.) that have no payload
+        while true {
+            let data: Data? = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data?, Error>) in
+                connection.receiveMessage { content, context, isComplete, error in
+                    if let error = error {
+                        continuation.resume(throwing: WebSocketError.receiveFailed(error))
                         return
                     }
-                }
 
-                if let data = content {
-                    continuation.resume(returning: data)
-                } else {
-                    continuation.resume(throwing: WebSocketError.receiveFailed(
-                        NWError.posix(.ENODATA)
-                    ))
+                    // Check for WebSocket close frame
+                    if let metadata = context?.protocolMetadata(definition: NWProtocolWebSocket.definition) as? NWProtocolWebSocket.Metadata {
+                        if metadata.opcode == .close {
+                            let closeCode = metadata.closeCode
+                            continuation.resume(throwing: WebSocketError.connectionClosed(
+                                closeCode: closeCode,
+                                reason: "Server closed connection"
+                            ))
+                            return
+                        }
+
+                        // Control frames (pong, etc.) have no payload — return nil to skip
+                        if metadata.opcode == .pong {
+                            continuation.resume(returning: nil)
+                            return
+                        }
+                    }
+
+                    if let data = content {
+                        continuation.resume(returning: data)
+                    } else {
+                        // Nil content without error or close frame — treat as control frame
+                        continuation.resume(returning: nil)
+                    }
                 }
             }
+
+            // If we got actual data, return it; otherwise it was a control frame —
+            // update lastMessageTime (proves connection is alive) and loop.
+            if let data = data {
+                return data
+            }
+            lastMessageTime = Date()
         }
     }
 
@@ -425,7 +444,11 @@ actor WebSocketManager {
                 let timeSinceLastMessage = Date().timeIntervalSince(lastMessageTime)
                 if timeSinceLastMessage > WebSocketConfiguration.silenceThreshold {
                     AppLogger.network.warning("No messages received in \(WebSocketConfiguration.silenceThreshold)s, connection may be dead")
-                    await attemptReconnection()
+                    // Spawn in separate task so disconnect() cancelling heartbeatTask
+                    // doesn't cancel the reconnection itself.
+                    Task { [weak self] in
+                        await self?.attemptReconnection()
+                    }
                     break
                 }
 

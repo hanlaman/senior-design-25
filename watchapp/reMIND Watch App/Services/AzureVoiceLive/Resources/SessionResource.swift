@@ -58,6 +58,27 @@ public final class SessionResource {
         AppLogger.azure.debug("session.update event sent, waiting for server acknowledgment")
     }
 
+    /// Wait for session.created event (sessionId assigned by server)
+    /// - Throws: `AzureError.connectionTimeout` if session isn't created within timeout
+    func waitForSessionCreated() async throws {
+        AppLogger.azure.debug("Waiting for session.created...")
+
+        let startTime = Date()
+        let timeout = SessionConfiguration.establishmentTimeout
+
+        while !(await connection.sessionState.isEstablished) {
+            if Date().timeIntervalSince(startTime) > timeout {
+                let currentState = await connection.sessionState.displayText
+                AppLogger.azure.error("Timeout waiting for session.created, current state: \(currentState)")
+                throw AzureError.connectionTimeout
+            }
+            try await Task.sleep(nanoseconds: UInt64(SessionConfiguration.statePollingDelay * 1_000_000_000))
+        }
+
+        let currentState = await connection.sessionState.displayText
+        AppLogger.azure.info("Session created: \(currentState)")
+    }
+
     /// Wait for session to become ready
     /// - Throws: `AzureError.connectionTimeout` if session doesn't become ready within timeout
     func waitForReady() async throws {

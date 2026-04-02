@@ -126,14 +126,13 @@ public actor VoiceLiveConnection {
         // Give WebSocket a moment to be fully ready
         try await Task.sleep(nanoseconds: UInt64(AudioConfiguration.audioChunkProcessingDelay * 1_000_000_000))
 
-        // Send session.update to configure the session with user settings
-        AppLogger.azure.info("Sending session.update to configure session with settings (rate: \(self.settings.speakingRate)x)")
-        try await session.update(.fromSettings(self.settings))
+        // Wait for session.created event from the server (sent automatically on connect).
+        // The caller (VoiceConnectionCoordinator) sends the real session.update with
+        // tools and memory context — we don't send one here to avoid a duplicate update
+        // which can cause the server to drop the connection.
+        try await session.waitForSessionCreated()
 
-        // Wait for session to be ready (session.created and session.updated)
-        try await session.waitForReady()
-
-        AppLogger.azure.info("Session ready: \(self.sessionState.displayText)")
+        AppLogger.azure.info("Session created: \(self.sessionState.displayText)")
     }
 
     public func disconnect() async {
