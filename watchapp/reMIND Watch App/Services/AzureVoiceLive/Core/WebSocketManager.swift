@@ -83,8 +83,10 @@ actor WebSocketManager {
         configuration.timeoutIntervalForRequest = WebSocketConfiguration.connectionTimeout
         configuration.timeoutIntervalForResource = WebSocketConfiguration.resourceTimeout
 
-        // watchOS-specific: Wait for connectivity instead of failing immediately
-        configuration.waitsForConnectivity = true
+        // On real watchOS hardware, waitsForConnectivity can cause the system to
+        // indefinitely wait for a "better" network path (e.g., WiFi instead of BT relay)
+        // instead of using what's available. Disable it so we fail fast and can retry.
+        configuration.waitsForConnectivity = false
 
         // Network service type for real-time voice communication
         configuration.networkServiceType = .responsiveData // Low latency, high priority
@@ -121,9 +123,35 @@ actor WebSocketManager {
         webSocketTask = session.webSocketTask(with: request)
         webSocketTask?.resume()
 
-        // Wait for delegate callback (didOpenWithProtocol or error)
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            delegate.setConnectionContinuation(continuation)
+        // Wait for delegate callback (didOpenWithProtocol or error) with timeout.
+        // On real watchOS hardware, the delegate callback may never fire if the
+        // WebSocket upgrade fails silently (e.g., Bluetooth relay, TLS issues).
+        let handshakeTimeout = WebSocketConfiguration.connectionTimeout
+        try await withThrowingTaskGroup(of: Bool.self) { group in
+            group.addTask {
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    delegate.setConnectionContinuation(continuation)
+                }
+                return true  // handshake succeeded
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(handshakeTimeout * 1_000_000_000))
+                return false  // timed out
+            }
+
+            // Take the first result
+            let succeeded = try await group.next() ?? false
+            // Clear continuation before cancelling to avoid resuming a cancelled continuation
+            delegate.clearConnectionContinuation()
+            group.cancelAll()
+
+            if !succeeded {
+                throw WebSocketError.connectionFailed(
+                    NSError(domain: "WebSocket", code: -1, userInfo: [
+                        NSLocalizedDescriptionKey: "WebSocket handshake timed out after \(Int(handshakeTimeout))s"
+                    ])
+                )
+            }
         }
 
         // Connection is now established (delegate callback received)
