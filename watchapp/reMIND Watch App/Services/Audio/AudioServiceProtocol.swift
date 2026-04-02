@@ -40,6 +40,15 @@ protocol AudioServiceProtocol: Actor {
     /// Stop audio playback
     func stopPlayback() async
 
+    /// Activate the audio session without starting capture (required before WebSocket on watchOS)
+    func activateSession() throws
+
+    /// Hold the audio session active for the WebSocket connection lifetime
+    func holdSession()
+
+    /// Release the audio session hold and deactivate if idle
+    func releaseSession()
+
     /// Check if currently capturing
     var isCapturing: Bool { get }
 

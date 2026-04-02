@@ -24,6 +24,15 @@ actor MockAudioService: AudioServiceProtocol {
     /// Whether stopPlayback has been called
     private(set) var stopPlaybackCalled = false
 
+    /// Whether activateSession has been called
+    private(set) var activateSessionCalled = false
+
+    /// Whether holdSession has been called
+    private(set) var holdSessionCalled = false
+
+    /// Whether releaseSession has been called
+    private(set) var releaseSessionCalled = false
+
     /// All audio data passed to playAudio
     private(set) var playedAudioData: [Data] = []
 
@@ -121,6 +130,18 @@ actor MockAudioService: AudioServiceProtocol {
         playbackStateContinuation?.yield(false)
     }
 
+    func activateSession() throws {
+        activateSessionCalled = true
+    }
+
+    func holdSession() {
+        holdSessionCalled = true
+    }
+
+    func releaseSession() {
+        releaseSessionCalled = true
+    }
+
     // MARK: - Test Control Methods
 
     /// Emit an audio chunk for testing
@@ -161,6 +182,9 @@ actor MockAudioService: AudioServiceProtocol {
         playAudioCalled = false
         stopPlaybackCalled = false
         playedAudioData.removeAll()
+        activateSessionCalled = false
+        holdSessionCalled = false
+        releaseSessionCalled = false
         startCaptureError = nil
         playAudioError = nil
         isCapturing = false

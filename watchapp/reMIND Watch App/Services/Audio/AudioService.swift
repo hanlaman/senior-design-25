@@ -36,6 +36,9 @@ actor AudioService: AudioServiceProtocol {
     private let sessionTimeoutSeconds: TimeInterval = AudioConfiguration.sessionTimeout
     private var sessionTimeoutTask: Task<Void, Never>?
 
+    // When true, prevents audio session deactivation (held during WebSocket lifetime on watchOS)
+    private var sessionHeld = false
+
     // Audio chunk stream (recreated each capture session)
     private var chunkContinuation: AsyncStream<Data>.Continuation?
     private(set) var audioChunkStream: AsyncStream<Data>
@@ -112,11 +115,39 @@ actor AudioService: AudioServiceProtocol {
 
     // MARK: - Audio Session Configuration (delegated to AudioSessionManager)
 
+    /// Activate the audio session without starting capture.
+    /// On watchOS, this must be called before opening a WebSocket connection
+    /// because URLSessionWebSocketTask requires an active AVAudioSession.
+    func activateSession() throws {
+        try configureAudioSession()
+    }
+
+    /// Hold the audio session active for the lifetime of the WebSocket connection.
+    /// While held, stopPlayback() and session timeouts will not deactivate it.
+    func holdSession() {
+        sessionHeld = true
+        AppLogger.audio.info("Audio session held (WebSocket lifetime)")
+    }
+
+    /// Release the audio session hold and deactivate if idle.
+    func releaseSession() {
+        sessionHeld = false
+        AppLogger.audio.info("Audio session hold released")
+        if !isCapturing && !isPlaying {
+            stopEngineIfNeeded()
+            deactivateAudioSession()
+        }
+    }
+
     private func configureAudioSession() throws {
         try sessionManager.activate()
     }
 
     private func deactivateAudioSession() {
+        guard !sessionHeld else {
+            AppLogger.audio.debug("Audio session deactivation skipped (session held)")
+            return
+        }
         sessionManager.deactivate()
     }
 

@@ -153,6 +153,12 @@ class VoiceConnectionCoordinator: ObservableObject {
             let (azure, audio) = createServices(with: config)
             createCoordinators(azure: azure, audio: audio)
 
+            // Activate audio session BEFORE opening WebSocket.
+            // On watchOS, URLSessionWebSocketTask requires an active AVAudioSession
+            // (classified as low-level networking per Apple TN3135).
+            try await audio.activateSession()
+            await audio.holdSession()
+
             // Wait for memory context (with graceful fallback)
             let memoryContext = await memoryContextTask
             if let context = memoryContext {
@@ -189,6 +195,9 @@ class VoiceConnectionCoordinator: ObservableObject {
         await stopRecording()
         await audioService?.stopPlayback()
         await azureService?.disconnect()
+
+        // Release audio session hold after WebSocket is closed
+        await audioService?.releaseSession()
 
         if let sessionId = stateMachine.sessionId {
             historyManager.endSession(sessionId)
@@ -289,6 +298,7 @@ class VoiceConnectionCoordinator: ObservableObject {
 
     private func cleanupOnConnectionFailure() async {
         await azureService?.disconnect()
+        await audioService?.releaseSession()
         azureService = nil
         audioService = nil
     }
