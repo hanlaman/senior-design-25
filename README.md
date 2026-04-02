@@ -1,4 +1,4 @@
-# Wearable AI Companion for Memory Support
+# reMIND, powered by Remi
 
 **Team Members:**  
 - Hannah Laman – [lamanhm@mail.uc.edu]  
@@ -10,19 +10,52 @@
 
 ---
 
-## 📘 Table of Contents
+## Table of Contents
 
-1. [Team and Abstract](Fall%202025%20Documents/1:%20Team_and_Abstract/)
-2. [Project Description](Fall%202025%20Documents/2:%20Project_Description/)
-3. [User Stories and Design Diagrams](Fall%202025%20Documents/3:%20User_Stories_and_Design_Diagrams/)
-4. [Project Tasks and Timeline](Fall%202025%20Documents/4:%20Project_Tasks_and_Timeline/)
-5. [ABET Concerns Essay](Fall%202025%20Documents/5:%20ABET_Concerns_Essay/)
-6. [Slideshow](Fall%202025%20Documents/6:%20Slideshow/)
-7. [Self-Assessment Essays](Fall%202025%20Documents/7:%20Self-Assessment_Essays/)
-8. [Professional Biographies](Fall%202025%20Documents/8:%20Professional_Biographies/)
-9. [Budget](Fall%202025%20Documents/9:Budget/)
-10. [Appendix](Fall%202025%20Documents/10:%20Appendix/)
+1. Project Description  
+   - [Overview](project-description.md)
 
+2. User Interface Specification  
+   - [User Interface Documentation](user-interface.md)
+
+3. Test Plan and Results  
+   - [Test Plans](test-plans.pdf)
+
+4. User Manual  
+   - [Full User Manual](manuals/USER_MANUAL.md)  
+   - [Patient Guide](manuals/PATIENT_GUIDE.md)  
+   - [Caregiver Guide](manuals/CAREGIVER_GUIDE.md)  
+   - [FAQ](manuals/FAQ.md)
+
+5. Final Presentation and Poster  
+   - [Final Presentation](final-presentation.pdf)  
+   - [Alternate Presentation](alt-presentation.pdf)
+
+6. Assessments  
+   - [Self Assessments](appendix/self-assessments)
+
+7. Summary of Hours and Work Log  
+   - [Hours Summary](docs/hours.md)  
+   - [Meeting Notes](meeting-notes/meeting-log.md)
+
+8. Summary of Expenses  
+   - [Budget / Expenses](budget.md)
+
+9. Appendix  
+   - [Project Constraints Essay](appendix/project-constraints.pdf)  
+   - [Design Diagrams](appendix/design-diagrams.pdf)  
+   - [Effort Matrix](appendix/effort-matrix.md)  
+   - [Milestones](appendix/milestones.md)  
+   - [References](appendix/references.md)  
+   - [Task List](appendix/tasklist.md)  
+   - [Team Contract](appendix/team-contract.md)  
+   - [User Stories](appendix/user-stories.md)
+
+10. Professional Biographies  
+   - [Hannah Laman](HannahLamanBio.md)  
+   - [Spencer Will](SpencerWillBio.md)  
+   - [Austin Spencer](AustinSpencerBio.md)  
+   - [Dylan Francis](DylanFrancisBio.md)
 
 
 ---
@@ -33,13 +66,4 @@ This voice-activated device helps users recall personal information, receive rem
 Connected to a caregiver mobile app, it securely manages data synchronization, emergency alerts, and real-time monitoring. 
 Emphasizing ethical design, privacy compliance (HIPAA), and affordability, the system integrates AI-driven speech recognition, text-to-speech, 
 and cloud-based memory retrieval to promote independence and dignity through human-centered design.
-
-## User Documentation
-
-This project includes separate documentation for different users:
-
-- [Patient User Guide](docs/PATIENT_GUIDE.md)
-- [Caregiver User Guide](docs/CAREGIVER_GUIDE.md)
-- [Full User Manual](docs/USER_MANUAL.md)
-- [FAQ](docs/FAQ.md)
 
