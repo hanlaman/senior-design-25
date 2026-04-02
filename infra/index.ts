@@ -96,6 +96,25 @@ const embeddingDeployment = new cognitiveservices.Deployment(`text-embedding-3-s
     },
 }, { dependsOn: [summarizerDeployment] }); // Deploy after summarizer to avoid rate limits
 
+// Deploy gpt-4o-realtime-preview model for watch app voice assistant
+const realtimeDeployment = new cognitiveservices.Deployment(`gpt-realtime-${stack}`, {
+    accountName: foundry.name,
+    resourceGroupName: resourceGroup.name,
+    deploymentName: "gpt-realtime",
+    properties: {
+        model: {
+            format: "OpenAI",
+            name: "gpt-4o-realtime-preview",
+            version: "2025-03-11",
+        },
+        versionUpgradeOption: "OnceCurrentVersionExpired",
+    },
+    sku: {
+        name: "GlobalStandard",
+        capacity: 1,
+    },
+}, { dependsOn: [embeddingDeployment] });
+
 // Create a Cosmos DB account
 const cosmosDbAccount = new cosmosdb.DatabaseAccount(`cosmos-db-account-${stack}`, {
     accountName: `hsdaucsd26${stack}`,
@@ -325,6 +344,7 @@ const containerApp = new app.ContainerApp(`remind-api-${stack}`, {
 export const resourceGroupName = resourceGroup.name;
 export const summarizerDeploymentName = summarizerDeployment.name;
 export const embeddingDeploymentName = embeddingDeployment.name;
+export const realtimeDeploymentName = realtimeDeployment.name;
 export const apiUrl = containerApp.configuration.apply(c => `https://${c?.ingress?.fqdn}`);
 export const sqlServerFqdn = pulumi.interpolate`${sqlServer.name}.database.windows.net`;
 export const acrLoginServer = registry.loginServer;

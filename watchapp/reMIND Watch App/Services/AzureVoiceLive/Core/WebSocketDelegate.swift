@@ -94,7 +94,23 @@ final class WebSocketDelegate: NSObject, URLSessionWebSocketDelegate, Sendable {
         task: URLSessionTask,
         didCompleteWithError error: Error?
     ) {
+        // Log HTTP response details for debugging failed WebSocket upgrades
+        if let httpResponse = task.response as? HTTPURLResponse {
+            AppLogger.network.error("WebSocket HTTP response: status=\(httpResponse.statusCode), url=\(httpResponse.url?.absoluteString ?? "nil")")
+            if httpResponse.statusCode != 101 {
+                AppLogger.network.error("WebSocket upgrade rejected (expected 101, got \(httpResponse.statusCode))")
+            }
+        }
+
         guard let error = error else { return }
+
+        // Log detailed URLError info for diagnosing real-device connectivity issues
+        if let urlError = error as? URLError {
+            AppLogger.network.error("WebSocket URLError: code=\(urlError.code.rawValue) (\(urlError.code)), failingURL=\(urlError.failureURLString ?? "nil")")
+            if let underlyingError = (error as NSError).userInfo[NSUnderlyingErrorKey] as? NSError {
+                AppLogger.network.error("Underlying: domain=\(underlyingError.domain), code=\(underlyingError.code), \(underlyingError.localizedDescription)")
+            }
+        }
 
         AppLogger.network.error("WebSocket task failed: \(error.localizedDescription)")
 
