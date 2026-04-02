@@ -105,7 +105,7 @@ const realtimeDeployment = new cognitiveservices.Deployment(`gpt-realtime-${stac
         model: {
             format: "OpenAI",
             name: "gpt-4o-realtime-preview",
-            version: "2025-03-11",
+            version: "2024-12-17",
         },
         versionUpgradeOption: "OnceCurrentVersionExpired",
     },
