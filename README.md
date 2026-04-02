@@ -19,43 +19,42 @@
    - [User Interface Documentation](assignments/user-interface.md)
 
 3. Test Plan and Results  
-   - [Test Plans](test-plans.pdf)
+   - [Test Plans](assignments/test-plans.pdf)
 
 4. User Manual  
-   - [Full User Manual](manuals/USER_MANUAL.md)  
-   - [Patient Guide](manuals/PATIENT_GUIDE.md)  
-   - [Caregiver Guide](manuals/CAREGIVER_GUIDE.md)  
-   - [FAQ](manuals/FAQ.md)
+   - [Full User Manual](assignments/manuals/USER_MANUAL.md)  
+   - [Patient Guide](assignments/manuals/PATIENT_GUIDE.md)  
+   - [Caregiver Guide](assignments/manuals/CAREGIVER_GUIDE.md)  
+   - [FAQ](assignments/manuals/FAQ.md)
 
 5. Final Presentation and Poster  
-   - [Final Presentation](final-presentation.pdf)  
-   - [Alternate Presentation](alt-presentation.pdf)
+   - [Final Presentation](assignments/slide-deck.pdf)  
+   - [Poster](assignments/expo-poster.pdf)
 
 6. Assessments  
-   - [Self Assessments](appendix/self-assessments)
+   - [Self Assessments](assignments/self-assessments)
 
 7. Summary of Hours and Work Log  
-   - [Hours Summary](docs/hours.md)  
-   - [Meeting Notes](meeting-notes/meeting-log.md)
-
+   - [Hours Summary](assignments/timeline.md)
+     
 8. Summary of Expenses  
-   - [Budget / Expenses](budget.md)
+   - [Budget / Expenses](assignments/budget.md)
 
 9. Appendix  
-   - [Project Constraints Essay](appendix/project-constraints.pdf)  
-   - [Design Diagrams](appendix/design-diagrams.pdf)  
-   - [Effort Matrix](appendix/effort-matrix.md)  
-   - [Milestones](appendix/milestones.md)  
-   - [References](appendix/references.md)  
-   - [Task List](appendix/tasklist.md)  
-   - [Team Contract](appendix/team-contract.md)  
-   - [User Stories](appendix/user-stories.md)
+   - [Project Constraints Essay](assignments/appendix/project-constraints.pdf)  
+   - [Design Diagrams](assignments/appendix/design-diagrams.pdf)  
+   - [Effort Matrix](assignments/appendix/effort-matrix.md)  
+   - [Milestones](assignments/appendix/milestones.md)  
+   - [References](assignments/appendix/references.md)  
+   - [Task List](assignments/appendix/tasklist.md)  
+   - [Team Contract](assignments/appendix/team-contract.md)  
+   - [User Stories](assignments/appendix/user-stories.md)
 
 10. Professional Biographies  
-   - [Hannah Laman](HannahLamanBio.md)  
-   - [Spencer Will](SpencerWillBio.md)  
-   - [Austin Spencer](AustinSpencerBio.md)  
-   - [Dylan Francis](DylanFrancisBio.md)
+   - [Hannah Laman](assignments/professional-bios/HannahLamanBio.md)  
+   - [Spencer Will](assignments/professional-bios/SpencerWillBio.md)  
+   - [Austin Spencer](assignments/professional-bios/AustinSpencerBio.md)  
+   - [Dylan Francis](assignments/professional-bios/DylanFrancisBio.md)
 
 
 ---
