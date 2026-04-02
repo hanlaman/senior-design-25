@@ -231,7 +231,7 @@ struct SafeZoneChip: View {
         Button(action: onTap) {
             HStack(spacing: 8) {
                 Image(systemName: zone.isEnabled ? "checkmark.circle.fill" : "circle").foregroundStyle(zone.isEnabled ? .green : .secondary)
-                VStack(alignment: .leading, spacing: 2) { Text(zone.name).font(.subheadline).fontWeight(.medium); Text("\(Int(zone.radiusMeters))m radius · \(zone.durationMinutes)min").font(.caption).foregroundStyle(.secondary) }
+                VStack(alignment: .leading, spacing: 2) { Text(zone.name).font(.subheadline).fontWeight(.medium); Text("\(Int(zone.radiusMeters))m radius · \(zone.durationMinutes == 0 ? "Immediate" : "\(zone.durationMinutes)min")").font(.caption).foregroundStyle(.secondary) }
             }
             .padding(.horizontal, 12).padding(.vertical, 8).background(Color(.secondarySystemBackground)).clipShape(RoundedRectangle(cornerRadius: 10))
         }.buttonStyle(.plain)
@@ -246,6 +246,7 @@ struct AddSafeZoneSheet: View {
     @State private var name = ""
     @State private var radius: Double = 100
     @State private var durationMinutes: Double = 15
+    @State private var immediateNotification = false
     @State private var locationMode: LocationMode = .currentLocation
     @State private var pickedCoordinate: CLLocationCoordinate2D?
     @State private var pickedAddress: String?
@@ -308,9 +309,14 @@ struct AddSafeZoneSheet: View {
 
                 Section("Grace Period") {
                     VStack(alignment: .leading) {
-                        Text("\(Int(durationMinutes)) minutes").font(.headline)
-                        Text("How long before alerting when patient leaves this zone").font(.caption).foregroundStyle(.secondary)
-                        Slider(value: $durationMinutes, in: 5...120, step: 5)
+                        Toggle("Notify Immediately", isOn: $immediateNotification)
+                        if !immediateNotification {
+                            Text("\(Int(durationMinutes)) minutes").font(.headline)
+                            Text("How long before alerting when patient leaves this zone").font(.caption).foregroundStyle(.secondary)
+                            Slider(value: $durationMinutes, in: 5...120, step: 5)
+                        } else {
+                            Text("Caregiver will be notified as soon as the patient leaves this zone").font(.caption).foregroundStyle(.secondary)
+                        }
                     }
                 }
             }
@@ -320,7 +326,7 @@ struct AddSafeZoneSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
                         if let coord = selectedCoordinate {
-                            onAdd(name, coord, radius, Int(durationMinutes))
+                            onAdd(name, coord, radius, immediateNotification ? 0 : Int(durationMinutes))
                         }
                         dismiss()
                     }
@@ -339,6 +345,7 @@ struct SafeZoneDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var radius: Double
     @State private var durationMinutes: Double
+    @State private var immediateNotification: Bool
 
     // ┌─────────────────────────────────────────────────────────────────────────┐
     // │ INITIALIZER WITH @State INITIALIZATION                                  │
@@ -349,7 +356,7 @@ struct SafeZoneDetailSheet: View {
     // │ Without this, we'd need a separate @State and use .onAppear to set it. │
     // └─────────────────────────────────────────────────────────────────────────┘
     init(zone: SafeZone, onUpdate: @escaping (SafeZone, Double, Int) -> Void, onDelete: @escaping (SafeZone) -> Void, onToggle: @escaping (SafeZone) -> Void) {
-        self.zone = zone; self.onUpdate = onUpdate; self.onDelete = onDelete; self.onToggle = onToggle; _radius = State(initialValue: zone.radiusMeters); _durationMinutes = State(initialValue: Double(zone.durationMinutes))
+        self.zone = zone; self.onUpdate = onUpdate; self.onDelete = onDelete; self.onToggle = onToggle; _radius = State(initialValue: zone.radiusMeters); _durationMinutes = State(initialValue: Double(max(zone.durationMinutes, 5))); _immediateNotification = State(initialValue: zone.durationMinutes == 0)
     }
 
     var body: some View {
@@ -357,8 +364,8 @@ struct SafeZoneDetailSheet: View {
             Form {
                 Section { HStack { Text("Status"); Spacer(); Text(zone.isEnabled ? "Enabled" : "Disabled").foregroundStyle(.secondary) }; Button(zone.isEnabled ? "Disable Zone" : "Enable Zone") { onToggle(zone); dismiss() } }
                 Section("Radius") { VStack(alignment: .leading) { Text("\(Int(radius)) meters").font(.headline); Slider(value: $radius, in: 25...500, step: 25) } }
-                Section("Grace Period") { VStack(alignment: .leading) { Text("\(Int(durationMinutes)) minutes").font(.headline); Text("How long before alerting when patient leaves").font(.caption).foregroundStyle(.secondary); Slider(value: $durationMinutes, in: 5...120, step: 5) } }
-                Section { Button("Save Changes") { onUpdate(zone, radius, Int(durationMinutes)); dismiss() } }
+                Section("Grace Period") { VStack(alignment: .leading) { Toggle("Notify Immediately", isOn: $immediateNotification); if !immediateNotification { Text("\(Int(durationMinutes)) minutes").font(.headline); Text("How long before alerting when patient leaves").font(.caption).foregroundStyle(.secondary); Slider(value: $durationMinutes, in: 5...120, step: 5) } else { Text("Caregiver will be notified as soon as the patient leaves this zone").font(.caption).foregroundStyle(.secondary) } } }
+                Section { Button("Save Changes") { onUpdate(zone, radius, immediateNotification ? 0 : Int(durationMinutes)); dismiss() } }
                 // ┌─────────────────────────────────────────────────────────────┐
                 // │ DESTRUCTIVE BUTTON                                          │
                 // │                                                             │

@@ -189,8 +189,8 @@ export class ApnsService implements OnModuleInit, OnModuleDestroy {
   ) {
     const bundleId =
       platform === 'watchos'
-        ? (process.env.APNS_BUNDLE_ID_WATCH ?? 'com.remind.patientwatch')
-        : (process.env.APNS_BUNDLE_ID_IOS ?? 'com.remind.caregiver');
+        ? (process.env.APNS_BUNDLE_ID_WATCH ?? 'sd2526.remind.watchapp')
+        : (process.env.APNS_BUNDLE_ID_IOS ?? 'sd2526.remind.caregiverapp');
 
     // Upsert by (patientId, platform)
     const existing = await db

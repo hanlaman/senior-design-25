@@ -75,6 +75,28 @@ export class GeofenceService {
       const gracePeriodMinutes = Math.max(
         ...zones.map((z) => z.durationMinutes),
       );
+      const gracePeriodMs = gracePeriodMinutes * 60 * 1000;
+
+      // Immediate notification when grace period is 0
+      if (gracePeriodMs === 0) {
+        await db
+          .insertInto('geofenceBreach')
+          .values({
+            patientId,
+            exitedAt: new Date(),
+            notified: true,
+            closestZoneName: closestZone.name,
+            gracePeriodMs: 0,
+          })
+          .execute();
+
+        this.logger.warn(
+          `Patient ${patientId} left safe zone "${closestZone.name}" — notifying caregiver immediately`,
+        );
+
+        await this.notifyCaregiverDevices(patientId, closestZone.name);
+        return;
+      }
 
       await db
         .insertInto('geofenceBreach')
@@ -83,7 +105,7 @@ export class GeofenceService {
           exitedAt: new Date(),
           notified: false,
           closestZoneName: closestZone.name,
-          gracePeriodMs: gracePeriodMinutes * 60 * 1000,
+          gracePeriodMs,
         })
         .execute();
 
