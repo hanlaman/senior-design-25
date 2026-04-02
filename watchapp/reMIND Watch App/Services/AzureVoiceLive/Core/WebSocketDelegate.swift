@@ -106,7 +106,7 @@ final class WebSocketDelegate: NSObject, URLSessionWebSocketDelegate, Sendable {
 
         // Log detailed URLError info for diagnosing real-device connectivity issues
         if let urlError = error as? URLError {
-            AppLogger.network.error("WebSocket URLError: code=\(urlError.code.rawValue) (\(urlError.code)), failingURL=\(urlError.failureURLString ?? "nil")")
+            AppLogger.network.error("WebSocket URLError: code=\(urlError.code.rawValue), failingURL=\(urlError.failureURLString ?? "nil")")
             if let underlyingError = (error as NSError).userInfo[NSUnderlyingErrorKey] as? NSError {
                 AppLogger.network.error("Underlying: domain=\(underlyingError.domain), code=\(underlyingError.code), \(underlyingError.localizedDescription)")
             }

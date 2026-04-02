@@ -13,6 +13,7 @@ struct DebugPageView: View {
     @ObservedObject var viewModel: VoiceViewModel
     @State private var networkPath: String = "checking..."
     @State private var connectivityTest: String = "—"
+    @State private var wsTest: String = "—"
 
     var body: some View {
         List {
@@ -37,11 +38,17 @@ struct DebugPageView: View {
                 row("Configured", value: BuildConfiguration.isConfigured ? "Yes" : "No",
                     color: BuildConfiguration.isConfigured ? .green : .red)
                 row("Endpoint Test", value: connectivityTest)
+                row("WS Test", value: wsTest)
             }
 
             Section {
-                Button("Test Azure Endpoint") {
+                Button("Test HTTP") {
                     Task { await testEndpoint() }
+                }
+                .foregroundColor(.blue)
+
+                Button("Test WebSocket") {
+                    Task { await testWebSocket() }
                 }
                 .foregroundColor(.blue)
 
@@ -83,6 +90,60 @@ struct DebugPageView: View {
             monitor.cancel()
         }
         monitor.start(queue: DispatchQueue.global(qos: .utility))
+    }
+
+    /// Tests WebSocket connectivity to the Azure endpoint using URLSession.shared
+    private func testWebSocket() async {
+        wsTest = "Connecting..."
+        let urlString = "wss://\(BuildConfiguration.azureResourceName).services.ai.azure.com/voice-live/realtime?api-version=\(BuildConfiguration.azureAPIVersion)&model=\(BuildConfiguration.azureModel)"
+        guard let url = URL(string: urlString) else {
+            wsTest = "Bad URL"
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue(BuildConfiguration.azureAPIKey, forHTTPHeaderField: "api-key")
+        request.timeoutInterval = 15
+
+        // Test 1: Use URLSession.shared (simplest possible config)
+        let task = URLSession.shared.webSocketTask(with: request)
+        task.resume()
+
+        // Wait up to 15 seconds for the handshake
+        let startTime = Date()
+        do {
+            try await withThrowingTaskGroup(of: String.self) { group in
+                group.addTask {
+                    // Try to receive — if handshake succeeds, this will either
+                    // get a message or wait for one
+                    let msg = try await task.receive()
+                    switch msg {
+                    case .string(let s): return "Open! Got: \(s.prefix(30))"
+                    case .data(let d): return "Open! Got \(d.count)B"
+                    @unknown default: return "Open! Unknown msg"
+                    }
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 15_000_000_000)
+                    return "Timeout (15s)"
+                }
+                if let result = try await group.next() {
+                    let elapsed = String(format: "%.1f", Date().timeIntervalSince(startTime))
+                    wsTest = "\(result) (\(elapsed)s)"
+                    group.cancelAll()
+                }
+            }
+        } catch {
+            let elapsed = String(format: "%.1f", Date().timeIntervalSince(startTime))
+            let errDesc: String
+            if let urlError = error as? URLError {
+                errDesc = "URLErr \(urlError.code.rawValue): \(urlError.localizedDescription)"
+            } else {
+                errDesc = error.localizedDescription
+            }
+            wsTest = "\(errDesc) (\(elapsed)s)"
+        }
+        task.cancel(with: .goingAway, reason: nil)
     }
 
     /// Tests basic HTTPS connectivity to the Azure endpoint (not WebSocket)

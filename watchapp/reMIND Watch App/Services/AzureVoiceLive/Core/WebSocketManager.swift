@@ -88,8 +88,10 @@ actor WebSocketManager {
         // instead of using what's available. Disable it so we fail fast and can retry.
         configuration.waitsForConnectivity = false
 
-        // Network service type for real-time voice communication
-        configuration.networkServiceType = .responsiveData // Low latency, high priority
+        // Use default network service type. On watchOS, .responsiveData rejects the
+        // iPhone Bluetooth relay path (classified as high-latency), causing "Internet
+        // connection appears to be offline" errors even when HTTP works fine.
+        configuration.networkServiceType = .default
 
         // Allow connection over cellular (important for cellular Apple Watches)
         configuration.allowsCellularAccess = true
@@ -100,8 +102,9 @@ actor WebSocketManager {
             configuration.allowsExpensiveNetworkAccess = true
         }
 
-        // Keep connections alive during brief backgrounds
-        configuration.shouldUseExtendedBackgroundIdleMode = true
+        // Note: shouldUseExtendedBackgroundIdleMode is intentionally not set here.
+        // It requires background mode entitlements, and on watchOS it can cause the
+        // system to reject connections when those entitlements are missing.
 
         // Create session with delegate
         session = URLSession(
