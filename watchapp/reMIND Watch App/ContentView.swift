@@ -73,12 +73,12 @@ struct ContentView: View {
             // App returned to foreground
             AppLogger.general.info("Scene phase: active")
 
-            // Reconnect if we were connected before background
+            // Reconnect voice if we were connected before background
             if wasConnectedBeforeBackground && viewModel.state == .disconnected {
                 AppLogger.general.info("Reconnecting after background")
                 await viewModel.connect()
-                await locationViewModel.startTracking()
             }
+            // Location stays alive in background — no need to restart
             wasConnectedBeforeBackground = false
 
         case .inactive:
@@ -96,15 +96,15 @@ struct ContentView: View {
 
             wasConnectedBeforeBackground = viewModel.state.isConnected
 
-            // Disconnect strategy: Immediate disconnect to conserve battery
+            // Disconnect voice to conserve battery
             // Next interaction will auto-reconnect (2-3 second delay)
             if wasConnectedBeforeBackground {
-                AppLogger.general.info("Disconnecting to conserve battery")
+                AppLogger.general.info("Disconnecting voice to conserve battery")
                 await viewModel.disconnect()
             }
 
-            // Stop location tracking to save battery
-            await locationViewModel.stopTracking()
+            // Keep location tracking active in background for caregiver monitoring
+            // (requires WKBackgroundModes "location" and Always authorization)
 
         @unknown default:
             break

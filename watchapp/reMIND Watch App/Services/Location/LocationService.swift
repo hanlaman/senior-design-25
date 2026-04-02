@@ -28,7 +28,7 @@ actor LocationService: NSObject {
     init(
         baseURL: String = BuildConfiguration.apiBaseURL,
         patientId: String = BuildConfiguration.patientId,
-        updateInterval: TimeInterval = 15
+        updateInterval: TimeInterval = LocationConfiguration.updateInterval
     ) {
         var continuationHolder: AsyncStream<CLLocation>.Continuation?
         self.locationStream = AsyncStream { continuation in
@@ -62,11 +62,19 @@ actor LocationService: NSObject {
         // and uses significantly less battery than kCLLocationAccuracyBest
         locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
 
-        // Only send location updates when user moves 50+ meters
+        // Only send location updates when user moves beyond the distance filter
         // Prevents constant updates from GPS drift when stationary
-        locationManager.distanceFilter = 50 // meters
+        locationManager.distanceFilter = LocationConfiguration.distanceFilter
 
-        locationManager.requestWhenInUseAuthorization()
+        // Request "Always" authorization for background tracking (dementia patient monitoring)
+        locationManager.requestAlwaysAuthorization()
+
+        // Enable background updates if the app is registered as backgroundable
+        // (requires WKBackgroundModes "location" in Info.plist)
+        if Bundle.main.object(forInfoDictionaryKey: "WKBackgroundModes") as? [String] != nil {
+            locationManager.allowsBackgroundLocationUpdates = true
+        }
+
         locationManager.startUpdatingLocation()
 
         AppLogger.general.info("Location tracking started (accuracy: 100m, filter: 50m)")
@@ -135,16 +143,18 @@ actor LocationService: NSObject {
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            if let httpResponse = response as? HTTPURLResponse {
-                if httpResponse.statusCode == 201 {
-                    AppLogger.general.info("Location sent: lat=\(String(format: "%.4f", location.coordinate.latitude)), lon=\(String(format: "%.4f", location.coordinate.longitude)), accuracy=±\(Int(location.horizontalAccuracy))m")
-                } else {
-                    AppLogger.general.warning("Location send failed with status \(httpResponse.statusCode)")
+            try await RetryHelper.withRetry {
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if let httpResponse = response as? HTTPURLResponse {
+                    if httpResponse.statusCode == 201 {
+                        AppLogger.general.info("Location sent: lat=\(String(format: "%.4f", location.coordinate.latitude)), lon=\(String(format: "%.4f", location.coordinate.longitude)), accuracy=±\(Int(location.horizontalAccuracy))m")
+                    } else {
+                        AppLogger.general.warning("Location send failed with status \(httpResponse.statusCode)")
+                    }
                 }
             }
         } catch {
-            AppLogger.logError(error, category: AppLogger.general, context: "Failed to send location")
+            AppLogger.logError(error, category: AppLogger.general, context: "Failed to send location after retries")
         }
     }
 }

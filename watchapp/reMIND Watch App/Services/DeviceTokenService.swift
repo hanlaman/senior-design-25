@@ -58,14 +58,16 @@ actor DeviceTokenService {
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 || httpResponse.statusCode == 200 {
-                AppLogger.general.info("Device token registered successfully")
-            } else {
-                AppLogger.general.warning("Device token registration failed with unexpected status")
+            try await RetryHelper.withRetry {
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 || httpResponse.statusCode == 200 {
+                    AppLogger.general.info("Device token registered successfully")
+                } else {
+                    AppLogger.general.warning("Device token registration failed with unexpected status")
+                }
             }
         } catch {
-            AppLogger.logError(error, category: AppLogger.general, context: "Failed to register device token")
+            AppLogger.logError(error, category: AppLogger.general, context: "Failed to register device token after retries")
         }
     }
 }

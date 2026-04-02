@@ -29,15 +29,17 @@ actor ReminderService {
         }
 
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                AppLogger.general.warning("ReminderService: Unexpected status code")
-                return []
+            return try await RetryHelper.withRetry {
+                let (data, response) = try await URLSession.shared.data(from: url)
+                guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                    AppLogger.general.warning("ReminderService: Unexpected status code")
+                    throw URLError(.badServerResponse)
+                }
+                let responses = try JSONDecoder().decode([ReminderResponse].self, from: data)
+                return responses.compactMap { self.mapToReminder($0) }
             }
-            let responses = try JSONDecoder().decode([ReminderResponse].self, from: data)
-            return responses.compactMap { mapToReminder($0) }
         } catch {
-            AppLogger.logError(error, category: AppLogger.general, context: "Failed to fetch reminders")
+            AppLogger.logError(error, category: AppLogger.general, context: "Failed to fetch reminders after retries")
             return []
         }
     }
