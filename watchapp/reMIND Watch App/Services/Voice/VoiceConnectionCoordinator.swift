@@ -73,6 +73,7 @@ class VoiceConnectionCoordinator: ObservableObject {
     // MARK: - State
 
     private var stateMachineObserver: AnyCancellable?
+    private var eventProcessingTask: Task<Void, Never>?
     private var userCanceledInteraction = false
 
     /// Diagnostic sub-phase shown during connection (helps debug hardware issues)
@@ -194,6 +195,8 @@ class VoiceConnectionCoordinator: ObservableObject {
         AppLogger.general.info("Disconnecting voice assistant")
 
         audioCoordinator?.stopMonitoring()
+        eventProcessingTask?.cancel()
+        eventProcessingTask = nil
         functionCallCoordinator?.cancelAll()
         functionCallCoordinator = nil
 
@@ -309,6 +312,8 @@ class VoiceConnectionCoordinator: ObservableObject {
     }
 
     private func cleanupOnConnectionFailure() async {
+        eventProcessingTask?.cancel()
+        eventProcessingTask = nil
         await azureService?.disconnect()
         await audioService?.releaseSession()
         azureService = nil
@@ -451,7 +456,7 @@ class VoiceConnectionCoordinator: ObservableObject {
     private func startProcessingEvents() async {
         guard let azureService = azureService else { return }
 
-        Task {
+        eventProcessingTask = Task {
             for await event in await azureService.eventStream {
                 await eventHandler?.handle(event)
             }

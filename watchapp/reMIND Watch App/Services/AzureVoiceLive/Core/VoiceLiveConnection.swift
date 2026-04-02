@@ -23,6 +23,9 @@ public actor VoiceLiveConnection {
     /// Observer for WebSocket connection state changes
     private var connectionStateObserver: Task<Void, Never>?
 
+    /// Task processing incoming WebSocket events
+    private var eventProcessingTask: Task<Void, Never>?
+
     public private(set) var connectionState: ConnectionState = .disconnected
     public private(set) var sessionState: AzureSessionState = .uninitialized
 
@@ -109,22 +112,31 @@ public actor VoiceLiveConnection {
         // Start observing connection state changes from WebSocketManager
         startObservingConnectionState(manager)
 
-        // Connect (now awaits handshake completion via delegate)
-        try await manager.connect()
-
-        connectionState = .connected
-        AppLogger.azure.info("Connected to Azure Voice Live API, waiting for session.created")
-
-        // Start processing events
+        // Start processing events BEFORE connecting so the event consumer is
+        // ready when the server sends session.created immediately on handshake.
         AppLogger.azure.debug("Creating Task to process WebSocket events")
-        Task {
+        eventProcessingTask = Task {
             AppLogger.azure.debug("Task started, calling processWebSocketEvents()")
             await processWebSocketEvents()
             AppLogger.azure.debug("processWebSocketEvents() completed")
         }
 
-        // Give WebSocket a moment to be fully ready
-        try await Task.sleep(nanoseconds: UInt64(AudioConfiguration.audioChunkProcessingDelay * 1_000_000_000))
+        // Connect (awaits handshake completion)
+        do {
+            try await manager.connect()
+        } catch {
+            eventProcessingTask?.cancel()
+            eventProcessingTask = nil
+            connectionState = .disconnected
+            sessionState = .uninitialized
+            webSocketManager = nil
+            connectionStateObserver?.cancel()
+            connectionStateObserver = nil
+            throw error
+        }
+
+        connectionState = .connected
+        AppLogger.azure.info("Connected to Azure Voice Live API, waiting for session.created")
 
         // Wait for session.created event from the server (sent automatically on connect).
         // The caller (VoiceConnectionCoordinator) sends the real session.update with
@@ -140,9 +152,11 @@ public actor VoiceLiveConnection {
 
         sessionState = .terminating
 
-        // Stop observing connection state
+        // Stop observing connection state and event processing
         connectionStateObserver?.cancel()
         connectionStateObserver = nil
+        eventProcessingTask?.cancel()
+        eventProcessingTask = nil
 
         await webSocketManager?.disconnect()
         webSocketManager = nil

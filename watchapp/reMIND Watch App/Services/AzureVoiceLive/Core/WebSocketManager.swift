@@ -3,8 +3,8 @@
 //  reMIND Watch App
 //
 //  WebSocket connection manager using Network.framework NWConnection.
-//  Uses NWProtocolWebSocket with requiredInterfaceType = .wifi to bypass
-//  the iPhone Bluetooth relay, which doesn't reliably support WebSocket upgrades.
+//  Per TN3135, an active AVAudioSession enables low-level networking on watchOS.
+//  The caller (VoiceConnectionCoordinator) activates the audio session before connecting.
 //
 
 import Foundation
@@ -86,17 +86,14 @@ actor WebSocketManager {
         // Configure TLS
         let tlsOptions = NWProtocolTLS.Options()
 
-        // Build network parameters allowing WiFi or cellular but never the
-        // companion tunnel (Bluetooth relay) which can't sustain WebSocket connections.
-        // Prohibiting .other signals watchOS to activate WiFi/cellular radios.
+        // Build network parameters. Per TN3135, an active AVAudioSession enables
+        // all networking APIs on watchOS — including through the companion tunnel.
+        // Don't restrict interface types; let the system choose the best path.
         let params = NWParameters(tls: tlsOptions)
         params.defaultProtocolStack.applicationProtocols.insert(wsOptions, at: 0)
         params.prohibitExpensivePaths = false
         params.prohibitConstrainedPaths = false
         params.serviceClass = .interactiveVoice
-        #if !targetEnvironment(simulator)
-        params.prohibitedInterfaceTypes = [.other, .loopback]
-        #endif
 
         // Create endpoint with full path
         let endpoint = NWEndpoint.url(url)
@@ -474,35 +471,36 @@ actor WebSocketManager {
     }
 
     private func attemptReconnection() async {
-        guard reconnectAttempts < maxReconnectAttempts else {
-            AppLogger.network.error("Max reconnection attempts reached")
-            connectionStateContinuation?.yield(.error("Max reconnection attempts reached"))
-            eventContinuation?.yield(.failure(WebSocketError.maxReconnectAttemptsReached))
-            await disconnect()
-            return
+        while reconnectAttempts < maxReconnectAttempts {
+            reconnectAttempts += 1
+
+            // Emit reconnecting state
+            connectionStateContinuation?.yield(.reconnecting(
+                attempt: reconnectAttempts,
+                maxAttempts: maxReconnectAttempts
+            ))
+
+            let delay = min(pow(2.0, Double(reconnectAttempts)), WebSocketConfiguration.maxReconnectDelay)
+            AppLogger.network.info("Reconnecting in \(delay)s (attempt \(self.reconnectAttempts)/\(self.maxReconnectAttempts))")
+
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+
+            do {
+                // Preserve event stream during reconnection so VoiceLiveConnection can keep listening
+                await disconnect(preserveEventStream: true)
+                try await connect()
+                return // Success — exit the loop
+            } catch {
+                AppLogger.logError(error, category: AppLogger.network, context: "Reconnection failed")
+                // Loop continues to next attempt
+            }
         }
 
-        reconnectAttempts += 1
-
-        // Emit reconnecting state
-        connectionStateContinuation?.yield(.reconnecting(
-            attempt: reconnectAttempts,
-            maxAttempts: maxReconnectAttempts
-        ))
-
-        let delay = min(pow(2.0, Double(reconnectAttempts)), WebSocketConfiguration.maxReconnectDelay)
-        AppLogger.network.info("Reconnecting in \(delay)s (attempt \(self.reconnectAttempts)/\(self.maxReconnectAttempts))")
-
-        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-
-        do {
-            // Preserve event stream during reconnection so VoiceLiveConnection can keep listening
-            await disconnect(preserveEventStream: true)
-            try await connect()
-        } catch {
-            AppLogger.logError(error, category: AppLogger.network, context: "Reconnection failed")
-            await attemptReconnection()
-        }
+        // All attempts exhausted
+        AppLogger.network.error("Max reconnection attempts reached")
+        connectionStateContinuation?.yield(.error("Max reconnection attempts reached"))
+        eventContinuation?.yield(.failure(WebSocketError.maxReconnectAttemptsReached))
+        await disconnect()
     }
 
     // MARK: - State

@@ -132,9 +132,6 @@ struct DebugPageView: View {
         params.defaultProtocolStack.applicationProtocols.insert(wsOptions, at: 0)
         params.prohibitExpensivePaths = false
         params.prohibitConstrainedPaths = false
-        #if !targetEnvironment(simulator)
-        params.prohibitedInterfaceTypes = [.other, .loopback]
-        #endif
 
         let endpoint = NWEndpoint.url(url)
         let connection = NWConnection(to: endpoint, using: params)
