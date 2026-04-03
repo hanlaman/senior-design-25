@@ -216,7 +216,16 @@ struct DebugPageView: View {
         request.setValue(BuildConfiguration.azureAPIKey, forHTTPHeaderField: "api-key")
         request.timeoutInterval = 15
 
-        let session = URLSession(configuration: .default)
+        // Mirror production WebSocketManager config so this test is meaningful.
+        // waitsForConnectivity is critical on watchOS — without it, URLSession
+        // fails instantly ("offline") when the path routes through Bluetooth relay.
+        let config = URLSessionConfiguration.default
+        config.waitsForConnectivity = true
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 30
+        config.shouldUseExtendedBackgroundIdleMode = true
+
+        let session = URLSession(configuration: config)
         let task = session.webSocketTask(with: request)
         let startTime = Date()
 
