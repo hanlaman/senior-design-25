@@ -325,8 +325,8 @@ const containerApp = new app.ContainerApp(`remind-api-${stack}`, {
                 { name: "APNS_KEY_CONTENTS", secretRef: "apns-key-contents" },
                 { name: "APNS_KEY_ID", secretRef: "apns-key-id" },
                 { name: "APNS_TEAM_ID", secretRef: "apns-team-id" },
-                { name: "APNS_BUNDLE_ID_WATCH", value: "com.remind.patientwatch" },
-                { name: "APNS_BUNDLE_ID_IOS", value: "com.remind.caregiver" },
+                { name: "APNS_BUNDLE_ID_WATCH", value: "sd2526.remind.watchapp" },
+                { name: "APNS_BUNDLE_ID_IOS", value: "sd2526.remind.caregiverapp" },
             ],
         }],
         scale: {
