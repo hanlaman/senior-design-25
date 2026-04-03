@@ -8,6 +8,7 @@
 import SwiftUI
 import WatchKit
 import UserNotifications
+import AVFoundation
 import os
 
 extension Notification.Name {
@@ -38,6 +39,18 @@ class AppDelegate: NSObject, WKApplicationDelegate, UNUserNotificationCenterDele
                 AppLogger.general.info("Notification authorization granted")
             } else if let error = error {
                 AppLogger.logError(error, category: AppLogger.general, context: "Notification authorization failed")
+            }
+        }
+
+        // Request microphone permission upfront
+        if #available(watchOS 10.0, *) {
+            Task {
+                let granted = await AVAudioApplication.requestRecordPermission()
+                AppLogger.general.info("Microphone permission \(granted ? "granted" : "denied")")
+            }
+        } else {
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                AppLogger.general.info("Microphone permission \(granted ? "granted" : "denied")")
             }
         }
 
