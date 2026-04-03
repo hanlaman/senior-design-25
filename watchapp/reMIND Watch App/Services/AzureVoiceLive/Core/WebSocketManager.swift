@@ -100,71 +100,8 @@ actor WebSocketManager {
         self.urlSession = session
         self.webSocketTask = task
 
-        // Await WebSocket open with timeout.
-        // OSAllocatedUnfairLock prevents double-resume since multiple delegate
-        // callbacks can fire (e.g., didOpen then didComplete).
-        try await withThrowingTaskGroup(of: Bool.self) { group in
-            group.addTask {
-                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
-                    let resumed = OSAllocatedUnfairLock(initialState: false)
-
-                    delegate.onOpen = { @Sendable protocol_ in
-                        AppLogger.network.info("URLSessionWebSocketTask opened (protocol: \(protocol_ ?? "none"))")
-                        resumed.withLock { didResume in
-                            guard !didResume else { return }
-                            didResume = true
-                            continuation.resume(returning: true)
-                        }
-                    }
-
-                    delegate.onClose = { @Sendable closeCode, reason in
-                        let reasonStr = reason.flatMap { String(data: $0, encoding: .utf8) } ?? "unknown"
-                        AppLogger.network.error("WebSocket closed during connect: code=\(closeCode.rawValue), reason=\(reasonStr)")
-                        resumed.withLock { didResume in
-                            guard !didResume else { return }
-                            didResume = true
-                            continuation.resume(throwing: WebSocketError.connectionClosed(
-                                closeCode: closeCode, reason: reasonStr
-                            ))
-                        }
-                    }
-
-                    delegate.onTaskComplete = { @Sendable error in
-                        if let error = error {
-                            AppLogger.network.error("WebSocket task failed during connect: \(error.localizedDescription)")
-                            resumed.withLock { didResume in
-                                guard !didResume else { return }
-                                didResume = true
-                                continuation.resume(throwing: WebSocketError.connectionFailed(error))
-                            }
-                        }
-                    }
-
-                    task.resume()
-                }
-            }
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(WebSocketConfiguration.connectionTimeout * 1_000_000_000))
-                return false  // timed out
-            }
-
-            let succeeded = try await group.next() ?? false
-            group.cancelAll()
-
-            if !succeeded {
-                task.cancel(with: .goingAway, reason: nil)
-                session.invalidateAndCancel()
-                self.webSocketTask = nil
-                self.urlSession = nil
-                self.delegateHandler = nil
-                throw WebSocketError.connectionFailed(
-                    NSError(domain: "WebSocket", code: -1, userInfo: [NSLocalizedDescriptionKey: "Connection timed out"])
-                )
-            }
-        }
-
-        // Replace delegate closures with post-connection lifecycle handlers
-        delegate.onOpen = nil
+        // Set up post-connection delegate handlers before resuming.
+        // These detect connection loss after the connection is established.
         delegate.onClose = { [weak self] closeCode, reason in
             let reasonStr = reason.flatMap { String(data: $0, encoding: .utf8) } ?? "unknown"
             AppLogger.network.warning("WebSocket closed: code=\(closeCode.rawValue), reason=\(reasonStr)")
@@ -181,6 +118,39 @@ actor WebSocketManager {
             }
         }
 
+        // Start connection
+        task.resume()
+
+        // Verify connection by receiving the first message with a timeout.
+        // Azure sends session.created immediately on WebSocket connect, so a
+        // successful receive proves the connection is live. This is more reliable
+        // than the didOpenWithProtocol delegate, which doesn't fire on watchOS.
+        let firstMessage: Data
+        do {
+            firstMessage = try await withThrowingTaskGroup(of: Data.self) { group in
+                group.addTask {
+                    try await self.receiveMessage()
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: UInt64(WebSocketConfiguration.connectionTimeout * 1_000_000_000))
+                    throw WebSocketError.connectionFailed(
+                        NSError(domain: "WebSocket", code: -1, userInfo: [NSLocalizedDescriptionKey: "Connection timed out waiting for first message"])
+                    )
+                }
+                let result = try await group.next()!
+                group.cancelAll()
+                return result
+            }
+        } catch {
+            AppLogger.network.error("WebSocket connect failed: \(error.localizedDescription)")
+            task.cancel(with: .goingAway, reason: nil)
+            session.invalidateAndCancel()
+            self.webSocketTask = nil
+            self.urlSession = nil
+            self.delegateHandler = nil
+            throw error
+        }
+
         // Connection is now established
         isConnected = true
         reconnectAttempts = 0
@@ -189,7 +159,10 @@ actor WebSocketManager {
         connectionStateContinuation?.yield(.connected)
         AppLogger.network.info("WebSocket connected via URLSession")
 
-        // Start receiving messages and heartbeat
+        // Deliver the first message (session.created) into the event stream
+        handleReceivedData(firstMessage)
+
+        // Start receiving remaining messages and heartbeat
         startReceiving()
         startHeartbeat()
     }
@@ -206,7 +179,6 @@ actor WebSocketManager {
         receiveTask = nil
 
         // Clear delegate closures to prevent callbacks during teardown
-        delegateHandler?.onOpen = nil
         delegateHandler?.onClose = nil
         delegateHandler?.onTaskComplete = nil
 
@@ -420,17 +392,8 @@ actor WebSocketManager {
 final class WebSocketDelegateHandler: NSObject, URLSessionWebSocketDelegate, URLSessionTaskDelegate, @unchecked Sendable {
     // Closures are only mutated from the owning WebSocketManager actor.
     // @unchecked Sendable is safe because mutation is serialized by the actor.
-    var onOpen: (@Sendable (String?) -> Void)?
     var onClose: (@Sendable (URLSessionWebSocketTask.CloseCode, Data?) -> Void)?
     var onTaskComplete: (@Sendable (Error?) -> Void)?
-
-    func urlSession(
-        _ session: URLSession,
-        webSocketTask: URLSessionWebSocketTask,
-        didOpenWithProtocol protocol: String?
-    ) {
-        onOpen?(`protocol`)
-    }
 
     func urlSession(
         _ session: URLSession,

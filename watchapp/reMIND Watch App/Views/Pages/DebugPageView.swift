@@ -8,6 +8,7 @@
 import SwiftUI
 import WatchConnectivity
 import Network
+import AVFoundation
 import os
 
 struct DebugPageView: View {
@@ -17,6 +18,7 @@ struct DebugPageView: View {
     @State private var connectivityTest: String = "—"
     @State private var wsTest: String = "—"
     @State private var urlSessionWsTest: String = "—"
+    @State private var audioWsTest: String = "—"
 
     var body: some View {
         List {
@@ -44,6 +46,7 @@ struct DebugPageView: View {
                 row("Endpoint Test", value: connectivityTest)
                 row("WS Test", value: wsTest)
                 row("WS (URLSession)", value: urlSessionWsTest)
+                row("WS (Audio+URL)", value: audioWsTest)
             }
 
             Section {
@@ -61,6 +64,11 @@ struct DebugPageView: View {
                     Task { await testWebSocketURLSession() }
                 }
                 .foregroundColor(.blue)
+
+                Button("Test WS (Audio+URLSession)") {
+                    Task { await testWebSocketWithAudioSession() }
+                }
+                .foregroundColor(.orange)
 
                 Button("Retry Connection") {
                     Task { await viewModel.connect() }
@@ -259,6 +267,85 @@ struct DebugPageView: View {
         } catch {
             let elapsed = String(format: "%.1f", Date().timeIntervalSince(startTime))
             urlSessionWsTest = "\(error.localizedDescription) (\(elapsed)s)"
+        }
+
+        task.cancel(with: .goingAway, reason: nil)
+        session.invalidateAndCancel()
+    }
+
+    /// Tests WebSocket with an active AVAudioSession.
+    /// Per TN3135, the companion tunnel requires an active audio session for WebSocket.
+    private func testWebSocketWithAudioSession() async {
+        audioWsTest = "Activating audio..."
+
+        // Activate AVAudioSession first (same as production VoiceConnectionCoordinator)
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            let options: AVAudioSession.CategoryOptions
+            if #available(watchOS 11.0, *) {
+                options = [.allowBluetooth, .allowBluetoothHFP, .allowBluetoothA2DP]
+            } else {
+                options = [.allowBluetoothA2DP]
+            }
+            try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: options)
+            try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
+        } catch {
+            audioWsTest = "Audio failed: \(error.localizedDescription)"
+            return
+        }
+
+        defer {
+            try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+        }
+
+        audioWsTest = "Connecting..."
+        guard let url = BuildConfiguration.websocketURL else {
+            audioWsTest = "Bad URL"
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue(BuildConfiguration.azureAPIKey, forHTTPHeaderField: "api-key")
+        request.timeoutInterval = 15
+
+        let config = URLSessionConfiguration.default
+        config.waitsForConnectivity = true
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 30
+        config.shouldUseExtendedBackgroundIdleMode = true
+
+        let session = URLSession(configuration: config)
+        let task = session.webSocketTask(with: request)
+        let startTime = Date()
+
+        task.resume()
+
+        do {
+            let message = try await withThrowingTaskGroup(of: String.self) { group in
+                group.addTask {
+                    let msg = try await task.receive()
+                    let elapsed = String(format: "%.1f", Date().timeIntervalSince(startTime))
+                    switch msg {
+                    case .data(let data):
+                        return "Open! Got \(data.count)B (\(elapsed)s)"
+                    case .string(let text):
+                        return "Open! Got \(text.count) chars (\(elapsed)s)"
+                    @unknown default:
+                        return "Open! Unknown msg (\(elapsed)s)"
+                    }
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: 15_000_000_000)
+                    return "Timeout (15s)"
+                }
+                let result = try await group.next()!
+                group.cancelAll()
+                return result
+            }
+            audioWsTest = message
+        } catch {
+            let elapsed = String(format: "%.1f", Date().timeIntervalSince(startTime))
+            audioWsTest = "\(error.localizedDescription) (\(elapsed)s)"
         }
 
         task.cancel(with: .goingAway, reason: nil)
