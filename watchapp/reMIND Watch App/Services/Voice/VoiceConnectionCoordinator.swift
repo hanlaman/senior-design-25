@@ -165,6 +165,11 @@ class VoiceConnectionCoordinator: ObservableObject {
             try await audio.activateSession()
             await audio.holdSession()
 
+            // Brief delay to let the system propagate network path changes.
+            // Per TN3135, activating AVAudioSession enables companion tunnel
+            // networking on watchOS — give the system time to update paths.
+            try await Task.sleep(nanoseconds: 200_000_000) // 0.2s
+
             // Wait for memory context (with graceful fallback)
             connectingPhase = "Loading context"
             let memoryContext = await memoryContextTask

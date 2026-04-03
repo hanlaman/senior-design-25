@@ -169,20 +169,18 @@ public actor VoiceLiveConnection {
         AppLogger.azure.info("Disconnected from Azure Voice Live API")
     }
 
-    /// Re-establish session after WebSocket reconnection
+    /// Re-establish session after WebSocket reconnection.
+    /// The caller must set sessionState = .establishing(sessionId: nil) before calling.
     private func reestablishSession() async {
         AppLogger.azure.info("Re-establishing session after WebSocket reconnection")
 
-        sessionState = .reconnecting
-
         do {
-            // Give WebSocket a moment to be fully ready
-            // Note: Azure sends session.created immediately on connect, which will
-            // transition us from .reconnecting to .establishing(sessionId: newId)
+            // Give the event processor time to handle session.created (sent by Azure
+            // immediately on connect). This transitions sessionState from
+            // .establishing(nil) → .establishing(sessionId: X).
             try await Task.sleep(nanoseconds: 100_000_000) // 0.1s
 
             // Send session.update to re-configure the session
-            // Don't overwrite sessionState here - the event handler sets it when session.created arrives
             AppLogger.azure.info("Sending session.update to re-configure session (current state: \(self.sessionState.displayText))")
             try await session.update(.fromSettings(self.settings))
 
@@ -276,8 +274,11 @@ public actor VoiceLiveConnection {
 
         case .connected:
             connectionState = .connected
-            // After reconnection, re-establish session if it was lost
+            // After reconnection, re-establish session if it was lost.
+            // Set .establishing immediately (not in a Task) so the state machine
+            // is ready when session.created arrives from the event stream.
             if sessionState == .uninitialized {
+                sessionState = .establishing(sessionId: nil)
                 AppLogger.azure.info("WebSocket reconnected, re-establishing session")
                 Task {
                     await reestablishSession()

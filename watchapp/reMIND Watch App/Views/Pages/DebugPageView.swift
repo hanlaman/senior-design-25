@@ -225,13 +225,12 @@ struct DebugPageView: View {
         request.timeoutInterval = 15
 
         // Mirror production WebSocketManager config so this test is meaningful.
-        // waitsForConnectivity is critical on watchOS — without it, URLSession
-        // fails instantly ("offline") when the path routes through Bluetooth relay.
         let config = URLSessionConfiguration.default
-        config.waitsForConnectivity = true
+        config.waitsForConnectivity = false
         config.timeoutIntervalForRequest = 15
         config.timeoutIntervalForResource = 30
-        config.shouldUseExtendedBackgroundIdleMode = true
+        config.networkServiceType = .default
+        config.allowsCellularAccess = true
 
         let session = URLSession(configuration: config)
         let task = session.webSocketTask(with: request)
@@ -309,10 +308,11 @@ struct DebugPageView: View {
         request.timeoutInterval = 15
 
         let config = URLSessionConfiguration.default
-        config.waitsForConnectivity = true
+        config.waitsForConnectivity = false
         config.timeoutIntervalForRequest = 15
         config.timeoutIntervalForResource = 30
-        config.shouldUseExtendedBackgroundIdleMode = true
+        config.networkServiceType = .default
+        config.allowsCellularAccess = true
 
         let session = URLSession(configuration: config)
         let task = session.webSocketTask(with: request)

@@ -83,13 +83,30 @@ actor WebSocketManager {
         request.timeoutInterval = WebSocketConfiguration.connectionTimeout
 
         // Configure URLSession for watchOS companion tunnel support.
-        // waitsForConnectivity lets the system find any available path,
-        // including the Bluetooth relay through the paired iPhone.
         let config = URLSessionConfiguration.default
-        config.waitsForConnectivity = true
         config.timeoutIntervalForRequest = WebSocketConfiguration.connectionTimeout
         config.timeoutIntervalForResource = WebSocketConfiguration.resourceTimeout
-        config.shouldUseExtendedBackgroundIdleMode = true
+
+        // On real watchOS hardware, waitsForConnectivity can cause the system to
+        // indefinitely wait for a "better" path (e.g., WiFi) instead of using
+        // the Bluetooth relay. Disable it so we fail fast and can retry.
+        config.waitsForConnectivity = false
+
+        // Use default network service type. On watchOS, .responsiveData rejects
+        // the iPhone Bluetooth relay path (classified as high-latency), causing
+        // "Internet connection appears to be offline" errors even when HTTP works.
+        config.networkServiceType = .default
+
+        // Allow all network paths including cellular and constrained networks
+        config.allowsCellularAccess = true
+        if #available(watchOS 9.0, *) {
+            config.allowsConstrainedNetworkAccess = true
+            config.allowsExpensiveNetworkAccess = true
+        }
+
+        // Note: shouldUseExtendedBackgroundIdleMode is intentionally not set.
+        // It requires background mode entitlements, and on watchOS it can cause
+        // the system to reject connections when those entitlements are missing.
 
         // Create delegate handler, session, and task
         let delegate = WebSocketDelegateHandler()
