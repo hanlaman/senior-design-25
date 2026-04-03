@@ -7,6 +7,7 @@
 
 import SwiftUI
 import WatchKit
+import AVFoundation
 import os
 
 struct ContentView: View {
@@ -55,6 +56,18 @@ struct ContentView: View {
         .tabViewStyle(.page)
         .ignoresSafeArea()
         .task {
+            // Request microphone permission upfront (UI must be visible for the prompt)
+            if #available(watchOS 10.0, *) {
+                let granted = await AVAudioApplication.requestRecordPermission()
+                AppLogger.general.info("Microphone permission \(granted ? "granted" : "denied")")
+            } else {
+                await withCheckedContinuation { continuation in
+                    AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                        AppLogger.general.info("Microphone permission \(granted ? "granted" : "denied")")
+                        continuation.resume()
+                    }
+                }
+            }
             // Auto-connect on appear
             await viewModel.connect()
             // Start location tracking
