@@ -17,9 +17,11 @@ export const Prompts = {
    * @temperature 0.3
    * @maxTokens 2000
    */
-  MEMORY_EXTRACTION: `You are analyzing a conversation between a dementia patient and their AI voice companion (reMIND). Your job is to extract information worth remembering for future conversations.
+  MEMORY_EXTRACTION: `You are analyzing a conversation between a user and their AI voice companion (reMIND). The user is an older adult with memory challenges. Your job is to extract information worth remembering for future conversations.
 
 Extract each distinct piece of memorable information as a JSON object. Focus on what would help the companion be more helpful and personalized in future sessions.
+
+IMPORTANT: Always refer to the person as "the user" in your output — never use the word "patient". These memories may be read back to the user in future conversations, so the language must be warm and respectful.
 
 ## What to Extract
 
@@ -53,7 +55,7 @@ Extract each distinct piece of memorable information as a JSON object. Focus on 
 
 For each memory:
 {
-  "content": "Natural language description — use the patient's own words where possible",
+  "content": "Natural language description — use the user's own words where possible",
   "keywords": ["relevant", "search", "terms"],
   "contextDescription": "Why this matters for future conversations",
   "suggestedType": "fact|episode|routine|preference|concern|relationship",
@@ -71,10 +73,24 @@ For each memory:
 - 0.5-0.6: Implied but somewhat ambiguous ("I think I used to...")
 - Below 0.5: Do not extract — too uncertain to be useful
 
+## Example
+
+Input conversation excerpt:
+User: "Sarah came by this morning. She brought me those cookies I like, the oatmeal ones."
+Assistant: "That sounds lovely! It's nice that Sarah visited."
+User: "She said something about a doctor appointment on Thursday but I can't remember the details."
+
+Output:
+[
+  {"content": "Daughter Sarah visited the user this morning and brought oatmeal cookies", "keywords": ["Sarah", "visit", "cookies", "oatmeal"], "contextDescription": "Sarah visits regularly — mentioning her visits helps orient the user", "suggestedType": "episode", "suggestedCategories": ["family"], "temporalRelevance": "past", "eventDate": null, "emotionalTone": "positive", "relatedTo": ["Sarah", "family visits"], "confidence": 0.95},
+  {"content": "The user likes oatmeal cookies", "keywords": ["oatmeal", "cookies", "food"], "contextDescription": "A food preference the companion can reference naturally", "suggestedType": "preference", "suggestedCategories": ["interest"], "temporalRelevance": "timeless", "eventDate": null, "emotionalTone": "positive", "relatedTo": ["food", "Sarah"], "confidence": 0.85},
+  {"content": "The user has a doctor appointment on Thursday that Sarah mentioned", "keywords": ["doctor", "appointment", "Thursday", "Sarah"], "contextDescription": "Upcoming medical appointment — can help orient the user if they ask what's coming up", "suggestedType": "episode", "suggestedCategories": ["health"], "temporalRelevance": "future", "eventDate": null, "emotionalTone": "neutral", "relatedTo": ["Sarah", "doctor"], "confidence": 0.7}
+]
+
 ## Rules
 - Only extract facts explicitly stated or strongly implied — never infer
 - Do NOT infer medical diagnoses from symptoms
-- Preserve the patient's own words for preferences and feelings
+- Preserve the user's own words for preferences and feelings
 - Include relationship context with names (e.g., "daughter Sarah", not just "Sarah")
 - If a topic came up that clearly comforted or upset the user, note that as a separate memory with suggestedType "preference" or "concern"
 
@@ -89,11 +105,13 @@ Respond ONLY with a JSON array. If nothing memorable, return [].`,
    * @temperature 0.3
    * @maxTokens 200
    */
-  CONVERSATION_SUMMARIZATION: `Summarize this conversation between a dementia patient and their AI companion (reMIND). Write a brief summary for the patient's caregiver.
+  CONVERSATION_SUMMARIZATION: `Summarize this conversation between a user and their AI companion (reMIND). The user is an older adult with memory challenges. Write a brief summary for the user's caregiver.
+
+Always refer to the person as "the user" — never use the word "patient".
 
 Include:
-1. **Topics discussed** — What the patient talked about or asked about (1-2 sentences).
-2. **Mood** — The patient's general emotional state during the conversation (one word or short phrase: e.g., "calm and cheerful", "anxious about an appointment", "confused but redirectable").
+1. **Topics discussed** — What the user talked about or asked about (1-2 sentences).
+2. **Mood** — The user's general emotional state during the conversation (one word or short phrase: e.g., "calm and cheerful", "anxious about an appointment", "confused but redirectable").
 3. **Notable observations** — Anything a caregiver should know: repeated questions about a specific topic, expressed concerns, mentions of pain or discomfort, confusion about time/place/people. Omit this line if nothing notable.
 
 Format:
