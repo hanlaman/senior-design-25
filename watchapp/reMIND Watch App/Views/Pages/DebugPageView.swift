@@ -110,10 +110,23 @@ struct DebugPageView: View {
         }
         monitor.start(queue: DispatchQueue.global(qos: .utility))
 
-        // WiFi-specific path monitor (diagnostic: shows if direct WiFi is available)
-        let wifiMonitor = NWPathMonitor(requiredInterfaceType: .wifi)
+        // WiFi diagnostic: on watchOS, WiFi can appear as .wifi OR .other depending on
+        // hardware/OS version. Check both so the debug row reflects actual connectivity.
+        let wifiMonitor = NWPathMonitor()
         wifiMonitor.pathUpdateHandler = { path in
-            let status = path.status == .satisfied ? "OK" : "Unavailable"
+            let satisfied = path.status == .satisfied
+            let hasWifi = path.usesInterfaceType(.wifi)
+            let hasOther = path.usesInterfaceType(.other)
+            let status: String
+            if satisfied && hasWifi {
+                status = "OK (via .wifi)"
+            } else if satisfied && hasOther {
+                status = "OK (via .other — watchOS reclassified)"
+            } else if satisfied {
+                status = "OK (cellular only)"
+            } else {
+                status = "Unavailable"
+            }
             DispatchQueue.main.async {
                 wifiPath = status
             }
