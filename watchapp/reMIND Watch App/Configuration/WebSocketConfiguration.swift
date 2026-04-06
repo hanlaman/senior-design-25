@@ -12,6 +12,12 @@ enum WebSocketConfiguration {
     /// Maximum number of reconnection attempts before giving up
     static let maxReconnectAttempts = 5
 
+    /// How long to wait for a WiFi path to become available before failing (seconds).
+    /// NWPathMonitor(requiredInterfaceType: .wifi) is used to gate connect() — this timeout
+    /// determines how long we wait for WiFi to be confirmed before throwing wifiNotAvailable.
+    /// 5 seconds is generous enough to handle post-wake path re-registration.
+    static let wifiPathCheckTimeout: TimeInterval = 5
+
     /// Timeout for initial connection request (seconds)
     static let connectionTimeout: TimeInterval = 30
 

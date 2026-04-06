@@ -3,13 +3,20 @@
 //  reMIND Watch App
 //
 //  WebSocket connection manager using URLSessionWebSocketTask.
-//  URLSession handles companion tunnel routing on watchOS automatically,
-//  unlike NWConnection which may fail to route through the Bluetooth relay.
-//  Per TN3135, an active AVAudioSession enables low-level networking on watchOS.
-//  The caller (VoiceConnectionCoordinator) activates the audio session before connecting.
+//
+//  Network path strategy:
+//  - connect() requires a live WiFi path before opening the socket.
+//    NWPathMonitor(requiredInterfaceType: .wifi) is used to gate the connection;
+//    if WiFi is not available within the check timeout, connect() throws a clear error
+//    instead of silently falling through to the iPhone Bluetooth relay.
+//  - URLSession is used (not NWConnection) because URLSession handles TLS upgrade and
+//    HTTP/1.1 WebSocket negotiation correctly on watchOS without requiring manual framing.
+//  - Per Apple TN3135, an active AVAudioSession must be held before the socket is opened
+//    on watchOS. The caller (VoiceConnectionCoordinator) activates audio before connecting.
 //
 
 import Foundation
+import Network
 import os
 
 /// WebSocket connection manager using URLSessionWebSocketTask
@@ -77,27 +84,29 @@ actor WebSocketManager {
             throw WebSocketError.invalidURL("Missing host in URL")
         }
 
+        // Require WiFi before opening the socket. This prevents the system from silently
+        // routing through the iPhone Bluetooth relay (companion tunnel) when the watch is
+        // on WiFi but the relay path is selected first. Fails fast with a clear error if
+        // WiFi is not available within the check timeout.
+        try await requireWiFiPath()
+
         // Build URLRequest with API key header
         var request = URLRequest(url: url)
         request.setValue(apiKey, forHTTPHeaderField: "api-key")
         request.timeoutInterval = WebSocketConfiguration.connectionTimeout
 
-        // Configure URLSession for watchOS companion tunnel support.
+        // Configure URLSession for watchOS.
+        // waitsForConnectivity = false: fail fast so the caller can surface a clear
+        // error and retry rather than hanging indefinitely on a bad path.
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = WebSocketConfiguration.connectionTimeout
         config.timeoutIntervalForResource = WebSocketConfiguration.resourceTimeout
-
-        // On real watchOS hardware, waitsForConnectivity can cause the system to
-        // indefinitely wait for a "better" path (e.g., WiFi) instead of using
-        // the Bluetooth relay. Disable it so we fail fast and can retry.
         config.waitsForConnectivity = false
 
-        // Use default network service type. On watchOS, .responsiveData rejects
-        // the iPhone Bluetooth relay path (classified as high-latency), causing
-        // "Internet connection appears to be offline" errors even when HTTP works.
+        // .default service type is required — .responsiveData marks the WiFi path as
+        // "expensive" on some watchOS versions and causes URLSession to reject it.
         config.networkServiceType = .default
 
-        // Allow all network paths including cellular and constrained networks
         config.allowsCellularAccess = true
         if #available(watchOS 9.0, *) {
             config.allowsConstrainedNetworkAccess = true
@@ -264,6 +273,49 @@ actor WebSocketManager {
     }
 
     // MARK: - Private Methods
+
+    /// Waits until a WiFi path is satisfied, or throws if none arrives within the timeout.
+    ///
+    /// On watchOS the system can select the iPhone Bluetooth relay (companion tunnel) even
+    /// when WiFi is available, because the relay path is registered first during app launch.
+    /// Gating on NWPathMonitor(requiredInterfaceType: .wifi) ensures the socket is only opened
+    /// once the OS confirms a direct WiFi path — preventing silent fallback to Bluetooth relay.
+    private func requireWiFiPath() async throws {
+        let timeout = WebSocketConfiguration.wifiPathCheckTimeout
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let monitor = NWPathMonitor(requiredInterfaceType: .wifi)
+            // OSAllocatedUnfairLock guards the single-resume invariant: the monitor
+            // callback and the timeout task can both fire; only the first should resume.
+            let lock = OSAllocatedUnfairLock(initialState: false)
+
+            let timeoutTask = Task {
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                lock.withLock { alreadyResumed in
+                    guard !alreadyResumed else { return }
+                    alreadyResumed = true
+                    monitor.cancel()
+                    AppLogger.network.error("WiFi path not available within \(timeout)s — watch may not be on WiFi")
+                    continuation.resume(throwing: WebSocketError.wifiNotAvailable)
+                }
+            }
+
+            monitor.pathUpdateHandler = { path in
+                guard path.status == .satisfied else { return }
+                lock.withLock { alreadyResumed in
+                    guard !alreadyResumed else { return }
+                    alreadyResumed = true
+                    timeoutTask.cancel()
+                    monitor.cancel()
+                    let ifaces = path.availableInterfaces.map { $0.name }.joined(separator: ", ")
+                    AppLogger.network.info("WiFi path confirmed (interfaces: \(ifaces))")
+                    continuation.resume()
+                }
+            }
+
+            monitor.start(queue: DispatchQueue(label: "com.remind.wifi-path-check", qos: .userInitiated))
+        }
+    }
 
     private func startReceiving() {
         receiveTask?.cancel()
@@ -441,6 +493,7 @@ enum WebSocketError: LocalizedError {
     case connectionCancelled
     case connectionFailed(Error)
     case connectionClosed(closeCode: URLSessionWebSocketTask.CloseCode, reason: String)
+    case wifiNotAvailable
 
     var errorDescription: String? {
         switch self {
@@ -460,6 +513,8 @@ enum WebSocketError: LocalizedError {
             return "Connection failed: \(error.localizedDescription)"
         case .connectionClosed(let closeCode, let reason):
             return "Connection closed: code=\(closeCode.rawValue), reason=\(reason)"
+        case .wifiNotAvailable:
+            return "WiFi is not available. Connect the watch to WiFi and try again."
         }
     }
 }
