@@ -38,4 +38,4 @@ Carthage/Build/
 Config.xcconfig
 
 # Generated configuration
-BuildConfiguration.swift
+BuildConfiguration*.swift*
