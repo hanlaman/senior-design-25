@@ -13,6 +13,11 @@ struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showingSignOutConfirmation = false
 
+    @AppStorage("caregiverPhoneNumber") private var caregiverPhone = ""
+    @AppStorage("patientPhoneNumber") private var patientPhone = ""
+
+    private let contactAPI = ContactAPIService()
+
     var body: some View {
         NavigationStack {
             List {
@@ -36,6 +41,30 @@ struct SettingsSheet: View {
                     }
                 } header: {
                     Text("Account")
+                }
+
+                // Phone Numbers Section
+                Section {
+                    HStack {
+                        Label("Caregiver", systemImage: "person.fill")
+                            .frame(width: 130, alignment: .leading)
+                        TextField("Phone number", text: $caregiverPhone)
+                            .keyboardType(.phonePad)
+                            .textContentType(.telephoneNumber)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    HStack {
+                        Label("Patient", systemImage: "heart.fill")
+                            .frame(width: 130, alignment: .leading)
+                        TextField("Phone number", text: $patientPhone)
+                            .keyboardType(.phonePad)
+                            .textContentType(.telephoneNumber)
+                            .multilineTextAlignment(.trailing)
+                    }
+                } header: {
+                    Text("Phone Numbers")
+                } footer: {
+                    Text("Used for quick call, message, and FaceTime actions from the dashboard.")
                 }
 
                 // Settings Section
@@ -90,9 +119,36 @@ struct SettingsSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
+                        syncContacts()
                         dismiss()
                     }
                 }
+            }
+            .task {
+                let contacts = await contactAPI.fetchContacts()
+                for contact in contacts {
+                    switch contact.role {
+                    case "caregiver":
+                        if caregiverPhone.isEmpty { caregiverPhone = contact.phoneNumber }
+                    case "patient":
+                        if patientPhone.isEmpty { patientPhone = contact.phoneNumber }
+                    default:
+                        break
+                    }
+                }
+            }
+        }
+    }
+
+    private func syncContacts() {
+        let caregiver = caregiverPhone
+        let patient = patientPhone
+        Task {
+            if !caregiver.isEmpty {
+                _ = await contactAPI.upsertContact(role: "caregiver", name: "Caregiver", phoneNumber: caregiver)
+            }
+            if !patient.isEmpty {
+                _ = await contactAPI.upsertContact(role: "patient", name: "Patient", phoneNumber: patient)
             }
         }
     }

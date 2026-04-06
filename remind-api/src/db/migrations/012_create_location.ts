@@ -1,19 +1,19 @@
 import { type Kysely, sql } from 'kysely';
 
 export async function up(db: Kysely<any>): Promise<void> {
-  await db.schema
-    .createTable('location')
-    .addColumn('id', 'integer', (col) => col.primaryKey().identity())
-    .addColumn('patientId', 'varchar(255)', (col) => col.notNull())
-    .addColumn('latitude', sql`FLOAT`, (col) => col.notNull())
-    .addColumn('longitude', sql`FLOAT`, (col) => col.notNull())
-    .addColumn('timestamp', sql`DATETIME2`, (col) =>
-      col.notNull().defaultTo(sql`GETDATE()`),
-    )
-    .addColumn('createdAt', sql`DATETIME2`, (col) =>
-      col.defaultTo(sql`GETDATE()`),
-    )
-    .execute();
+  await sql`
+    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'location')
+    BEGIN
+      CREATE TABLE location (
+        id INT IDENTITY(1,1) PRIMARY KEY,
+        patientId VARCHAR(255) NOT NULL,
+        latitude FLOAT NOT NULL,
+        longitude FLOAT NOT NULL,
+        [timestamp] DATETIME2 NOT NULL DEFAULT GETDATE(),
+        createdAt DATETIME2 DEFAULT GETDATE()
+      )
+    END
+  `.execute(db);
 }
 
 export async function down(db: Kysely<any>): Promise<void> {
