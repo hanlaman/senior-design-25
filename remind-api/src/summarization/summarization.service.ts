@@ -59,7 +59,7 @@ ${formattedMessages}`;
       const response = await this.client.chat.completions.create({
         model: this.deploymentName,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 100,
+        max_tokens: 200,
         temperature: 0.3,
       });
 

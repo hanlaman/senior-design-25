@@ -29,6 +29,11 @@ public enum ToolHandler: String, Codable, Sendable {
     case getUserMemories
     case getPatientFacts
     case getCurrentLocation
+    case getReminders
+    case createReminder
+    case notifyCaregiver
+    case getWeather
+    case callCaregiver
 
     /// Execute the tool with given arguments
     /// - Parameter arguments: JSON string containing function arguments
@@ -45,6 +50,16 @@ public enum ToolHandler: String, Codable, Sendable {
             return try await ToolExecutors.getPatientFacts(arguments: arguments)
         case .getCurrentLocation:
             return try await ToolExecutors.getCurrentLocation(arguments: arguments)
+        case .getReminders:
+            return try await ToolExecutors.getReminders(arguments: arguments)
+        case .createReminder:
+            return try await ToolExecutors.createReminder(arguments: arguments)
+        case .notifyCaregiver:
+            return try await ToolExecutors.notifyCaregiver(arguments: arguments)
+        case .getWeather:
+            return try await ToolExecutors.getWeather(arguments: arguments)
+        case .callCaregiver:
+            return try await ToolExecutors.callCaregiver(arguments: arguments)
         }
     }
 }

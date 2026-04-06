@@ -8,6 +8,8 @@
 import CoreLocation
 import Foundation
 import os
+import WeatherKit
+import WatchKit
 
 /// Namespace for tool executor implementations
 public enum ToolExecutors {
@@ -242,6 +244,315 @@ public enum ToolExecutors {
         return jsonString
     }
 
+    // MARK: - Get Reminders Tool
+
+    /// Fetch reminders for a given date (defaults to today)
+    public static func getReminders(arguments: String) async throws -> String {
+        var dateString: String?
+
+        if !arguments.isEmpty, let data = arguments.data(using: .utf8) {
+            if let args = try? JSONDecoder().decode(RemindersArguments.self, from: data) {
+                dateString = args.date
+            }
+        }
+
+        // Default to today
+        let date = dateString ?? {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd"
+            return formatter.string(from: Date())
+        }()
+
+        let baseURL = BuildConfiguration.apiBaseURL
+        let patientId = BuildConfiguration.patientId
+
+        guard var urlComponents = URLComponents(string: "\(baseURL)/reminders/\(patientId)") else {
+            return "{\"error\": \"Could not build request URL\"}"
+        }
+        urlComponents.queryItems = [URLQueryItem(name: "date", value: date)]
+
+        guard let url = urlComponents.url else {
+            return "{\"error\": \"Could not build request URL\"}"
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 10
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                return "{\"error\": \"Could not fetch reminders\"}"
+            }
+
+            let reminders = try JSONDecoder().decode([ReminderEntry].self, from: data)
+
+            let timeFormatter = DateFormatter()
+            timeFormatter.dateStyle = .none
+            timeFormatter.timeStyle = .short
+
+            let isoFormatter = ISO8601DateFormatter()
+            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+            let outputReminders = reminders.map { reminder -> ReminderOutput in
+                let timeDisplay: String
+                if let parsedDate = isoFormatter.date(from: reminder.scheduledTime) {
+                    timeDisplay = timeFormatter.string(from: parsedDate)
+                } else {
+                    timeDisplay = reminder.scheduledTime
+                }
+                return ReminderOutput(
+                    title: reminder.title,
+                    time: timeDisplay,
+                    type: reminder.type,
+                    notes: reminder.notes
+                )
+            }
+
+            let result = RemindersResponse(
+                date: date,
+                reminderCount: outputReminders.count,
+                reminders: outputReminders
+            )
+
+            let jsonData = try JSONEncoder().encode(result)
+            guard let jsonString = String(data: jsonData, encoding: .utf8) else {
+                throw ToolError.executionFailed("Failed to encode reminders as UTF-8")
+            }
+
+            AppLogger.general.info("getReminders executed: \(outputReminders.count) reminders for \(date)")
+            return jsonString
+        } catch let error as ToolError {
+            throw error
+        } catch {
+            AppLogger.general.error("getReminders failed: \(error.localizedDescription)")
+            return "{\"error\": \"Could not fetch reminders\"}"
+        }
+    }
+
+    // MARK: - Create Reminder Tool
+
+    /// Create a new reminder via the backend API
+    public static func createReminder(arguments: String) async throws -> String {
+        guard !arguments.isEmpty, let data = arguments.data(using: .utf8),
+              let args = try? JSONDecoder().decode(CreateReminderArguments.self, from: data),
+              !args.title.isEmpty, !args.scheduledTime.isEmpty else {
+            return "{\"error\": \"Missing required 'title' and 'scheduledTime' arguments\"}"
+        }
+
+        // Validate that scheduledTime is parseable
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime]
+        // Also try without timezone for simpler formats like "2026-04-05T15:00:00"
+        let fallbackFormatter = DateFormatter()
+        fallbackFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+
+        guard isoFormatter.date(from: args.scheduledTime) != nil ||
+              fallbackFormatter.date(from: args.scheduledTime) != nil else {
+            return "{\"error\": \"Invalid scheduledTime format. Use ISO 8601, e.g. '2026-04-05T15:00:00'\"}"
+        }
+
+        let baseURL = BuildConfiguration.apiBaseURL
+        let patientId = BuildConfiguration.patientId
+
+        guard let url = URL(string: "\(baseURL)/reminders") else {
+            return "{\"error\": \"Could not build request URL\"}"
+        }
+
+        let body: [String: Any] = [
+            "patientId": patientId,
+            "type": args.type ?? "general",
+            "title": args.title,
+            "scheduledTime": args.scheduledTime,
+            "notes": args.notes ?? "",
+            "repeatSchedule": args.repeatSchedule ?? "once"
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 15
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                return "{\"error\": \"Could not create reminder. Please try again.\"}"
+            }
+
+            // Format the time for confirmation
+            let displayTime: String
+            if let date = isoFormatter.date(from: args.scheduledTime) ?? fallbackFormatter.date(from: args.scheduledTime) {
+                let displayFormatter = DateFormatter()
+                displayFormatter.dateStyle = .medium
+                displayFormatter.timeStyle = .short
+                displayTime = displayFormatter.string(from: date)
+            } else {
+                displayTime = args.scheduledTime
+            }
+
+            let result: [String: Any] = [
+                "success": true,
+                "message": "Reminder created: \(args.title) at \(displayTime)"
+            ]
+            let jsonData = try JSONSerialization.data(withJSONObject: result)
+            let jsonString = String(data: jsonData, encoding: .utf8) ?? "{\"success\": true}"
+
+            AppLogger.general.info("createReminder executed: '\(args.title)' at \(args.scheduledTime)")
+            return jsonString
+        } catch {
+            AppLogger.general.error("createReminder failed: \(error.localizedDescription)")
+            return "{\"error\": \"Could not create reminder. Please try again.\"}"
+        }
+    }
+
+    // MARK: - Notify Caregiver Tool
+
+    /// Throttle: track last alert time to prevent spam
+    private static var lastCaregiverAlertTime: Date?
+    private static let caregiverAlertCooldown: TimeInterval = 300 // 5 minutes
+
+    /// Send a push notification alert to the caregiver
+    public static func notifyCaregiver(arguments: String) async throws -> String {
+        guard !arguments.isEmpty, let data = arguments.data(using: .utf8),
+              let args = try? JSONDecoder().decode(NotifyCaregiverArguments.self, from: data),
+              !args.message.isEmpty else {
+            return "{\"error\": \"Missing required 'message' and 'alert_type' arguments\"}"
+        }
+
+        // Check throttle
+        if let lastAlert = lastCaregiverAlertTime,
+           Date().timeIntervalSince(lastAlert) < caregiverAlertCooldown {
+            return "{\"already_notified\": true, \"message\": \"Your caregiver was already notified a few minutes ago.\"}"
+        }
+
+        let baseURL = BuildConfiguration.apiBaseURL
+        let patientId = BuildConfiguration.patientId
+
+        guard let url = URL(string: "\(baseURL)/alerts") else {
+            return "{\"error\": \"Could not reach your caregiver right now.\"}"
+        }
+
+        let body: [String: String] = [
+            "patientId": patientId,
+            "message": args.message,
+            "alertType": args.alertType
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 10
+        request.httpBody = try? JSONEncoder().encode(body)
+
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                return "{\"error\": \"Could not reach your caregiver right now.\"}"
+            }
+
+            lastCaregiverAlertTime = Date()
+            AppLogger.general.info("notifyCaregiver executed: \(args.alertType) - \(args.message)")
+            return "{\"success\": true, \"message\": \"Your caregiver has been notified.\"}"
+        } catch {
+            AppLogger.general.error("notifyCaregiver failed: \(error.localizedDescription)")
+            return "{\"error\": \"Could not reach your caregiver right now.\"}"
+        }
+    }
+
+    // MARK: - Get Weather Tool
+
+    /// Get current weather using WeatherKit
+    public static func getWeather(arguments: String) async throws -> String {
+        guard let service = locationService else {
+            return "{\"error\": \"Location service not available. Cannot determine weather.\"}"
+        }
+
+        guard let location = await service.lastLocation else {
+            return "{\"error\": \"Location not available yet. Cannot determine weather.\"}"
+        }
+
+        do {
+            let weatherService = WeatherService.shared
+            let weather = try await weatherService.weather(for: location, including: .current, .daily)
+
+            let current = weather.0
+            let daily = weather.1
+
+            let temperatureFormatter = MeasurementFormatter()
+            temperatureFormatter.unitOptions = .providedUnit
+            temperatureFormatter.numberFormatter.maximumFractionDigits = 0
+
+            let currentTemp = temperatureFormatter.string(from: current.temperature)
+            let condition = current.condition.description
+
+            var todayForecast: [String: String] = [:]
+            if let today = daily.forecast.first {
+                todayForecast["high"] = temperatureFormatter.string(from: today.highTemperature)
+                todayForecast["low"] = temperatureFormatter.string(from: today.lowTemperature)
+                todayForecast["precipitation_chance"] = "\(Int(today.precipitationChance * 100))%"
+            }
+
+            let result: [String: Any] = [
+                "current": [
+                    "temperature": currentTemp,
+                    "condition": condition,
+                    "humidity": "\(Int(current.humidity * 100))%"
+                ],
+                "today": todayForecast
+            ]
+
+            let jsonData = try JSONSerialization.data(withJSONObject: result)
+            let jsonString = String(data: jsonData, encoding: .utf8) ?? "{\"error\": \"Failed to encode weather\"}"
+
+            AppLogger.general.info("getWeather executed: \(currentTemp), \(condition)")
+            return jsonString
+        } catch {
+            AppLogger.general.error("getWeather failed: \(error.localizedDescription)")
+            return "{\"error\": \"Weather information is not available right now.\"}"
+        }
+    }
+
+    // MARK: - Call Caregiver Tool
+
+    /// Initiate a phone call to the caregiver
+    public static func callCaregiver(arguments: String) async throws -> String {
+        // Fetch patient facts to find caregiver phone number
+        let facts = await PatientFactsFetcher.shared.fetchFacts()
+
+        let phoneFact = facts.first { fact in
+            let category = fact.category.lowercased()
+            let label = fact.label.lowercased()
+            return category.contains("contact") &&
+                   (label.contains("phone") || label.contains("caregiver") || label.contains("emergency"))
+        }
+
+        guard let fact = phoneFact else {
+            AppLogger.general.warning("callCaregiver: no caregiver phone number found in patient facts")
+            return "{\"error\": \"No caregiver phone number is set up. Please ask your caregiver to add their phone number.\"}"
+        }
+
+        // Sanitize phone number: keep digits and +
+        let sanitized = String(fact.value.filter { $0.isNumber || $0 == "+" })
+
+        guard !sanitized.isEmpty, let telURL = URL(string: "tel://\(sanitized)") else {
+            return "{\"error\": \"The caregiver phone number on file is not valid.\"}"
+        }
+
+        await MainActor.run {
+            WKApplication.shared().openSystemURL(telURL)
+        }
+
+        AppLogger.general.info("callCaregiver executed: initiating call to \(fact.label)")
+        return "{\"success\": true, \"message\": \"Calling your caregiver now.\"}"
+    }
+
     // MARK: - Location Helpers
 
     private static func reverseGeocode(location: CLLocation) async -> String? {
@@ -434,4 +745,59 @@ private struct TranscriptMessageOutput: Codable {
     let role: String
     let text: String
     let order: Int
+}
+
+// MARK: - Supporting Types for Get Reminders
+
+private struct RemindersArguments: Codable {
+    let date: String?
+}
+
+private struct ReminderEntry: Codable {
+    let id: String
+    let title: String
+    let type: String
+    let notes: String?
+    let scheduledTime: String
+}
+
+private struct ReminderOutput: Codable {
+    let title: String
+    let time: String
+    let type: String
+    let notes: String?
+}
+
+private struct RemindersResponse: Codable {
+    let date: String
+    let reminderCount: Int
+    let reminders: [ReminderOutput]
+
+    enum CodingKeys: String, CodingKey {
+        case date
+        case reminderCount = "reminder_count"
+        case reminders
+    }
+}
+
+// MARK: - Supporting Types for Create Reminder
+
+private struct CreateReminderArguments: Codable {
+    let title: String
+    let scheduledTime: String
+    let type: String?
+    let notes: String?
+    let repeatSchedule: String?
+}
+
+// MARK: - Supporting Types for Notify Caregiver
+
+private struct NotifyCaregiverArguments: Codable {
+    let message: String
+    let alertType: String
+
+    enum CodingKeys: String, CodingKey {
+        case message
+        case alertType = "alert_type"
+    }
 }

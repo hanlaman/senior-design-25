@@ -47,8 +47,56 @@ public class ToolRegistry: ObservableObject {
                 isHidden: false,
                 parameters: [:],
                 handler: .getCurrentTime
+            ),
+            LocalFunctionTool(
+                id: "create_reminder",
+                name: "create_reminder",
+                description: LLMPrompts.Tools.createReminder,
+                displayName: "Create Reminder",
+                shortDescription: "Set a new reminder",
+                toolsetId: "Utilities",
+                isEnabled: true,
+                isHidden: false,
+                parameters: [
+                    "type": AnyCodable("object"),
+                    "properties": AnyCodable([
+                        "title": [
+                            "type": "string",
+                            "description": LLMPrompts.Tools.createReminderTitleParam
+                        ],
+                        "scheduledTime": [
+                            "type": "string",
+                            "description": LLMPrompts.Tools.createReminderTimeParam
+                        ],
+                        "type": [
+                            "type": "string",
+                            "description": LLMPrompts.Tools.createReminderTypeParam
+                        ],
+                        "notes": [
+                            "type": "string",
+                            "description": LLMPrompts.Tools.createReminderNotesParam
+                        ],
+                        "repeatSchedule": [
+                            "type": "string",
+                            "description": LLMPrompts.Tools.createReminderRepeatParam
+                        ]
+                    ]),
+                    "required": AnyCodable(["title", "scheduledTime"])
+                ],
+                handler: .createReminder
+            ),
+            LocalFunctionTool(
+                id: "call_caregiver",
+                name: "call_caregiver",
+                description: LLMPrompts.Tools.callCaregiver,
+                displayName: "Call Caregiver",
+                shortDescription: "Call your caregiver",
+                toolsetId: "Utilities",
+                isEnabled: true,
+                isHidden: false,
+                parameters: [:],
+                handler: .callCaregiver
             )
-            // Future visible tools will be added here
         ]
 
         // Initialize hidden tools (always enabled, not shown in UI)
@@ -120,6 +168,63 @@ public class ToolRegistry: ObservableObject {
                 isHidden: true,
                 parameters: [:],
                 handler: .getCurrentLocation
+            ),
+            LocalFunctionTool(
+                id: "get_reminders",
+                name: "get_reminders",
+                description: LLMPrompts.Tools.getReminders,
+                displayName: "Reminders",
+                shortDescription: "Get upcoming reminders",
+                toolsetId: "System",
+                isEnabled: true,
+                isHidden: true,
+                parameters: [
+                    "type": AnyCodable("object"),
+                    "properties": AnyCodable([
+                        "date": [
+                            "type": "string",
+                            "description": LLMPrompts.Tools.getRemindersDateParam
+                        ]
+                    ])
+                ],
+                handler: .getReminders
+            ),
+            LocalFunctionTool(
+                id: "notify_caregiver",
+                name: "notify_caregiver",
+                description: LLMPrompts.Tools.notifyCaregiver,
+                displayName: "Notify Caregiver",
+                shortDescription: "Alert the caregiver",
+                toolsetId: "System",
+                isEnabled: true,
+                isHidden: true,
+                parameters: [
+                    "type": AnyCodable("object"),
+                    "properties": AnyCodable([
+                        "message": [
+                            "type": "string",
+                            "description": LLMPrompts.Tools.notifyCaregiverMessageParam
+                        ],
+                        "alert_type": [
+                            "type": "string",
+                            "description": LLMPrompts.Tools.notifyCaregiverAlertTypeParam
+                        ]
+                    ]),
+                    "required": AnyCodable(["message", "alert_type"])
+                ],
+                handler: .notifyCaregiver
+            ),
+            LocalFunctionTool(
+                id: "get_weather",
+                name: "get_weather",
+                description: LLMPrompts.Tools.getWeather,
+                displayName: "Weather",
+                shortDescription: "Get current weather",
+                toolsetId: "System",
+                isEnabled: true,
+                isHidden: true,
+                parameters: [:],
+                handler: .getWeather
             )
         ]
 

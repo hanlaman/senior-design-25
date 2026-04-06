@@ -30,13 +30,23 @@ export class ReminderService {
     return { success: true };
   }
 
-  async findAll(patientId: string) {
-    return db
+  async findAll(patientId: string, date?: string) {
+    let query = db
       .selectFrom('reminder')
       .selectAll()
-      .where('patientId', '=', patientId)
-      .orderBy('scheduledTime', 'asc')
-      .execute();
+      .where('patientId', '=', patientId);
+
+    if (date) {
+      const dayStart = new Date(`${date}T00:00:00`);
+      const dayEnd = new Date(`${date}T23:59:59.999`);
+      query = query
+        .where('scheduledTime', '>=', dayStart)
+        .where('scheduledTime', '<=', dayEnd)
+        .where('isEnabled', '=', true)
+        .where('isCompleted', '=', false);
+    }
+
+    return query.orderBy('scheduledTime', 'asc').execute();
   }
 
   async update(
