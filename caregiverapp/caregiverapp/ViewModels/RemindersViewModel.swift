@@ -81,7 +81,10 @@ final class RemindersViewModel {
         }
     }
 
-    func onAppear() { reminders = dataProvider.reminders }
+    func onAppear() {
+        reminders = dataProvider.reminders
+        Task { await refreshFromAPI() }
+    }
 
     // ┌─────────────────────────────────────────────────────────────────────────┐
     // │ GENERIC ADD METHOD                                                      │

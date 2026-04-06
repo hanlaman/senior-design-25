@@ -363,7 +363,7 @@ public enum ToolExecutors {
 
         let body: [String: Any] = [
             "patientId": patientId,
-            "type": args.type ?? "general",
+            "type": args.type ?? "custom",
             "title": args.title,
             "scheduledTime": args.scheduledTime,
             "notes": args.notes ?? "",
