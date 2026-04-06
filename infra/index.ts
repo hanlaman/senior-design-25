@@ -212,8 +212,6 @@ const sqlDatabase = new sql.Database(`sql-db-${stack}`, {
     },
     autoPauseDelay: 60,
     minCapacity: 0.5,
-    useFreeLimit: true,
-    freeLimitExhaustionBehavior: "AutoPause",
 });
 
 // ── Log Analytics Workspace (free tier: 5 GB/month ingestion) ─────────────────
@@ -312,7 +310,7 @@ const containerApp = new app.ContainerApp(`remind-api-${stack}`, {
             ],
         }],
         scale: {
-            minReplicas: 1,
+            minReplicas: 0,
             maxReplicas: 1,
             rules: [{
                 name: "http-rule",
