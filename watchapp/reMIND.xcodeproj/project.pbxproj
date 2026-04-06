@@ -53,6 +53,7 @@
 		094A7E462F22B4F100F3B8AE /* reMIND Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "reMIND Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		094A7E552F22B4F200F3B8AE /* reMIND Watch AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "reMIND Watch AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		094A7E5F2F22B4F200F3B8AE /* reMIND Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "reMIND Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		09C32B792F844209002E9B82 /* fifththird.gpx */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = fifththird.gpx; path = ../coordinates/fifththird.gpx; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -101,6 +102,7 @@
 		094A7E392F22B4F100F3B8AE = {
 			isa = PBXGroup;
 			children = (
+				09C32B792F844209002E9B82 /* fifththird.gpx */,
 				094A7E4A2F22B4F100F3B8AE /* reMIND Watch App */,
 				094A7E582F22B4F200F3B8AE /* reMIND Watch AppTests */,
 				094A7E622F22B4F200F3B8AE /* reMIND Watch AppUITests */,
