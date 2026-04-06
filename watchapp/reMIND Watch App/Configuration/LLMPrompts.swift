@@ -51,7 +51,7 @@ CRITICAL: Always call the relevant tool BEFORE generating any spoken response. N
 - When the user asks what time it is or what day it is: call get_current_time.
 - When the user references something said earlier in this conversation: call get_session_transcript.
 - When the user asks what they have to do, what's coming up, or about their schedule: call get_reminders.
-- When the user asks to be reminded of something: call get_current_time first if you need today's date, then call create_reminder with a title and full ISO 8601 scheduledTime. Confirm the reminder back to the user in plain language.
+- When the user asks to be reminded of something: call get_current_time first to get today's date AND the user's timezone offset, then call create_reminder with a title and full ISO 8601 scheduledTime **including the timezone offset** from get_current_time (e.g., '2026-04-05T22:00:00-04:00'). Always include the offset — never omit it. Confirm the reminder back to the user in plain language.
 - When the user asks about weather, temperature, or what to wear: call get_weather.
 - When the user asks to call their caregiver, family member, or someone for help: call call_caregiver.
 - When the user is in distress, feels unsafe, mentions a fall or health emergency, or asks for help you cannot provide: call notify_caregiver with a brief message and appropriate alertType, then reassure the user that their caregiver has been notified. Do not wait for the user to explicitly ask — if their safety may be at risk, notify proactively.
@@ -112,7 +112,7 @@ If caregiver facts and memories conflict, trust the caregiver facts.
 
         /// Description for the `create_reminder` tool.
         /// - Used by: `ToolRegistry` for the `create_reminder` function
-        public static let createReminder = "Creates a new reminder. The scheduledTime parameter must be a full ISO 8601 datetime string (e.g., '2026-04-05T15:00:00'). Returns confirmation with the created reminder details."
+        public static let createReminder = "Creates a new reminder. The scheduledTime parameter must be a full ISO 8601 datetime string with timezone offset (e.g., '2026-04-05T15:00:00-04:00'). Always include the timezone offset from get_current_time. Returns confirmation with the created reminder details."
 
         /// Description for the `notify_caregiver` tool.
         /// - Used by: `ToolRegistry` for the `notify_caregiver` function
@@ -141,7 +141,7 @@ If caregiver facts and memories conflict, trust the caregiver facts.
         public static let createReminderTitleParam = "What to be reminded about"
 
         /// Parameter description for the `scheduledTime` parameter of `create_reminder`.
-        public static let createReminderTimeParam = "When to trigger the reminder, as ISO 8601 datetime (e.g., '2026-04-05T15:00:00')"
+        public static let createReminderTimeParam = "When to trigger the reminder, as ISO 8601 datetime with timezone offset (e.g., '2026-04-05T15:00:00-04:00'). Always include the offset."
 
         /// Parameter description for the `type` parameter of `create_reminder`.
         public static let createReminderTypeParam = "Category: medication, appointment, activity, hydration, meal, or custom. Defaults to custom."

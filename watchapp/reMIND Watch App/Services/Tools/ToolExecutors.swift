@@ -41,8 +41,25 @@ public enum ToolExecutors {
             let now = Date()
             let timeString = formatter.string(from: now)
 
+            // Include ISO 8601 offset so the LLM can build correct scheduledTime values
+            let isoFormatter = ISO8601DateFormatter()
+            isoFormatter.formatOptions = [.withInternetDateTime]
+            isoFormatter.timeZone = .current
+            let isoString = isoFormatter.string(from: now)
+
+            let offsetFormatter = DateFormatter()
+            offsetFormatter.dateFormat = "xxx" // e.g. "-04:00"
+            let tzOffset = offsetFormatter.string(from: now)
+
+            let tzAbbrev = TimeZone.current.abbreviation() ?? ""
+
             // Create result dictionary
-            let result: [String: String] = ["current_time": timeString]
+            let result: [String: String] = [
+                "current_time": timeString,
+                "iso8601": isoString,
+                "timezone_offset": tzOffset,
+                "timezone": tzAbbrev,
+            ]
 
             // Encode to JSON
             let jsonData = try JSONEncoder().encode(result)
@@ -269,7 +286,15 @@ public enum ToolExecutors {
         guard var urlComponents = URLComponents(string: "\(baseURL)/reminders/\(patientId)") else {
             return "{\"error\": \"Could not build request URL\"}"
         }
-        urlComponents.queryItems = [URLQueryItem(name: "date", value: date)]
+
+        let offsetFormatter = DateFormatter()
+        offsetFormatter.dateFormat = "xxx"
+        let tzOffset = offsetFormatter.string(from: Date())
+
+        urlComponents.queryItems = [
+            URLQueryItem(name: "date", value: date),
+            URLQueryItem(name: "tz", value: tzOffset),
+        ]
 
         guard let url = urlComponents.url else {
             return "{\"error\": \"Could not build request URL\"}"
