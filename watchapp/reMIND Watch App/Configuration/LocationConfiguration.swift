@@ -10,7 +10,7 @@ import Foundation
 /// Configuration constants for location service
 enum LocationConfiguration {
     /// Timeout for location update API requests (seconds)
-    static let requestTimeout: TimeInterval = 10
+    static var requestTimeout: TimeInterval { DebugSettings.shared.timeoutsDisabled ? .infinity : 10 }
 
     /// Interval between periodic location sends to the server (seconds)
     static let updateInterval: TimeInterval = 30

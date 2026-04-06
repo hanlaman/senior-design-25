@@ -13,6 +13,7 @@ import os
 
 struct DebugPageView: View {
     @ObservedObject var viewModel: VoiceViewModel
+    @ObservedObject private var debugSettings = DebugSettings.shared
     @State private var networkPath: String = "checking..."
     @State private var wifiPath: String = "checking..."
     @State private var connectivityTest: String = "—"
@@ -47,6 +48,10 @@ struct DebugPageView: View {
                 row("WS Test", value: wsTest)
                 row("WS (URLSession)", value: urlSessionWsTest)
                 row("WS (Audio+URL)", value: audioWsTest)
+            }
+
+            Section("Debug Options") {
+                Toggle("Disable Timeouts", isOn: $debugSettings.timeoutsDisabled)
             }
 
             Section {

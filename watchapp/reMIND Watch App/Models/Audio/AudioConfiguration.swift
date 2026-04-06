@@ -48,7 +48,7 @@ struct AudioConfiguration {
 
     /// Timeout after capture before cleaning up session (seconds)
     /// Allows time for response to arrive after user stops speaking
-    static let sessionTimeout: TimeInterval = 10.0
+    static var sessionTimeout: TimeInterval { DebugSettings.shared.timeoutsDisabled ? .infinity : 10.0 }
 
     /// Small delay to allow in-flight audio chunks to be processed (seconds)
     static let audioChunkProcessingDelay: TimeInterval = 0.1
