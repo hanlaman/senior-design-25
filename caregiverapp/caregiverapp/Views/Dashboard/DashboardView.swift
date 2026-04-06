@@ -34,6 +34,9 @@ struct DashboardView: View {
 
     // State for showing the settings/profile sheet
     @State private var showingSettings = false
+    @State private var showingNoPhoneAlert = false
+
+    @AppStorage("patientPhoneNumber") private var patientPhone = ""
 
     // ┌─────────────────────────────────────────────────────────────────────────┐
     // │ CUSTOM INITIALIZER FOR VIEWS                                            │
@@ -158,6 +161,17 @@ struct DashboardView: View {
         // │                                                                     │
         // │ await viewModel.refresh() - Wait for the refresh to complete       │
         // └─────────────────────────────────────────────────────────────────────┘
+        .alert("Alert Sent", isPresented: Bindable(viewModel).showAlertSentConfirmation) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("A check-in alert has been sent to \(viewModel.patient?.name ?? "the patient")'s watch.")
+        }
+        .alert("No Phone Number", isPresented: $showingNoPhoneAlert) {
+            Button("Open Settings") { showingSettings = true }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Add a patient phone number in Settings to use this action.")
+        }
         .refreshable { await viewModel.refresh() }
 
         // ┌─────────────────────────────────────────────────────────────────────┐
@@ -283,7 +297,24 @@ struct DashboardView: View {
     }
 
     private var quickActionsSection: some View {
-        VStack(alignment: .leading, spacing: 12) { Text("Quick Actions").font(.headline); QuickActionRow() }
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Quick Actions").font(.headline)
+            QuickActionRow(
+                onCall: { openPhoneURL("tel:") },
+                onMessage: { openPhoneURL("sms:") },
+                onVideo: { openPhoneURL("facetime:") },
+                onAlert: { viewModel.sendWatchAlert() }
+            )
+        }
+    }
+
+    private func openPhoneURL(_ scheme: String) {
+        let digits = patientPhone.filter(\.isNumber)
+        guard !digits.isEmpty, let url = URL(string: "\(scheme)\(digits)") else {
+            showingNoPhoneAlert = true
+            return
+        }
+        UIApplication.shared.open(url)
     }
 
     private var criticalAlertsSection: some View {

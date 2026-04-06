@@ -10,6 +10,7 @@ import { ApnsModule } from './apns/apns.module';
 import { ConversationModule } from './conversation/conversation.module';
 import { MemoryModule } from './memory/memory.module';
 import { PatientFactModule } from './patient-fact/patient-fact.module';
+import { ContactModule } from './contact/contact.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { PatientFactModule } from './patient-fact/patient-fact.module';
     ConversationModule,
     MemoryModule,
     PatientFactModule,
+    ContactModule,
   ],
   controllers: [AppController],
   providers: [AppService],

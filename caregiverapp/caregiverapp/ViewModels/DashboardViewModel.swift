@@ -213,6 +213,12 @@ final class DashboardViewModel {
     // │ Views call these methods when users interact.                          │
     // │ The ViewModel handles the business logic.                              │
     // └─────────────────────────────────────────────────────────────────────────┘
+    var showAlertSentConfirmation: Bool = false
+
+    func sendWatchAlert() {
+        showAlertSentConfirmation = true
+    }
+
     func acknowledgeAlert(_ alert: PatientAlert) {
         // ┌─────────────────────────────────────────────────────────────────────┐
         // │ Task { }                                                            │

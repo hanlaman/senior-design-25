@@ -189,6 +189,16 @@ interface PatientFactTable {
   updatedAt: Generated<Date>;
 }
 
+interface ContactTable {
+  id: Generated<string>;
+  patientId: string;
+  role: string;
+  name: string;
+  phoneNumber: string;
+  createdAt: Generated<Date>;
+  updatedAt: Generated<Date>;
+}
+
 // Database interface combining all tables
 export interface Database {
   user: UserTable;
@@ -206,6 +216,7 @@ export interface Database {
   memoryLink: MemoryLinkTable;
   memoryExtractionLog: MemoryExtractionLogTable;
   patientFact: PatientFactTable;
+  contact: ContactTable;
 }
 
 // Export the Kysely database instance
