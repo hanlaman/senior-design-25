@@ -96,6 +96,18 @@ public class ToolRegistry: ObservableObject {
                 isHidden: false,
                 parameters: [:],
                 handler: .callCaregiver
+            ),
+            LocalFunctionTool(
+                id: "get_weather",
+                name: "get_weather",
+                description: LLMPrompts.Tools.getWeather,
+                displayName: "Weather",
+                shortDescription: "Get current weather",
+                toolsetId: "Utilities",
+                isEnabled: true,
+                isHidden: false,
+                parameters: [:],
+                handler: .getWeather
             )
         ]
 
@@ -213,18 +225,6 @@ public class ToolRegistry: ObservableObject {
                     "required": AnyCodable(["message", "alert_type"])
                 ],
                 handler: .notifyCaregiver
-            ),
-            LocalFunctionTool(
-                id: "get_weather",
-                name: "get_weather",
-                description: LLMPrompts.Tools.getWeather,
-                displayName: "Weather",
-                shortDescription: "Get current weather",
-                toolsetId: "System",
-                isEnabled: true,
-                isHidden: true,
-                parameters: [:],
-                handler: .getWeather
             )
         ]
 
