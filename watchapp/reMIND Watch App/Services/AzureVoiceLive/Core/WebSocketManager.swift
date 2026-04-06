@@ -312,12 +312,21 @@ actor WebSocketManager {
             monitor.pathUpdateHandler = { path in
                 guard path.status == .satisfied else { return }
 
-                // On watchOS, WiFi appears as .wifi on some devices and as .other on others.
-                // Accept either. Reject paths that are cellular-only (no .wifi / .other).
-                let hasWifi = path.usesInterfaceType(.wifi)
-                let hasOther = path.usesInterfaceType(.other)
+                // usesInterfaceType() only returns true when that interface is the *active*
+                // path interface. On a cellular Watch with WiFi connected, the unrestricted
+                // monitor can return a path where cellular is active, causing usesInterfaceType(.wifi)
+                // to return false even though WiFi IS available. The monitor won't re-fire because
+                // the path hasn't changed, so we'd time out incorrectly.
+                //
+                // availableInterfaces lists every connected interface on the path (active or not),
+                // so it correctly reflects that WiFi is present even when cellular is primary.
+                // On watchOS, WiFi can appear as .wifi or .other depending on hardware/OS version.
+                let availableTypes = Set(path.availableInterfaces.map { $0.type })
+                let hasWifi = availableTypes.contains(.wifi)
+                let hasOther = availableTypes.contains(.other)
                 guard hasWifi || hasOther else {
-                    AppLogger.network.debug("Path satisfied but cellular-only — waiting for WiFi")
+                    let ifaceNames = path.availableInterfaces.map { $0.name }.joined(separator: ", ")
+                    AppLogger.network.debug("Path satisfied but no WiFi/.other in available interfaces [\(ifaceNames)] — waiting for WiFi")
                     return
                 }
 
