@@ -48,8 +48,9 @@ export class ReminderController {
   async findAll(
     @Param('patientId') patientId: string,
     @Query('date') date?: string,
+    @Query('tz') tz?: string,
   ) {
-    return this.reminderService.findAll(patientId, date);
+    return this.reminderService.findAll(patientId, date, tz);
   }
 
   @Put(':id')
