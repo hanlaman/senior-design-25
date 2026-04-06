@@ -48,6 +48,11 @@ The user may ask the same question multiple times. This is expected — never ex
 - When the user asks where they are or seems disoriented: call get_current_location. Describe their location using familiar place names — never mention coordinates or technical details.
 - When the user asks what time it is or what day it is: call get_current_time.
 - When the user references something said earlier in this conversation: call get_session_transcript.
+- When the user asks what they have to do, what's coming up, or about their schedule: call get_reminders.
+- When the user asks to be reminded of something: call get_current_time first if you need today's date, then call create_reminder with a title and full ISO 8601 scheduledTime. Confirm the reminder back to the user in plain language.
+- When the user asks about weather, temperature, or what to wear: call get_weather.
+- When the user asks to call their caregiver, family member, or someone for help: call call_caregiver.
+- When the user is in distress, feels unsafe, mentions a fall or health emergency, or asks for help you cannot provide: call notify_caregiver with a brief message and appropriate alertType, then reassure the user that their caregiver has been notified. Do not wait for the user to explicitly ask — if their safety may be at risk, notify proactively.
 
 ## Information Priority
 1. **Caregiver-provided facts** (from get_patient_facts) — these are verified ground truth. Use confidently.
@@ -57,9 +62,9 @@ If caregiver facts and memories conflict, trust the caregiver facts.
 
 ## Safety & Escalation
 - Never provide medical diagnoses or medication advice beyond what the caregiver has explicitly documented.
-- If the user expresses that they are lost, feel unsafe, or do not recognize where they are: check their location with get_current_location, orient them calmly, and suggest they contact their caregiver.
-- If the user mentions falling, chest pain, or feeling very unwell: encourage them to stay still and contact their caregiver or emergency services immediately. Keep your tone calm but clear.
-- If the user becomes very agitated or distressed and you cannot help them feel calmer: gently suggest calling their caregiver or a family member.
+- If the user expresses that they are lost, feel unsafe, or do not recognize where they are: check their location with get_current_location, orient them calmly, and use notify_caregiver to alert their caregiver.
+- If the user mentions falling, chest pain, or feeling very unwell: use notify_caregiver with alertType "health_emergency", encourage them to stay still, and keep your tone calm but clear.
+- If the user becomes very agitated or distressed and you cannot help them feel calmer: use notify_caregiver and suggest calling their caregiver via call_caregiver.
 
 ## What Not To Do
 - Do not overwhelm the user with long responses or multiple pieces of information at once.
@@ -71,36 +76,53 @@ If caregiver facts and memories conflict, trust the caregiver facts.
     // MARK: - Tool Descriptions
 
     /// Tool descriptions for LLM function calling.
-    /// These descriptions guide the model on when and how to use each tool.
+    /// These describe what each tool does and returns (mechanics).
+    /// Orchestration logic (when/why/order to call tools) lives in the system prompt above.
     public enum Tools {
+
+        // MARK: Existing Tools
 
         /// Description for the `get_current_time` tool.
         /// - Used by: `ToolRegistry` for the `get_current_time` function
-        public static let getCurrentTime = "Get the current local date and time. Use when the user asks what time or day it is, or when you need to orient them to the current moment."
+        public static let getCurrentTime = "Returns the current local date and time in a human-readable format."
 
         /// Description for the `get_session_transcript` tool.
         /// - Used by: `ToolRegistry` for the `get_session_transcript` function
-        public static let getSessionTranscript = """
-Get the transcript of this conversation so far. Use when the user references something said earlier ("what did I just ask?", "you said something about...") or when you need to check what has already been discussed to avoid repeating yourself.
-"""
+        public static let getSessionTranscript = "Returns the transcript of this conversation — all messages exchanged so far in chronological order."
 
         /// Description for the `get_user_memories` tool.
         /// - Used by: `ToolRegistry` for the `get_user_memories` function
-        public static let getUserMemories = """
-Search memories from the user's past conversations. Returns things the user has previously shared about their life, people, routines, and preferences. Use when the user asks about themselves and the answer is not already in your context or in caregiver-provided facts.
-"""
+        public static let getUserMemories = "Searches memories from the user's past conversations. Returns things the user has previously shared about their life, people, routines, and preferences."
 
         /// Description for the `get_patient_facts` tool.
         /// - Used by: `ToolRegistry` for the `get_patient_facts` function
-        public static let getPatientFacts = """
-Fetch verified facts about the user entered by their caregiver — name, family, medications, routines, preferences. These are the most authoritative source of information about the user.
-"""
+        public static let getPatientFacts = "Returns verified facts about the user entered by their caregiver — name, family, medications, routines, preferences. These are the most authoritative source of information about the user."
 
         /// Description for the `get_current_location` tool.
         /// - Used by: `ToolRegistry` for the `get_current_location` function
-        public static let getCurrentLocation = """
-Get the user's current location as a familiar place description, whether they are in a known safe zone, and nearby landmarks with walking times. Use when the user asks where they are, seems lost or disoriented, or asks about nearby places.
-"""
+        public static let getCurrentLocation = "Returns the user's current location as a familiar place description, whether they are in a known safe zone, and nearby landmarks with walking times."
+
+        // MARK: New Tools
+
+        /// Description for the `get_reminders` tool.
+        /// - Used by: `ToolRegistry` for the `get_reminders` function
+        public static let getReminders = "Returns the user's reminders, optionally filtered by date. Each reminder includes title, scheduled time, type, and notes."
+
+        /// Description for the `create_reminder` tool.
+        /// - Used by: `ToolRegistry` for the `create_reminder` function
+        public static let createReminder = "Creates a new reminder. The scheduledTime parameter must be a full ISO 8601 datetime string (e.g., '2026-04-05T15:00:00'). Returns confirmation with the created reminder details."
+
+        /// Description for the `notify_caregiver` tool.
+        /// - Used by: `ToolRegistry` for the `notify_caregiver` function
+        public static let notifyCaregiver = "Sends a push notification alert to the user's caregiver's phone. The message should briefly describe the situation. Returns confirmation of delivery."
+
+        /// Description for the `get_weather` tool.
+        /// - Used by: `ToolRegistry` for the `get_weather` function
+        public static let getWeather = "Returns current weather conditions and today's forecast for the user's location, including temperature, conditions, and precipitation chance."
+
+        /// Description for the `call_caregiver` tool.
+        /// - Used by: `ToolRegistry` for the `call_caregiver` function
+        public static let callCaregiver = "Initiates a phone call to the user's caregiver. Automatically looks up the caregiver's phone number from patient information."
 
         // MARK: Parameter Descriptions
 
@@ -109,5 +131,29 @@ Get the user's current location as a familiar place description, whether they ar
 
         /// Parameter description for the `max_messages` parameter of `get_session_transcript`.
         public static let getSessionTranscriptMaxMessagesParam = "Maximum number of recent messages to return. Omit for all messages."
+
+        /// Parameter description for the `date` parameter of `get_reminders`.
+        public static let getRemindersDateParam = "ISO date (YYYY-MM-DD) to filter reminders. Defaults to today."
+
+        /// Parameter description for the `title` parameter of `create_reminder`.
+        public static let createReminderTitleParam = "What to be reminded about"
+
+        /// Parameter description for the `scheduledTime` parameter of `create_reminder`.
+        public static let createReminderTimeParam = "When to trigger the reminder, as ISO 8601 datetime (e.g., '2026-04-05T15:00:00')"
+
+        /// Parameter description for the `type` parameter of `create_reminder`.
+        public static let createReminderTypeParam = "Category: medication, appointment, activity, or general. Defaults to general."
+
+        /// Parameter description for the `notes` parameter of `create_reminder`.
+        public static let createReminderNotesParam = "Additional details for the reminder"
+
+        /// Parameter description for the `repeatSchedule` parameter of `create_reminder`.
+        public static let createReminderRepeatParam = "Repeat schedule: once, daily, or weekly. Defaults to once."
+
+        /// Parameter description for the `message` parameter of `notify_caregiver`.
+        public static let notifyCaregiverMessageParam = "Brief description of why the caregiver is being notified"
+
+        /// Parameter description for the `alert_type` parameter of `notify_caregiver`.
+        public static let notifyCaregiverAlertTypeParam = "One of: help_request, safety_concern, health_emergency, general"
     }
 }

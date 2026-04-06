@@ -182,6 +182,78 @@ export class ApnsService implements OnModuleInit, OnModuleDestroy {
     this.logger.debug(`APNs geofence alert sent for zone "${zoneName}"`);
   }
 
+  async sendCaregiverAlert(
+    patientId: string,
+    message: string,
+    alertType: string,
+  ) {
+    if (!this.provider) {
+      this.logger.warn(
+        'APNs provider not initialized, skipping caregiver alert',
+      );
+      return { success: false, devicesNotified: 0 };
+    }
+
+    // Only notify iOS (caregiver) devices
+    const devices = await db
+      .selectFrom('deviceToken')
+      .selectAll()
+      .where('patientId', '=', patientId)
+      .where('platform', '=', 'ios')
+      .execute();
+
+    if (devices.length === 0) {
+      this.logger.warn(
+        `No iOS devices registered for patient ${patientId}, cannot send caregiver alert`,
+      );
+      return { success: true, devicesNotified: 0 };
+    }
+
+    const alertTitles: Record<string, string> = {
+      help_request: 'Help Requested',
+      safety_concern: 'Safety Concern',
+      health_emergency: 'Health Emergency',
+      general: 'Alert from reMIND',
+    };
+
+    let devicesNotified = 0;
+    for (const device of devices) {
+      try {
+        const notification = new apn.Notification();
+        notification.topic = device.bundleId;
+        notification.pushType = 'alert';
+        notification.expiry = Math.floor(Date.now() / 1000) + 3600;
+        notification.sound = 'default';
+        notification.alert = {
+          title: alertTitles[alertType] ?? alertTitles.general,
+          body: message,
+        };
+        (notification as any).category = 'CAREGIVER_ALERT';
+        notification.payload = { alertType };
+
+        const result = await this.provider.send(notification, device.token);
+
+        if (result.failed.length > 0) {
+          const failure = result.failed[0];
+          this.logger.error(
+            `APNs caregiver alert failed for device: ${JSON.stringify(failure.response)}`,
+          );
+        } else {
+          devicesNotified++;
+        }
+      } catch (error) {
+        this.logger.error(
+          `Failed to send caregiver alert to device: ${error}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `Caregiver alert (${alertType}) sent to ${devicesNotified}/${devices.length} devices for patient ${patientId}`,
+    );
+    return { success: true, devicesNotified };
+  }
+
   async registerDeviceToken(
     patientId: string,
     token: string,

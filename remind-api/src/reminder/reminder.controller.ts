@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { ReminderService } from './reminder.service';
@@ -44,8 +45,11 @@ export class ReminderController {
 
   @Get(':patientId')
   @AllowAnonymous()
-  async findAll(@Param('patientId') patientId: string) {
-    return this.reminderService.findAll(patientId);
+  async findAll(
+    @Param('patientId') patientId: string,
+    @Query('date') date?: string,
+  ) {
+    return this.reminderService.findAll(patientId, date);
   }
 
   @Put(':id')
