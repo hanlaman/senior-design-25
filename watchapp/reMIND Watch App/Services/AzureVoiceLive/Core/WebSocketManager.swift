@@ -274,17 +274,26 @@ actor WebSocketManager {
 
     // MARK: - Private Methods
 
-    /// Waits until a WiFi path is satisfied, or throws if none arrives within the timeout.
+    /// Waits until a usable network path is available, or throws if none arrives within the timeout.
     ///
-    /// On watchOS the system can select the iPhone Bluetooth relay (companion tunnel) even
-    /// when WiFi is available, because the relay path is registered first during app launch.
-    /// Gating on NWPathMonitor(requiredInterfaceType: .wifi) ensures the socket is only opened
-    /// once the OS confirms a direct WiFi path — preventing silent fallback to Bluetooth relay.
+    /// On watchOS, direct WiFi can be reported as either `.wifi` OR `.other` by the Network
+    /// framework depending on the hardware and OS version. Using
+    /// `NWPathMonitor(requiredInterfaceType: .wifi)` is therefore too strict — it never fires
+    /// on devices where WiFi registers as `.other`, blocking the connection entirely.
+    ///
+    /// Instead we use an unrestricted `NWPathMonitor` and accept any satisfied path that uses
+    /// `.wifi` or `.other` (both indicate a direct local-network connection on watchOS).
+    /// Pure cellular-only paths are rejected since Azure latency over cellular is unreliable
+    /// for a real-time audio WebSocket.
+    ///
+    /// URLSession naturally prefers the fastest available path, so when WiFi and the Bluetooth
+    /// relay are both present the socket will open over WiFi.
     private func requireWiFiPath() async throws {
         let timeout = WebSocketConfiguration.wifiPathCheckTimeout
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let monitor = NWPathMonitor(requiredInterfaceType: .wifi)
+            // Unrestricted monitor — we inspect the interface types ourselves below.
+            let monitor = NWPathMonitor()
             // OSAllocatedUnfairLock guards the single-resume invariant: the monitor
             // callback and the timeout task can both fire; only the first should resume.
             let lock = OSAllocatedUnfairLock(initialState: false)
@@ -295,20 +304,33 @@ actor WebSocketManager {
                     guard !alreadyResumed else { return }
                     alreadyResumed = true
                     monitor.cancel()
-                    AppLogger.network.error("WiFi path not available within \(timeout)s — watch may not be on WiFi")
+                    AppLogger.network.error("No usable network path within \(timeout)s — watch may not be on WiFi")
                     continuation.resume(throwing: WebSocketError.wifiNotAvailable)
                 }
             }
 
             monitor.pathUpdateHandler = { path in
                 guard path.status == .satisfied else { return }
+
+                // On watchOS, WiFi appears as .wifi on some devices and as .other on others.
+                // Accept either. Reject paths that are cellular-only (no .wifi / .other).
+                let hasWifi = path.usesInterfaceType(.wifi)
+                let hasOther = path.usesInterfaceType(.other)
+                guard hasWifi || hasOther else {
+                    AppLogger.network.debug("Path satisfied but cellular-only — waiting for WiFi")
+                    return
+                }
+
                 lock.withLock { alreadyResumed in
                     guard !alreadyResumed else { return }
                     alreadyResumed = true
                     timeoutTask.cancel()
                     monitor.cancel()
-                    let ifaces = path.availableInterfaces.map { $0.name }.joined(separator: ", ")
-                    AppLogger.network.info("WiFi path confirmed (interfaces: \(ifaces))")
+
+                    // Log which interface type was detected to help diagnose per-device behaviour.
+                    let ifaceType = hasWifi ? "wifi (.wifi)" : "wifi (.other — watchOS reclassified)"
+                    let ifaceNames = path.availableInterfaces.map { $0.name }.joined(separator: ", ")
+                    AppLogger.network.info("Network path confirmed via \(ifaceType), interfaces: \(ifaceNames)")
                     continuation.resume()
                 }
             }
