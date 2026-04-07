@@ -148,11 +148,13 @@ actor WebSocketManager {
                 group.addTask {
                     try await self.receiveMessage()
                 }
-                group.addTask {
-                    try await Task.sleep(nanoseconds: UInt64(WebSocketConfiguration.connectionTimeout * 1_000_000_000))
-                    throw WebSocketError.connectionFailed(
-                        NSError(domain: "WebSocket", code: -1, userInfo: [NSLocalizedDescriptionKey: "Connection timed out waiting for first message"])
-                    )
+                if !WebSocketConfiguration.connectionTimeout.isInfinite {
+                    group.addTask {
+                        try await Task.sleep(nanoseconds: UInt64(WebSocketConfiguration.connectionTimeout * 1_000_000_000))
+                        throw WebSocketError.connectionFailed(
+                            NSError(domain: "WebSocket", code: -1, userInfo: [NSLocalizedDescriptionKey: "Connection timed out waiting for first message"])
+                        )
+                    }
                 }
                 let result = try await group.next()!
                 group.cancelAll()
