@@ -41,8 +41,10 @@ class AppDelegate: NSObject, WKApplicationDelegate, UNUserNotificationCenterDele
             }
         }
 
-        // Register for remote notifications
+        // Register for remote notifications (skip on simulator to avoid registering fake tokens)
+        #if !targetEnvironment(simulator)
         WKExtension.shared().registerForRemoteNotifications()
+        #endif
 
         // Register actionable notification category
         let completeAction = UNNotificationAction(
@@ -63,16 +65,20 @@ class AppDelegate: NSObject, WKApplicationDelegate, UNUserNotificationCenterDele
         )
         UNUserNotificationCenter.current().setNotificationCategories([reminderCategory])
 
-        // Re-register cached device token on restart
+        // Re-register cached device token on restart (skip on simulator)
+        #if !targetEnvironment(simulator)
         Task {
             await deviceTokenService.reregisterCachedToken()
         }
+        #endif
     }
 
     func didRegisterForRemoteNotifications(withDeviceToken deviceToken: Data) {
+        #if !targetEnvironment(simulator)
         Task {
             await deviceTokenService.registerToken(deviceToken)
         }
+        #endif
     }
 
     func didFailToRegisterForRemoteNotificationsWithError(_ error: Error) {
